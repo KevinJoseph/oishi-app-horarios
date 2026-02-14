@@ -58,7 +58,7 @@ export function RoleFormModal({ isOpen, onClose, editing, onSave }: Props): JSX.
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>{editing ? 'Editar Puesto' : 'Nuevo Puesto'}</ModalHeader>
+        <ModalHeader>{editing ? 'Editar Zona' : 'Nuevo Zona'}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <FormControl mb={3} isRequired>

@@ -66,7 +66,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const duplicate = roles
       .filter((current) => current.id !== role.id)
       .some((current) => current.validCodes.some((code) => role.validCodes.includes(code)));
-    if (duplicate) return { ok: false, error: 'Hay códigos duplicados en otro puesto.' };
+    if (duplicate) return { ok: false, error: 'Hay códigos duplicados en otro Zona.' };
 
     set((state) => {
       const exists = state.roles.some((item) => item.id === role.id);
@@ -123,7 +123,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     if (assignment.roleId !== null) {
       const accepted = validRoleCodes(roles).has(`${assignment.roleId}|${assignment.code}`);
-      if (!accepted) return { ok: false, error: 'El código no pertenece al puesto seleccionado.' };
+      if (!accepted) return { ok: false, error: 'El código no pertenece al Zona seleccionado.' };
     }
 
     set((state) => {

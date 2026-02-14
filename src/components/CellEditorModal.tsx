@@ -55,7 +55,7 @@ export function CellEditorModal({ isOpen, onClose, assignment, roles, onSave }: 
         <ModalCloseButton />
         <ModalBody>
           <FormControl mb={4}>
-            <FormLabel>Puesto / Zona</FormLabel>
+            <FormLabel>Zona</FormLabel>
             <Select value={roleId} onChange={(event) => setRoleId(event.target.value)}>
               <option value="">LIBRE</option>
               {roles.map((role) => (

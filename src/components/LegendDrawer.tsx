@@ -28,7 +28,7 @@ export function LegendDrawer({ isOpen, onClose, roles }: Props): JSX.Element {
       <DrawerOverlay />
       <DrawerContent>
         <DrawerCloseButton />
-        <DrawerHeader>Leyenda de Puestos</DrawerHeader>
+        <DrawerHeader>Leyenda de Zonas</DrawerHeader>
         <DrawerBody>
           <Flex direction="column" gap={4}>
             {roles.map((role) => (

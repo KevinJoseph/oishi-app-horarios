@@ -21,7 +21,7 @@ const mockEmployees: Employee[] = [
 
 const mockTimeSlots: TimeSlot[] = [
   { id: 'ts-1', label: '11:00 - 12:00', start: '11:00', end: '12:00', order: 1 },
-  { id: 'ts-2', label: '11:45 - 13:00', start: '11:45', end: '13:00', order: 2 },
+  { id: 'ts-2', label: '12:00 - 13:00', start: '12:00', end: '13:00', order: 2 },
   { id: 'ts-3', label: '13:00 - 14:00', start: '13:00', end: '14:00', order: 3 },
   { id: 'ts-4', label: '14:00 - 15:00', start: '14:00', end: '15:00', order: 4 },
   { id: 'ts-5', label: '15:00 - 16:00', start: '15:00', end: '16:00', order: 5 },

@@ -14,8 +14,8 @@ function countAssigned(dayPlan: DayPlan, slotIds: string[]): number {
 
 export function getOpeningClosingSummary(dayPlan: DayPlan, timeSlots: TimeSlot[]): { opening: number; closing: number } {
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
-  const openingSlots = ordered.slice(0, 2).map((slot) => slot.id);
-  const closingSlots = ordered.slice(-2).map((slot) => slot.id);
+  const openingSlots = ordered[0] ? [ordered[0].id] : [];
+  const closingSlots = ordered.length ? [ordered[ordered.length - 1].id] : [];
   return {
     opening: countAssigned(dayPlan, openingSlots),
     closing: countAssigned(dayPlan, closingSlots)

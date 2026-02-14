@@ -1,4 +1,4 @@
-import { addWeeks, formatISO } from 'date-fns';
+import { addWeeks, formatISO, parseISO } from 'date-fns';
 import type { Employee, Role, TimeSlot, Week, WeekPlan } from '../types';
 import { buildWeekLabel, formatDayNameEs, getCurrentMonday } from '../utils/dates';
 
@@ -43,7 +43,8 @@ export function buildMockWeeks(): Week[] {
 }
 
 export function buildEmptyWeekPlan(week: Week, employeeIds: string[], timeSlotIds: string[]): WeekPlan {
-  const start = new Date(week.startDateISO);
+  // parseISO keeps YYYY-MM-DD in local timezone and avoids UTC day-shift (Domingo/Lunes mismatch)
+  const start = parseISO(week.startDateISO);
   const days = Array.from({ length: 7 }).map((_, idx) => {
     const date = new Date(start);
     date.setDate(start.getDate() + idx);

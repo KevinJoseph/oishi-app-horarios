@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { loadOrSeed } from '../data/seed';
+import { fetchPlannerState, resetPlannerState as resetPlannerStateApi, savePlannerState } from '../api/plannerApi';
+import { loadSeedState, normalizePlannerState } from '../data/seed';
 import { buildEmptyWeekPlan } from '../data/mocks';
 import type { Assignment, Employee, Role, Week } from '../types';
-import { clearMvpStorage, persistEmployees, persistFullData, persistRoles, persistTimeSlots, persistWeekPlan, persistWeeks } from '../utils/storage';
 
 type UpdateAssignmentInput = {
   weekId: string;
@@ -12,8 +12,13 @@ type UpdateAssignmentInput = {
   assignment: Assignment;
 };
 
-type AppState = ReturnType<typeof loadOrSeed> & {
+type PersistableState = ReturnType<typeof loadSeedState>;
+
+type AppState = PersistableState & {
   currentWeekId: string;
+  hydrated: boolean;
+  syncError: string | null;
+  initialize: () => Promise<void>;
   setCurrentWeek: (weekId: string) => void;
   resetAll: () => void;
   upsertEmployee: (employee: Employee) => void;
@@ -24,42 +29,101 @@ type AppState = ReturnType<typeof loadOrSeed> & {
   updateAssignment: (input: UpdateAssignmentInput) => { ok: boolean; error?: string };
 };
 
-const seeded = loadOrSeed();
+const seeded = loadSeedState();
 
 function validRoleCodes(roles: Role[]): Set<string> {
   return new Set(roles.flatMap((role) => role.validCodes.map((code) => `${role.id}|${code}`)));
 }
 
+function toPersistableState(state: AppState): PersistableState {
+  return {
+    employees: state.employees,
+    roles: state.roles,
+    timeSlots: state.timeSlots,
+    weeks: state.weeks,
+    weekPlans: state.weekPlans
+  };
+}
+
+function persistSnapshot(get: () => AppState, set: (partial: Partial<AppState>) => void): void {
+  const snapshot = toPersistableState(get());
+  void savePlannerState(snapshot)
+    .then((serverState) => {
+      const normalized = normalizePlannerState(serverState);
+      set({
+        ...normalized,
+        syncError: null
+      });
+    })
+    .catch((error) => {
+      set({ syncError: error instanceof Error ? error.message : 'No se pudo sincronizar con el backend.' });
+    });
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   ...seeded,
   currentWeekId: seeded.weeks[0]?.id ?? '',
+  hydrated: false,
+  syncError: null,
+
+  initialize: async () => {
+    if (get().hydrated) return;
+
+    try {
+      const remote = await fetchPlannerState();
+      const normalized = normalizePlannerState(remote);
+      set({
+        ...normalized,
+        currentWeekId: normalized.weeks[0]?.id ?? '',
+        hydrated: true,
+        syncError: null
+      });
+    } catch (error) {
+      set({
+        hydrated: true,
+        syncError: error instanceof Error ? error.message : 'No se pudo cargar el backend. Se usa estado local temporal.'
+      });
+    }
+  },
 
   setCurrentWeek: (weekId) => set({ currentWeekId: weekId }),
 
   resetAll: () => {
-    clearMvpStorage();
-    const fresh = loadOrSeed();
-    set({ ...fresh, currentWeekId: fresh.weeks[0]?.id ?? '' });
+    set({ ...seeded, currentWeekId: seeded.weeks[0]?.id ?? '' });
+    void resetPlannerStateApi()
+      .then((fresh) => {
+        const normalized = normalizePlannerState(fresh);
+        set({
+          ...normalized,
+          currentWeekId: normalized.weeks[0]?.id ?? '',
+          syncError: null
+        });
+      })
+      .catch((error) => {
+        set({ syncError: error instanceof Error ? error.message : 'No se pudo resetear en backend.' });
+      });
   },
 
-  upsertEmployee: (employee) =>
+  upsertEmployee: (employee) => {
     set((state) => {
       const exists = state.employees.some((item) => item.id === employee.id);
       const employees = exists
         ? state.employees.map((item) => (item.id === employee.id ? employee : item))
         : [...state.employees, employee];
-      persistEmployees(employees);
       return { employees };
-    }),
+    });
+    persistSnapshot(get, set);
+  },
 
-  toggleEmployeeActive: (employeeId) =>
+  toggleEmployeeActive: (employeeId) => {
     set((state) => {
       const employees = state.employees.map((employee) =>
         employee.id === employeeId ? { ...employee, active: !employee.active } : employee
       );
-      persistEmployees(employees);
       return { employees };
-    }),
+    });
+    persistSnapshot(get, set);
+  },
 
   upsertRole: (role) => {
     const { roles } = get();
@@ -71,13 +135,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => {
       const exists = state.roles.some((item) => item.id === role.id);
       const next = exists ? state.roles.map((item) => (item.id === role.id ? role : item)) : [...state.roles, role];
-      persistRoles(next);
       return { roles: next };
     });
+    persistSnapshot(get, set);
     return { ok: true };
   },
 
-  deleteRole: (roleId) =>
+  deleteRole: (roleId) => {
     set((state) => {
       const roles = state.roles.filter((role) => role.id !== roleId);
       const weekPlans = { ...state.weekPlans };
@@ -97,13 +161,14 @@ export const useAppStore = create<AppState>((set, get) => ({
             return { ...day, assignments };
           })
         };
-        persistWeekPlan(weekId, weekPlans[weekId]);
       }
-      persistRoles(roles);
       return { roles, weekPlans };
-    }),
+    });
+    persistSnapshot(get, set);
+  },
 
-  ensureWeekPlan: (week) =>
+  ensureWeekPlan: (week) => {
+    let created = false;
     set((state) => {
       if (state.weekPlans[week.id]) return {};
       const weekPlans = { ...state.weekPlans };
@@ -112,9 +177,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         state.employees.map((employee) => employee.id),
         state.timeSlots.map((slot) => slot.id)
       );
-      persistWeekPlan(week.id, weekPlans[week.id]);
+      created = true;
       return { weekPlans };
-    }),
+    });
+
+    if (created) {
+      persistSnapshot(get, set);
+    }
+  },
 
   updateAssignment: ({ weekId, dateISO, timeSlotId, employeeId, assignment }) => {
     const { roles } = get();
@@ -139,9 +209,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       const weekPlan = { ...plan, days };
       const weekPlans = { ...state.weekPlans, [weekId]: weekPlan };
-      persistWeekPlan(weekId, weekPlan);
       return { weekPlans };
     });
+    persistSnapshot(get, set);
     return { ok: true };
   }
 }));
@@ -150,13 +220,7 @@ export function createId(prefix: string): string {
   return `${prefix}-${Math.random().toString(16).slice(2, 8)}-${Date.now().toString(36)}`;
 }
 
-export function exportPersistSnapshot(): void {
+export async function exportPersistSnapshot(): Promise<void> {
   const state = useAppStore.getState();
-  persistFullData({
-    employees: state.employees,
-    roles: state.roles,
-    timeSlots: state.timeSlots,
-    weeks: state.weeks,
-    weekPlans: state.weekPlans
-  });
+  await savePlannerState(toPersistableState(state));
 }

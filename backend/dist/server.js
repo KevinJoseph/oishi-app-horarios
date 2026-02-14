@@ -1,0 +1,13 @@
+import { app } from './app.js';
+import { connectToDatabase } from './config/db.js';
+import { env } from './config/env.js';
+async function startServer() {
+    await connectToDatabase(env.mongoUri);
+    app.listen(env.port, () => {
+        console.log(`Backend listening on http://localhost:${env.port}`);
+    });
+}
+startServer().catch((error) => {
+    console.error('Failed to start server', error);
+    process.exit(1);
+});

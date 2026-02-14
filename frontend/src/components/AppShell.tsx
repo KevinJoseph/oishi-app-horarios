@@ -1,9 +1,27 @@
-import { Box, Flex } from '@chakra-ui/react';
+import { Box, Flex, Spinner, Text, VStack } from '@chakra-ui/react';
+import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
+import { useAppStore } from '../store/useAppStore';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
 export function AppShell(): JSX.Element {
+  const hydrated = useAppStore((state) => state.hydrated);
+  const initialize = useAppStore((state) => state.initialize);
+
+  useEffect(() => {
+    void initialize();
+  }, [initialize]);
+
+  if (!hydrated) {
+    return (
+      <VStack minH="100vh" justify="center" spacing={4}>
+        <Spinner size="lg" />
+        <Text color="gray.600">Cargando planificación...</Text>
+      </VStack>
+    );
+  }
+
   return (
     <Flex direction={{ base: 'column', md: 'row' }} minH="100vh">
       <Sidebar />

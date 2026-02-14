@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: app-horario2-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      PORT: 4602
+      CORS_ORIGIN: http://localhost:6879
+    ports:
+      - "4602:4602"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: app-horario2-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "6879:80"

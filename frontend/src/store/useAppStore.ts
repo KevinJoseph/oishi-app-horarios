@@ -12,6 +12,14 @@ type UpdateAssignmentInput = {
   assignment: Assignment;
 };
 
+type UpdateEmployeeDayAssignmentsInput = {
+  weekId: string;
+  dateISO: string;
+  employeeId: string;
+  assignment: Assignment;
+  timeSlotIds: string[];
+};
+
 type PersistableState = ReturnType<typeof loadSeedState>;
 
 type AppState = PersistableState & {
@@ -27,6 +35,7 @@ type AppState = PersistableState & {
   deleteRole: (roleId: string) => void;
   ensureWeekPlan: (week: Week) => void;
   updateAssignment: (input: UpdateAssignmentInput) => { ok: boolean; error?: string };
+  updateEmployeeDayAssignments: (input: UpdateEmployeeDayAssignmentsInput) => { ok: boolean; error?: string };
 };
 
 const seeded = loadSeedState();
@@ -205,6 +214,37 @@ export const useAppStore = create<AppState>((set, get) => ({
         const byEmployee = { ...(assignmentsBySlot[timeSlotId] ?? {}) };
         byEmployee[employeeId] = assignment;
         assignmentsBySlot[timeSlotId] = byEmployee;
+        return { ...day, assignments: assignmentsBySlot };
+      });
+      const weekPlan = { ...plan, days };
+      const weekPlans = { ...state.weekPlans, [weekId]: weekPlan };
+      return { weekPlans };
+    });
+    persistSnapshot(get, set);
+    return { ok: true };
+  },
+
+  updateEmployeeDayAssignments: ({ weekId, dateISO, employeeId, assignment, timeSlotIds }) => {
+    const { roles } = get();
+    if (assignment.roleId === null && assignment.code !== 'LIBRE') {
+      return { ok: false, error: 'LIBRE debe usar código LIBRE.' };
+    }
+    if (assignment.roleId !== null) {
+      const accepted = validRoleCodes(roles).has(`${assignment.roleId}|${assignment.code}`);
+      if (!accepted) return { ok: false, error: 'El código no pertenece al Zona seleccionado.' };
+    }
+
+    set((state) => {
+      const plan = state.weekPlans[weekId];
+      if (!plan) return {};
+      const days = plan.days.map((day) => {
+        if (day.dateISO !== dateISO) return day;
+        const assignmentsBySlot = { ...day.assignments };
+        for (const timeSlotId of timeSlotIds) {
+          const byEmployee = { ...(assignmentsBySlot[timeSlotId] ?? {}) };
+          byEmployee[employeeId] = assignment;
+          assignmentsBySlot[timeSlotId] = byEmployee;
+        }
         return { ...day, assignments: assignmentsBySlot };
       });
       const weekPlan = { ...plan, days };

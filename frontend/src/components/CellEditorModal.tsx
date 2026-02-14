@@ -1,5 +1,6 @@
 import {
   Button,
+  Checkbox,
   FormControl,
   FormLabel,
   HStack,
@@ -19,13 +20,15 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   assignment: Assignment | null;
+  employeeName?: string;
   roles: Role[];
-  onSave: (assignment: Assignment) => void;
+  onSave: (payload: { assignment: Assignment; applyToEmployeeDay: boolean }) => void;
 };
 
-export function CellEditorModal({ isOpen, onClose, assignment, roles, onSave }: Props): JSX.Element {
+export function CellEditorModal({ isOpen, onClose, assignment, employeeName, roles, onSave }: Props): JSX.Element {
   const [roleId, setRoleId] = useState<string>('');
   const [code, setCode] = useState<string>('LIBRE');
+  const [applyToEmployeeDay, setApplyToEmployeeDay] = useState(false);
 
   useEffect(() => {
     if (!assignment) return;
@@ -46,6 +49,11 @@ export function CellEditorModal({ isOpen, onClose, assignment, roles, onSave }: 
       setCode(selectedRole.validCodes[0] ?? '');
     }
   }, [selectedRole, isFree, code]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setApplyToEmployeeDay(false);
+  }, [isOpen]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -71,6 +79,11 @@ export function CellEditorModal({ isOpen, onClose, assignment, roles, onSave }: 
               {isFree ? <option value="LIBRE">LIBRE</option> : options.map((item) => <option key={item}>{item}</option>)}
             </Select>
           </FormControl>
+          <FormControl mt={4}>
+            <Checkbox isChecked={applyToEmployeeDay} onChange={(event) => setApplyToEmployeeDay(event.target.checked)}>
+              Aplicar a toda la columna{employeeName ? ` de ${employeeName}` : ''} (día actual)
+            </Checkbox>
+          </FormControl>
         </ModalBody>
         <ModalFooter>
           <HStack>
@@ -80,7 +93,10 @@ export function CellEditorModal({ isOpen, onClose, assignment, roles, onSave }: 
             <Button
               colorScheme="blue"
               onClick={() => {
-                onSave({ roleId: roleId || null, code: roleId ? code : 'LIBRE' });
+                onSave({
+                  assignment: { roleId: roleId || null, code: roleId ? code : 'LIBRE' },
+                  applyToEmployeeDay
+                });
                 onClose();
               }}
             >

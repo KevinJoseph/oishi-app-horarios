@@ -30,6 +30,7 @@ export function PlanningPage(): JSX.Element {
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
   const updateAssignment = useAppStore((state) => state.updateAssignment);
+  const updateEmployeeDayAssignments = useAppStore((state) => state.updateEmployeeDayAssignments);
   const resetAll = useAppStore((state) => state.resetAll);
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
@@ -118,16 +119,25 @@ export function PlanningPage(): JSX.Element {
         isOpen={isEditorOpen}
         onClose={closeEditor}
         assignment={selectedCell?.assignment ?? null}
+        employeeName={employees.find((employee) => employee.id === selectedCell?.employeeId)?.name}
         roles={roles}
-        onSave={(assignment) => {
+        onSave={({ assignment, applyToEmployeeDay }) => {
           if (!selectedCell || !activeDay || !currentWeek) return;
-          const result = updateAssignment({
-            weekId: currentWeek.id,
-            dateISO: activeDay.dateISO,
-            timeSlotId: selectedCell.timeSlotId,
-            employeeId: selectedCell.employeeId,
-            assignment
-          });
+          const result = applyToEmployeeDay
+            ? updateEmployeeDayAssignments({
+                weekId: currentWeek.id,
+                dateISO: activeDay.dateISO,
+                employeeId: selectedCell.employeeId,
+                assignment,
+                timeSlotIds: timeSlots.map((slot) => slot.id)
+              })
+            : updateAssignment({
+                weekId: currentWeek.id,
+                dateISO: activeDay.dateISO,
+                timeSlotId: selectedCell.timeSlotId,
+                employeeId: selectedCell.employeeId,
+                assignment
+              });
           if (!result.ok) {
             toast({ status: 'error', title: result.error ?? 'No se pudo guardar.' });
           }

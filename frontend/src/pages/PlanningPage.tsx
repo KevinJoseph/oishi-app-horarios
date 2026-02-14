@@ -114,7 +114,14 @@ export function PlanningPage(): JSX.Element {
       )}
 
       <LegendDrawer isOpen={isLegendOpen} onClose={closeLegend} roles={roles} />
-      <EmployeeProfileDrawer isOpen={isProfileOpen} onClose={closeProfile} employee={selectedEmployee} roles={roles} />
+      <EmployeeProfileDrawer
+        isOpen={isProfileOpen}
+        onClose={closeProfile}
+        employee={selectedEmployee}
+        roles={roles}
+        timeSlots={timeSlots}
+        weekPlan={currentWeekPlan}
+      />
       <CellEditorModal
         isOpen={isEditorOpen}
         onClose={closeEditor}

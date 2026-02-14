@@ -11,22 +11,64 @@ import {
   Th,
   Thead,
   Tr,
-  useDisclosure
+  useDisclosure,
+  useToast
 } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { useAppStore } from '../store/useAppStore';
 import type { Employee } from '../types';
+import { downloadEmployeeWeekPdf } from '../utils/pdf';
 
 export function EmployeesPage(): JSX.Element {
+  const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
+  const timeSlots = useAppStore((state) => state.timeSlots);
+  const weeks = useAppStore((state) => state.weeks);
+  const weekPlans = useAppStore((state) => state.weekPlans);
+  const currentWeekId = useAppStore((state) => state.currentWeekId);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
   const toggleEmployeeActive = useAppStore((state) => state.toggleEmployeeActive);
 
   const [editing, setEditing] = useState<Employee | undefined>(undefined);
+  const [exportingEmployeeId, setExportingEmployeeId] = useState<string | null>(null);
   const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
+  const currentWeek = useMemo(() => weeks.find((week) => week.id === currentWeekId), [weeks, currentWeekId]);
+  const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
+
+  const handleDownloadPdf = (employee: Employee): void => {
+    if (!currentWeek || !currentWeekPlan) {
+      toast({
+        status: 'warning',
+        title: 'No hay planificación guardada para la semana actual.'
+      });
+      return;
+    }
+
+    setExportingEmployeeId(employee.id);
+    try {
+      downloadEmployeeWeekPdf({
+        employee,
+        roles,
+        timeSlots,
+        week: currentWeek,
+        weekPlan: currentWeekPlan
+      });
+      toast({
+        status: 'success',
+        title: `PDF generado para ${employee.name}.`
+      });
+    } catch {
+      toast({
+        status: 'error',
+        title: `No se pudo generar el PDF de ${employee.name}.`
+      });
+    } finally {
+      setExportingEmployeeId(null);
+    }
+  };
 
   return (
     <Box>
@@ -76,6 +118,15 @@ export function EmployeesPage(): JSX.Element {
                       </Button>
                       <Button size="xs" variant="outline" onClick={() => toggleEmployeeActive(employee.id)}>
                         {employee.active ? 'Desactivar' : 'Activar'}
+                      </Button>
+                      <Button
+                        size="xs"
+                        colorScheme="teal"
+                        variant="outline"
+                        onClick={() => handleDownloadPdf(employee)}
+                        isLoading={exportingEmployeeId === employee.id}
+                      >
+                        PDF
                       </Button>
                     </HStack>
                   </Td>

@@ -65,7 +65,7 @@ function buildAutoWeekPlanForEmployee(
   const code = role?.validCodes[0];
   if (!code) return plan;
 
-  const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
+  const orderedSlots = getAssignableTimeSlots(timeSlots);
   const slotHoursById = new Map(orderedSlots.map((slot) => [slot.id, getSlotDurationHours(slot.start, slot.end)]));
   let remainingHours = Math.max(0, weeklyHours);
 
@@ -88,6 +88,12 @@ function buildAutoWeekPlanForEmployee(
   });
 
   return { ...plan, days };
+}
+
+function getAssignableTimeSlots(timeSlots: TimeSlot[]): TimeSlot[] {
+  const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
+  // Regla de negocio: las horas planificadas empiezan desde el segundo bloque (12:00-13:00).
+  return ordered.length > 1 ? ordered.slice(1) : ordered;
 }
 
 function clearEmployeeFromWeekPlan(plan: WeekPlan, employeeId: string, timeSlots: TimeSlot[]): WeekPlan {
@@ -385,7 +391,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => {
       const plan = state.weekPlans[weekId];
       if (!plan) return {};
-      const orderedSlotIds = [...timeSlots].sort((a, b) => a.order - b.order).map((slot) => slot.id);
+      const orderedSlotIds = getAssignableTimeSlots(timeSlots).map((slot) => slot.id);
 
       const days = plan.days.map((day) => {
         if (day.dateISO !== dateISO) return day;

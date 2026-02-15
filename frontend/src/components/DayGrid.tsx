@@ -40,6 +40,7 @@ export function DayGrid({
 }: Props): JSX.Element {
   const roleById = new Map(roles.map((role) => [role.id, role]));
   const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
+  const visibleSlots = orderedSlots.length > 1 ? orderedSlots.slice(1) : orderedSlots;
   const visibleEmployees = employees.filter((employee) => employee.active);
   const headerCellPadding = compact ? 2 : 3;
   const rowCellPadding = compact ? 2 : 3;
@@ -80,7 +81,7 @@ export function DayGrid({
             </Box>
           </Box>
           <Box as="tbody">
-            {orderedSlots.map((slot) => (
+            {visibleSlots.map((slot) => (
               <Box as="tr" key={slot.id}>
                 <Box
                   as="td"

@@ -2,6 +2,7 @@ export type Employee = {
   id: string;
   name: string;
   active: boolean;
+  weeklyHours?: number;
   mainRoleId?: string;
   notes?: string;
   phone?: string;

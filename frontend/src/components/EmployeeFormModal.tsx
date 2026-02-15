@@ -30,6 +30,7 @@ type Props = {
 export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: Props): JSX.Element {
   const [name, setName] = useState('');
   const [active, setActive] = useState(true);
+  const [weeklyHours, setWeeklyHours] = useState('40');
   const [notes, setNotes] = useState('');
   const [phone, setPhone] = useState('');
   const [mainRoleId, setMainRoleId] = useState('');
@@ -37,6 +38,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
   useEffect(() => {
     setName(editing?.name ?? '');
     setActive(editing?.active ?? true);
+    setWeeklyHours(String(editing?.weeklyHours ?? 40));
     setNotes(editing?.notes ?? '');
     setPhone(editing?.phone ?? '');
     setMainRoleId(editing?.mainRoleId ?? '');
@@ -54,15 +56,19 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
             <Input value={name} onChange={(event) => setName(event.target.value)} />
           </FormControl>
           <FormControl mb={3}>
-            <FormLabel>Rol Principal</FormLabel>
+            <FormLabel>Zona asignada</FormLabel>
             <Select value={mainRoleId} onChange={(event) => setMainRoleId(event.target.value)}>
-              <option value="">Sin rol principal</option>
+              <option value="">Sin zona asignada</option>
               {roles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name}
                 </option>
               ))}
             </Select>
+          </FormControl>
+          <FormControl mb={3}>
+            <FormLabel>Horas semanales</FormLabel>
+            <Input type="number" min={0} step={0.5} value={weeklyHours} onChange={(event) => setWeeklyHours(event.target.value)} />
           </FormControl>
           <FormControl mb={3}>
             <FormLabel>Teléfono</FormLabel>
@@ -89,6 +95,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
                   id: editing?.id ?? createId('emp'),
                   name: name.trim(),
                   active,
+                  weeklyHours: Math.max(0, Number.parseFloat(weeklyHours) || 0),
                   notes: notes.trim() || undefined,
                   phone: phone.trim() || undefined,
                   mainRoleId: mainRoleId || undefined

@@ -61,11 +61,11 @@ export function PlanningPage(): JSX.Element {
           <Flex justify="space-between" gap={3} wrap="wrap">
             <HStack>
               <WeekSelector />
-              <Button onClick={openLegend}>Leyenda</Button>
+              <Button onClick={openLegend}>Ver Zonas</Button>
             </HStack>
             <HStack>
               <Badge colorScheme="green" px={3} py={1} rounded="md">
-                Activos: {activeEmployeesCount}
+                Empleados: {activeEmployeesCount}
               </Badge>
               <Button colorScheme="red" variant="outline" onClick={resetAll}>
                 Borrar Planificación

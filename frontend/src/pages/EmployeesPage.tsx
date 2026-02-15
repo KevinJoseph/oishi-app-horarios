@@ -93,7 +93,8 @@ export function EmployeesPage(): JSX.Element {
               <Tr>
                 <Th>Nombre</Th>
                 <Th>Activo</Th>
-                <Th>Rol principal</Th>
+                <Th>Horas semanales</Th>
+                <Th>Zona asignada</Th>
                 <Th>Acciones</Th>
               </Tr>
             </Thead>
@@ -104,6 +105,7 @@ export function EmployeesPage(): JSX.Element {
                   <Td>
                     <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                   </Td>
+                  <Td>{(employee.weeklyHours ?? 40).toFixed(1)} h</Td>
                   <Td>{employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? '-' : '-'}</Td>
                   <Td>
                     <HStack>

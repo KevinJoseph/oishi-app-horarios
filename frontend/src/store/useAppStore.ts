@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { fetchPlannerState, resetPlannerState as resetPlannerStateApi, savePlannerState } from '../api/plannerApi';
 import { loadSeedState, normalizePlannerState } from '../data/seed';
 import { buildEmptyWeekPlan } from '../data/mocks';
-import type { Assignment, Employee, Role, Week } from '../types';
+import type { Assignment, Employee, Role, TimeSlot, Week, WeekPlan } from '../types';
 
 type UpdateAssignmentInput = {
   weekId: string;
@@ -42,6 +42,59 @@ const seeded = loadSeedState();
 
 function validRoleCodes(roles: Role[]): Set<string> {
   return new Set(roles.flatMap((role) => role.validCodes.map((code) => `${role.id}|${code}`)));
+}
+
+function buildAutoWeekPlanForEmployee(
+  plan: WeekPlan,
+  employeeId: string,
+  roleId: string,
+  weeklyHours: number,
+  timeSlots: TimeSlot[],
+  roles: Role[]
+): WeekPlan {
+  const role = roles.find((item) => item.id === roleId);
+  const code = role?.validCodes[0];
+  if (!code) return plan;
+
+  const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
+  const slotHoursById = new Map(orderedSlots.map((slot) => [slot.id, getSlotDurationHours(slot.start, slot.end)]));
+  let remainingHours = Math.max(0, weeklyHours);
+
+  const days = plan.days.map((day) => {
+    const assignments = { ...day.assignments };
+    for (const slot of orderedSlots) {
+      const byEmployee = { ...(assignments[slot.id] ?? {}) };
+      const slotHours = slotHoursById.get(slot.id) ?? 0;
+
+      if (remainingHours > 0 && slotHours > 0) {
+        byEmployee[employeeId] = { roleId, code };
+        remainingHours = Number((remainingHours - slotHours).toFixed(4));
+      } else {
+        byEmployee[employeeId] = { roleId: null, code: 'LIBRE' };
+      }
+
+      assignments[slot.id] = byEmployee;
+    }
+    return { ...day, assignments };
+  });
+
+  return { ...plan, days };
+}
+
+function getSlotDurationHours(start: string, end: string): number {
+  const startMinutes = parseTimeToMinutes(start);
+  const endMinutes = parseTimeToMinutes(end);
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) return 0;
+  return (endMinutes - startMinutes) / 60;
+}
+
+function parseTimeToMinutes(value: string): number | null {
+  const match = value.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number.parseInt(match[1], 10);
+  const minutes = Number.parseInt(match[2], 10);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return hours * 60 + minutes;
 }
 
 function toPersistableState(state: AppState): PersistableState {
@@ -115,11 +168,43 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   upsertEmployee: (employee) => {
     set((state) => {
-      const exists = state.employees.some((item) => item.id === employee.id);
+      const previous = state.employees.find((item) => item.id === employee.id);
+      const exists = Boolean(previous);
       const employees = exists
         ? state.employees.map((item) => (item.id === employee.id ? employee : item))
         : [...state.employees, employee];
-      return { employees };
+
+      const shouldAutoAssign =
+        Boolean(employee.mainRoleId) &&
+        (employee.weeklyHours ?? 0) > 0 &&
+        (!previous ||
+          previous.mainRoleId !== employee.mainRoleId ||
+          previous.weeklyHours !== employee.weeklyHours ||
+          previous.active !== employee.active);
+
+      if (!shouldAutoAssign) {
+        return { employees };
+      }
+
+      const currentWeekId = state.currentWeekId;
+      const currentWeekPlan = state.weekPlans[currentWeekId];
+      if (!currentWeekPlan || !employee.mainRoleId) {
+        return { employees };
+      }
+
+      const weekPlans = {
+        ...state.weekPlans,
+        [currentWeekId]: buildAutoWeekPlanForEmployee(
+          currentWeekPlan,
+          employee.id,
+          employee.mainRoleId,
+          Math.max(0, employee.weeklyHours ?? 0),
+          state.timeSlots,
+          state.roles
+        )
+      };
+
+      return { employees, weekPlans };
     });
     persistSnapshot(get, set);
   },

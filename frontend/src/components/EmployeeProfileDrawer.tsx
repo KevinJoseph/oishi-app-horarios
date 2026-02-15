@@ -104,7 +104,10 @@ export function EmployeeProfileDrawer({ isOpen, onClose, employee, roles, timeSl
                 Estado: {employee.active ? 'Activo' : 'Inactivo'}
               </Text>
               <Text fontSize="sm" color="gray.600">
-                Rol principal: {role?.name ?? '-'}
+                Zona asignada: {role?.name ?? '-'}
+              </Text>
+              <Text fontSize="sm" color="gray.600">
+                Horas semanales objetivo: {(employee.weeklyHours ?? 40).toFixed(1)} h
               </Text>
               <Box borderWidth="1px" rounded="md" p={3}>
                 <Text fontSize="sm" fontWeight="600">

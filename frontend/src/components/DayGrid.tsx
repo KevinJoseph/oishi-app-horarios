@@ -51,13 +51,14 @@ export function DayGrid({
               </Box>
               {visibleEmployees.map((employee) => (
                 <Box as="th" key={employee.id} p={headerCellPadding} minW={employeeMinWidth}>
-                  {readOnly ? (
-                    <Text fontSize={compact ? 'xs' : 'sm'}>{employee.name}</Text>
-                  ) : (
+                  {readOnly ? <Text fontSize={compact ? 'xs' : 'sm'}>{employee.name}</Text> : (
                     <Button variant="ghost" size="sm" onClick={() => onEmployeeClick?.(employee.id)}>
                       {employee.name}
                     </Button>
                   )}
+                  <Text fontSize="xs" color="gray.600">
+                    Horas: {(employee.weeklyHours ?? 40).toFixed(1)} h
+                  </Text>
                 </Box>
               ))}
             </Box>

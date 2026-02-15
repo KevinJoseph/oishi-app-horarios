@@ -4,8 +4,8 @@ import { NavLink } from 'react-router-dom';
 import { FiUsers, FiLayers, FiGrid } from 'react-icons/fi';
 
 const links = [
-  { to: '/planning', label: 'Planificación', icon: CalendarIcon },
   { to: '/employees', label: 'Empleados', icon: FiUsers },
+  { to: '/planning', label: 'Planificación', icon: CalendarIcon },
   { to: '/roles', label: 'Leyenda / Zonas', icon: FiLayers },
   { to: '/settings/timeslots', label: 'Config. Horarios', icon: SettingsIcon },
   { to: '/planning/weekly-overview', label: 'Vista General Semanal', icon: FiGrid }

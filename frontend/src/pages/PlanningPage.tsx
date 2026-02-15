@@ -31,6 +31,7 @@ export function PlanningPage(): JSX.Element {
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
   const updateAssignment = useAppStore((state) => state.updateAssignment);
   const updateEmployeeDayAssignments = useAppStore((state) => state.updateEmployeeDayAssignments);
+  const updateEmployeeDayByHours = useAppStore((state) => state.updateEmployeeDayByHours);
   const resetAll = useAppStore((state) => state.resetAll);
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
@@ -53,6 +54,36 @@ export function PlanningPage(): JSX.Element {
   }, [currentWeekId]);
 
   const activeEmployeesCount = useMemo(() => employees.filter((employee) => employee.active).length, [employees]);
+  const employeeHoursById = useMemo(() => {
+    const targetByEmployeeId = new Map(employees.map((employee) => [employee.id, employee.weeklyHours ?? 40]));
+    const assignedByEmployeeId = new Map<string, number>();
+    const slotDurationById = new Map<string, number>();
+
+    for (const slot of timeSlots) {
+      slotDurationById.set(slot.id, getDurationHours(slot.start, slot.end));
+    }
+
+    if (currentWeekPlan) {
+      for (const day of currentWeekPlan.days) {
+        for (const [slotId, byEmployee] of Object.entries(day.assignments)) {
+          const slotHours = slotDurationById.get(slotId) ?? 0;
+          for (const [employeeId, assignment] of Object.entries(byEmployee)) {
+            if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') continue;
+            assignedByEmployeeId.set(employeeId, (assignedByEmployeeId.get(employeeId) ?? 0) + slotHours);
+          }
+        }
+      }
+    }
+
+    const summary: Record<string, { assignedHours: number; targetHours: number }> = {};
+    for (const employee of employees) {
+      summary[employee.id] = {
+        assignedHours: assignedByEmployeeId.get(employee.id) ?? 0,
+        targetHours: targetByEmployeeId.get(employee.id) ?? 40
+      };
+    }
+    return summary;
+  }, [employees, timeSlots, currentWeekPlan]);
 
   return (
     <Box>
@@ -91,6 +122,7 @@ export function PlanningPage(): JSX.Element {
                 employees={employees}
                 roles={roles}
                 timeSlots={timeSlots}
+                employeeHoursById={employeeHoursById}
                 onCellClick={(cell) => {
                   setSelectedCell(cell);
                   openEditor();
@@ -128,23 +160,34 @@ export function PlanningPage(): JSX.Element {
         assignment={selectedCell?.assignment ?? null}
         employeeName={employees.find((employee) => employee.id === selectedCell?.employeeId)?.name}
         roles={roles}
-        onSave={({ assignment, applyToEmployeeDay }) => {
+        onSave={({ assignment, applyToEmployeeDay, dayHours }) => {
           if (!selectedCell || !activeDay || !currentWeek) return;
-          const result = applyToEmployeeDay
-            ? updateEmployeeDayAssignments({
-                weekId: currentWeek.id,
-                dateISO: activeDay.dateISO,
-                employeeId: selectedCell.employeeId,
-                assignment,
-                timeSlotIds: timeSlots.map((slot) => slot.id)
-              })
-            : updateAssignment({
-                weekId: currentWeek.id,
-                dateISO: activeDay.dateISO,
-                timeSlotId: selectedCell.timeSlotId,
-                employeeId: selectedCell.employeeId,
-                assignment
-              });
+          let result;
+          if (applyToEmployeeDay && dayHours !== undefined) {
+            result = updateEmployeeDayByHours({
+              weekId: currentWeek.id,
+              dateISO: activeDay.dateISO,
+              employeeId: selectedCell.employeeId,
+              assignment,
+              hours: dayHours
+            });
+          } else if (applyToEmployeeDay) {
+            result = updateEmployeeDayAssignments({
+              weekId: currentWeek.id,
+              dateISO: activeDay.dateISO,
+              employeeId: selectedCell.employeeId,
+              assignment,
+              timeSlotIds: timeSlots.map((slot) => slot.id)
+            });
+          } else {
+            result = updateAssignment({
+              weekId: currentWeek.id,
+              dateISO: activeDay.dateISO,
+              timeSlotId: selectedCell.timeSlotId,
+              employeeId: selectedCell.employeeId,
+              assignment
+            });
+          }
           if (!result.ok) {
             toast({ status: 'error', title: result.error ?? 'No se pudo guardar.' });
           }
@@ -152,4 +195,20 @@ export function PlanningPage(): JSX.Element {
       />
     </Box>
   );
+}
+
+function getDurationHours(start: string, end: string): number {
+  const startMinutes = parseTimeToMinutes(start);
+  const endMinutes = parseTimeToMinutes(end);
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) return 0;
+  return (endMinutes - startMinutes) / 60;
+}
+
+function parseTimeToMinutes(value: string): number | null {
+  const match = value.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number.parseInt(match[1], 10);
+  const minutes = Number.parseInt(match[2], 10);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return hours * 60 + minutes;
 }

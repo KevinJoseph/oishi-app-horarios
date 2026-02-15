@@ -8,11 +8,17 @@ type CellPayload = {
   assignment: Assignment;
 };
 
+type EmployeeHoursSummary = {
+  assignedHours: number;
+  targetHours: number;
+};
+
 type Props = {
   dayPlan: DayPlan;
   employees: Employee[];
   roles: Role[];
   timeSlots: TimeSlot[];
+  employeeHoursById?: Record<string, EmployeeHoursSummary>;
   onCellClick?: (payload: CellPayload) => void;
   onEmployeeClick?: (employeeId: string) => void;
   readOnly?: boolean;
@@ -25,6 +31,7 @@ export function DayGrid({
   employees,
   roles,
   timeSlots,
+  employeeHoursById,
   onCellClick,
   onEmployeeClick,
   readOnly = false,
@@ -49,18 +56,27 @@ export function DayGrid({
               <Box as="th" p={headerCellPadding} textAlign="left" minW={slotMinWidth} position="sticky" left={0} bg="gray.100" zIndex={5}>
                 Horario
               </Box>
-              {visibleEmployees.map((employee) => (
-                <Box as="th" key={employee.id} p={headerCellPadding} minW={employeeMinWidth}>
-                  {readOnly ? <Text fontSize={compact ? 'xs' : 'sm'}>{employee.name}</Text> : (
-                    <Button variant="ghost" size="sm" onClick={() => onEmployeeClick?.(employee.id)}>
-                      {employee.name}
-                    </Button>
-                  )}
-                  <Text fontSize="xs" color="gray.600">
-                    Horas: {(employee.weeklyHours ?? 40).toFixed(1)} h
-                  </Text>
-                </Box>
-              ))}
+              {visibleEmployees.map((employee) => {
+                const summary = employeeHoursById?.[employee.id];
+                const assigned = summary?.assignedHours ?? 0;
+                const target = summary?.targetHours ?? (employee.weeklyHours ?? 40);
+                const progressColor = target <= 0 ? 'red.600' : assigned >= target ? 'green.600' : 'red.600';
+
+                return (
+                  <Box as="th" key={employee.id} p={headerCellPadding} minW={employeeMinWidth}>
+                    {readOnly ? (
+                      <Text fontSize={compact ? 'xs' : 'sm'}>{employee.name}</Text>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => onEmployeeClick?.(employee.id)}>
+                        {employee.name}
+                      </Button>
+                    )}
+                    <Text fontSize="xs" color={progressColor} fontWeight="700">
+                      {Math.round(assigned)}h/{Math.round(target)}h
+                    </Text>
+                  </Box>
+                );
+              })}
             </Box>
           </Box>
           <Box as="tbody">

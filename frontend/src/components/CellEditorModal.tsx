@@ -4,6 +4,7 @@ import {
   FormControl,
   FormLabel,
   HStack,
+  Input,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -22,13 +23,14 @@ type Props = {
   assignment: Assignment | null;
   employeeName?: string;
   roles: Role[];
-  onSave: (payload: { assignment: Assignment; applyToEmployeeDay: boolean }) => void;
+  onSave: (payload: { assignment: Assignment; applyToEmployeeDay: boolean; dayHours?: number }) => void;
 };
 
 export function CellEditorModal({ isOpen, onClose, assignment, employeeName, roles, onSave }: Props): JSX.Element {
   const [roleId, setRoleId] = useState<string>('');
   const [code, setCode] = useState<string>('LIBRE');
   const [applyToEmployeeDay, setApplyToEmployeeDay] = useState(false);
+  const [dayHours, setDayHours] = useState<string>('0');
 
   useEffect(() => {
     if (!assignment) return;
@@ -53,6 +55,7 @@ export function CellEditorModal({ isOpen, onClose, assignment, employeeName, rol
   useEffect(() => {
     if (!isOpen) return;
     setApplyToEmployeeDay(false);
+    setDayHours('0');
   }, [isOpen]);
 
   return (
@@ -81,9 +84,15 @@ export function CellEditorModal({ isOpen, onClose, assignment, employeeName, rol
           </FormControl>
           <FormControl mt={4}>
             <Checkbox isChecked={applyToEmployeeDay} onChange={(event) => setApplyToEmployeeDay(event.target.checked)}>
-              Aplicar a toda la columna{employeeName ? ` de ${employeeName}` : ''} (día actual)
+             Se aplicará a toda la columna(día actual)
             </Checkbox>
           </FormControl>
+          {applyToEmployeeDay ? (
+            <FormControl mt={4}>
+              <FormLabel>Horas a asignar en el día</FormLabel>
+              <Input type="number" min={0} step={0.5} value={dayHours} onChange={(event) => setDayHours(event.target.value)} />
+            </FormControl>
+          ) : null}
         </ModalBody>
         <ModalFooter>
           <HStack>
@@ -95,7 +104,8 @@ export function CellEditorModal({ isOpen, onClose, assignment, employeeName, rol
               onClick={() => {
                 onSave({
                   assignment: { roleId: roleId || null, code: roleId ? code : 'LIBRE' },
-                  applyToEmployeeDay
+                  applyToEmployeeDay,
+                  dayHours: applyToEmployeeDay ? Math.max(0, Number.parseFloat(dayHours) || 0) : undefined
                 });
                 onClose();
               }}

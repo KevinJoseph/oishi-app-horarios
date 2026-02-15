@@ -20,6 +20,14 @@ type UpdateEmployeeDayAssignmentsInput = {
   timeSlotIds: string[];
 };
 
+type UpdateEmployeeDayByHoursInput = {
+  weekId: string;
+  dateISO: string;
+  employeeId: string;
+  assignment: Assignment;
+  hours: number;
+};
+
 type PersistableState = ReturnType<typeof loadSeedState>;
 
 type AppState = PersistableState & {
@@ -36,6 +44,7 @@ type AppState = PersistableState & {
   ensureWeekPlan: (week: Week) => void;
   updateAssignment: (input: UpdateAssignmentInput) => { ok: boolean; error?: string };
   updateEmployeeDayAssignments: (input: UpdateEmployeeDayAssignmentsInput) => { ok: boolean; error?: string };
+  updateEmployeeDayByHours: (input: UpdateEmployeeDayByHoursInput) => { ok: boolean; error?: string };
 };
 
 const seeded = loadSeedState();
@@ -78,6 +87,20 @@ function buildAutoWeekPlanForEmployee(
     return { ...day, assignments };
   });
 
+  return { ...plan, days };
+}
+
+function clearEmployeeFromWeekPlan(plan: WeekPlan, employeeId: string, timeSlots: TimeSlot[]): WeekPlan {
+  const slotIds = timeSlots.map((slot) => slot.id);
+  const days = plan.days.map((day) => {
+    const assignments = { ...day.assignments };
+    for (const slotId of slotIds) {
+      const byEmployee = { ...(assignments[slotId] ?? {}) };
+      byEmployee[employeeId] = { roleId: null, code: 'LIBRE' };
+      assignments[slotId] = byEmployee;
+    }
+    return { ...day, assignments };
+  });
   return { ...plan, days };
 }
 
@@ -174,34 +197,40 @@ export const useAppStore = create<AppState>((set, get) => ({
         ? state.employees.map((item) => (item.id === employee.id ? employee : item))
         : [...state.employees, employee];
 
-      const shouldAutoAssign =
-        Boolean(employee.mainRoleId) &&
-        (employee.weeklyHours ?? 0) > 0 &&
-        (!previous ||
-          previous.mainRoleId !== employee.mainRoleId ||
-          previous.weeklyHours !== employee.weeklyHours ||
-          previous.active !== employee.active);
+      const planningChanged =
+        !previous ||
+        previous.mainRoleId !== employee.mainRoleId ||
+        previous.weeklyHours !== employee.weeklyHours ||
+        previous.active !== employee.active;
 
-      if (!shouldAutoAssign) {
+      if (!planningChanged) {
         return { employees };
       }
 
       const currentWeekId = state.currentWeekId;
       const currentWeekPlan = state.weekPlans[currentWeekId];
-      if (!currentWeekPlan || !employee.mainRoleId) {
+      if (!currentWeekPlan) {
         return { employees };
       }
 
+      const weeklyHours = Math.max(0, employee.weeklyHours ?? 0);
+      const roleExists = Boolean(employee.mainRoleId && state.roles.some((role) => role.id === employee.mainRoleId));
+
+      const nextWeekPlan =
+        !employee.active || !roleExists || weeklyHours <= 0
+          ? clearEmployeeFromWeekPlan(currentWeekPlan, employee.id, state.timeSlots)
+          : buildAutoWeekPlanForEmployee(
+              currentWeekPlan,
+              employee.id,
+              employee.mainRoleId as string,
+              weeklyHours,
+              state.timeSlots,
+              state.roles
+            );
+
       const weekPlans = {
         ...state.weekPlans,
-        [currentWeekId]: buildAutoWeekPlanForEmployee(
-          currentWeekPlan,
-          employee.id,
-          employee.mainRoleId,
-          Math.max(0, employee.weeklyHours ?? 0),
-          state.timeSlots,
-          state.roles
-        )
+        [currentWeekId]: nextWeekPlan
       };
 
       return { employees, weekPlans };
@@ -332,6 +361,65 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
         return { ...day, assignments: assignmentsBySlot };
       });
+      const weekPlan = { ...plan, days };
+      const weekPlans = { ...state.weekPlans, [weekId]: weekPlan };
+      return { weekPlans };
+    });
+    persistSnapshot(get, set);
+    return { ok: true };
+  },
+
+  updateEmployeeDayByHours: ({ weekId, dateISO, employeeId, assignment, hours }) => {
+    const { roles, timeSlots } = get();
+    if (assignment.roleId === null && assignment.code !== 'LIBRE') {
+      return { ok: false, error: 'LIBRE debe usar código LIBRE.' };
+    }
+    if (assignment.roleId !== null) {
+      const accepted = validRoleCodes(roles).has(`${assignment.roleId}|${assignment.code}`);
+      if (!accepted) return { ok: false, error: 'El código no pertenece al Zona seleccionado.' };
+    }
+    if (!Number.isFinite(hours) || hours < 0) {
+      return { ok: false, error: 'Las horas deben ser un número mayor o igual a 0.' };
+    }
+
+    set((state) => {
+      const plan = state.weekPlans[weekId];
+      if (!plan) return {};
+      const orderedSlotIds = [...timeSlots].sort((a, b) => a.order - b.order).map((slot) => slot.id);
+
+      const days = plan.days.map((day) => {
+        if (day.dateISO !== dateISO) return day;
+        let remaining = hours;
+        const assignmentsBySlot = { ...day.assignments };
+
+        for (const timeSlotId of orderedSlotIds) {
+          const byEmployee = { ...(assignmentsBySlot[timeSlotId] ?? {}) };
+          const slot = timeSlots.find((item) => item.id === timeSlotId);
+          const slotHours = slot ? getSlotDurationHours(slot.start, slot.end) : 0;
+          const shouldApplyInSlot = remaining > 0 && slotHours > 0;
+
+          if (assignment.roleId === null) {
+            // LIBRE + N horas: solo libera los primeros N bloques y mantiene intacto el resto del día.
+            if (shouldApplyInSlot) {
+              byEmployee[employeeId] = { roleId: null, code: 'LIBRE' };
+              assignmentsBySlot[timeSlotId] = byEmployee;
+              remaining = Number((remaining - slotHours).toFixed(4));
+            }
+            continue;
+          }
+
+          // Zona + N horas: asigna los primeros N bloques y libera el resto del día.
+          byEmployee[employeeId] = shouldApplyInSlot ? assignment : { roleId: null, code: 'LIBRE' };
+          assignmentsBySlot[timeSlotId] = byEmployee;
+
+          if (shouldApplyInSlot) {
+            remaining = Number((remaining - slotHours).toFixed(4));
+          }
+        }
+
+        return { ...day, assignments: assignmentsBySlot };
+      });
+
       const weekPlan = { ...plan, days };
       const weekPlans = { ...state.weekPlans, [weekId]: weekPlan };
       return { weekPlans };

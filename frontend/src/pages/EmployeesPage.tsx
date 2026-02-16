@@ -19,6 +19,7 @@ import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { useAppStore } from '../store/useAppStore';
 import type { Employee } from '../types';
 import { downloadEmployeeWeekPdf } from '../utils/pdf';
+import { getRestDayLabel } from '../utils/weekdays';
 
 export function EmployeesPage(): JSX.Element {
   const toast = useToast();
@@ -94,6 +95,7 @@ export function EmployeesPage(): JSX.Element {
                 <Th>Nombre</Th>
                 <Th>Activo</Th>
                 <Th>Horas semanales</Th>
+                <Th>Día descanso</Th>
                 <Th>Zona asignada</Th>
                 <Th>Acciones</Th>
               </Tr>
@@ -106,6 +108,7 @@ export function EmployeesPage(): JSX.Element {
                     <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                   </Td>
                   <Td>{(employee.weeklyHours ?? 40).toFixed(1)} h</Td>
+                  <Td>{getRestDayLabel(employee.restDay)}</Td>
                   <Td>{employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? '-' : '-'}</Td>
                   <Td>
                     <HStack>

@@ -12,11 +12,11 @@ export const mockRoles: Role[] = [
 ];
 
 export const mockEmployees: Employee[] = [
-  { id: 'emp-1', name: 'Ana Pérez', active: true, mainRoleId: 'role-caja', phone: '555-1001' },
-  { id: 'emp-2', name: 'Luis Gómez', active: true, mainRoleId: 'role-role-corredor', phone: '555-1002' },
-  { id: 'emp-3', name: 'Marta Ruiz', active: true, mainRoleId: 'role-corredor', phone: '555-1003' },
-  { id: 'emp-4', name: 'Diego León', active: true, mainRoleId: 'role-salon01', phone: '555-1004' },
-  { id: 'emp-5', name: 'Carla Díaz', active: true, mainRoleId: 'role-salon01', phone: '555-1005' }
+  { id: 'emp-1', name: 'Ana Pérez', active: true, mainRoleId: 'role-caja', phone: '555-1001', restDay: 0 },
+  { id: 'emp-2', name: 'Luis Gómez', active: true, mainRoleId: 'role-role-corredor', phone: '555-1002', restDay: 0 },
+  { id: 'emp-3', name: 'Marta Ruiz', active: true, mainRoleId: 'role-corredor', phone: '555-1003', restDay: 0 },
+  { id: 'emp-4', name: 'Diego León', active: true, mainRoleId: 'role-salon01', phone: '555-1004', restDay: 0 },
+  { id: 'emp-5', name: 'Carla Díaz', active: true, mainRoleId: 'role-salon01', phone: '555-1005', restDay: 0 }
 ];
 
 export const mockTimeSlots: TimeSlot[] = [

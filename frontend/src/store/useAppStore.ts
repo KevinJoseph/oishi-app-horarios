@@ -3,6 +3,7 @@ import { fetchPlannerState, resetPlannerState as resetPlannerStateApi, savePlann
 import { loadSeedState, normalizePlannerState } from '../data/seed';
 import { buildEmptyWeekPlan } from '../data/mocks';
 import type { Assignment, Employee, Role, TimeSlot, Week, WeekPlan } from '../types';
+import { normalizeRestDay } from '../utils/weekdays';
 
 type UpdateAssignmentInput = {
   weekId: string;
@@ -58,6 +59,7 @@ function buildAutoWeekPlanForEmployee(
   employeeId: string,
   roleId: string,
   weeklyHours: number,
+  restDay: number,
   timeSlots: TimeSlot[],
   roles: Role[]
 ): WeekPlan {
@@ -71,11 +73,12 @@ function buildAutoWeekPlanForEmployee(
 
   const days = plan.days.map((day) => {
     const assignments = { ...day.assignments };
+    const isRestDay = parseISODateToDay(day.dateISO) === restDay;
     for (const slot of orderedSlots) {
       const byEmployee = { ...(assignments[slot.id] ?? {}) };
       const slotHours = slotHoursById.get(slot.id) ?? 0;
 
-      if (remainingHours > 0 && slotHours > 0) {
+      if (!isRestDay && remainingHours > 0 && slotHours > 0) {
         byEmployee[employeeId] = { roleId, code };
         remainingHours = Number((remainingHours - slotHours).toFixed(4));
       } else {
@@ -124,6 +127,10 @@ function parseTimeToMinutes(value: string): number | null {
   const minutes = Number.parseInt(match[2], 10);
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
   return hours * 60 + minutes;
+}
+
+function parseISODateToDay(dateISO: string): number {
+  return new Date(`${dateISO}T00:00:00`).getDay();
 }
 
 function toPersistableState(state: AppState): PersistableState {
@@ -197,17 +204,19 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   upsertEmployee: (employee) => {
     set((state) => {
-      const previous = state.employees.find((item) => item.id === employee.id);
+      const normalizedEmployee: Employee = { ...employee, restDay: normalizeRestDay(employee.restDay) };
+      const previous = state.employees.find((item) => item.id === normalizedEmployee.id);
       const exists = Boolean(previous);
       const employees = exists
-        ? state.employees.map((item) => (item.id === employee.id ? employee : item))
-        : [...state.employees, employee];
+        ? state.employees.map((item) => (item.id === normalizedEmployee.id ? normalizedEmployee : item))
+        : [...state.employees, normalizedEmployee];
 
       const planningChanged =
         !previous ||
-        previous.mainRoleId !== employee.mainRoleId ||
-        previous.weeklyHours !== employee.weeklyHours ||
-        previous.active !== employee.active;
+        previous.mainRoleId !== normalizedEmployee.mainRoleId ||
+        previous.weeklyHours !== normalizedEmployee.weeklyHours ||
+        previous.restDay !== normalizedEmployee.restDay ||
+        previous.active !== normalizedEmployee.active;
 
       if (!planningChanged) {
         return { employees };
@@ -219,17 +228,21 @@ export const useAppStore = create<AppState>((set, get) => ({
         return { employees };
       }
 
-      const weeklyHours = Math.max(0, employee.weeklyHours ?? 0);
-      const roleExists = Boolean(employee.mainRoleId && state.roles.some((role) => role.id === employee.mainRoleId));
+      const weeklyHours = Math.max(0, normalizedEmployee.weeklyHours ?? 0);
+      const restDay = normalizeRestDay(normalizedEmployee.restDay);
+      const roleExists = Boolean(
+        normalizedEmployee.mainRoleId && state.roles.some((role) => role.id === normalizedEmployee.mainRoleId)
+      );
 
       const nextWeekPlan =
-        !employee.active || !roleExists || weeklyHours <= 0
-          ? clearEmployeeFromWeekPlan(currentWeekPlan, employee.id, state.timeSlots)
+        !normalizedEmployee.active || !roleExists || weeklyHours <= 0
+          ? clearEmployeeFromWeekPlan(currentWeekPlan, normalizedEmployee.id, state.timeSlots)
           : buildAutoWeekPlanForEmployee(
               currentWeekPlan,
-              employee.id,
-              employee.mainRoleId as string,
+              normalizedEmployee.id,
+              normalizedEmployee.mainRoleId as string,
               weeklyHours,
+              restDay,
               state.timeSlots,
               state.roles
             );

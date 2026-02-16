@@ -3,6 +3,7 @@ export type Employee = {
   name: string;
   active: boolean;
   weeklyHours?: number;
+  restDay?: number;
   mainRoleId?: string;
   notes?: string;
   phone?: string;

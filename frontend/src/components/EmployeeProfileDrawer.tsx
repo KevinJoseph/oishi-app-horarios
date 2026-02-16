@@ -14,6 +14,7 @@ import {
 } from '@chakra-ui/react';
 import { useMemo } from 'react';
 import type { Employee, Role, TimeSlot, WeekPlan } from '../types';
+import { getRestDayLabel } from '../utils/weekdays';
 
 type Props = {
   isOpen: boolean;
@@ -108,6 +109,9 @@ export function EmployeeProfileDrawer({ isOpen, onClose, employee, roles, timeSl
               </Text>
               <Text fontSize="sm" color="gray.600">
                 Horas semanales objetivo: {(employee.weeklyHours ?? 40).toFixed(1)} h
+              </Text>
+              <Text fontSize="sm" color="gray.600">
+                Día de descanso: {getRestDayLabel(employee.restDay)}
               </Text>
               <Box borderWidth="1px" rounded="md" p={3}>
                 <Text fontSize="sm" fontWeight="600">

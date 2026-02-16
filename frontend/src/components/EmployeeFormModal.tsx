@@ -18,6 +18,7 @@ import {
 import { useEffect, useState } from 'react';
 import type { Employee, Role } from '../types';
 import { createId } from '../store/useAppStore';
+import { normalizeRestDay, WEEKDAY_OPTIONS } from '../utils/weekdays';
 
 type Props = {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
   const [name, setName] = useState('');
   const [active, setActive] = useState(true);
   const [weeklyHours, setWeeklyHours] = useState('40');
+  const [restDay, setRestDay] = useState('0');
   const [notes, setNotes] = useState('');
   const [phone, setPhone] = useState('');
   const [mainRoleId, setMainRoleId] = useState('');
@@ -39,6 +41,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
     setName(editing?.name ?? '');
     setActive(editing?.active ?? true);
     setWeeklyHours(String(editing?.weeklyHours ?? 40));
+    setRestDay(String(normalizeRestDay(editing?.restDay)));
     setNotes(editing?.notes ?? '');
     setPhone(editing?.phone ?? '');
     setMainRoleId(editing?.mainRoleId ?? '');
@@ -71,6 +74,16 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
             <Input type="number" min={0} step={0.5} value={weeklyHours} onChange={(event) => setWeeklyHours(event.target.value)} />
           </FormControl>
           <FormControl mb={3}>
+            <FormLabel>Día de descanso</FormLabel>
+            <Select value={restDay} onChange={(event) => setRestDay(event.target.value)}>
+              {WEEKDAY_OPTIONS.map((day) => (
+                <option key={day.value} value={day.value}>
+                  {day.label}
+                </option>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl mb={3}>
             <FormLabel>Teléfono</FormLabel>
             <Input value={phone} onChange={(event) => setPhone(event.target.value)} />
           </FormControl>
@@ -96,6 +109,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
                   name: name.trim(),
                   active,
                   weeklyHours: Math.max(0, Number.parseFloat(weeklyHours) || 0),
+                  restDay: normalizeRestDay(Number.parseInt(restDay, 10)),
                   notes: notes.trim() || undefined,
                   phone: phone.trim() || undefined,
                   mainRoleId: mainRoleId || undefined

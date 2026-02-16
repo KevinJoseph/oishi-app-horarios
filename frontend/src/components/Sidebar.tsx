@@ -5,10 +5,10 @@ import { FiUsers, FiLayers, FiGrid } from 'react-icons/fi';
 
 const links = [
   { to: '/employees', label: 'Empleados', icon: FiUsers },
-  { to: '/planning', label: 'Planificación', icon: CalendarIcon },
+  { to: '/planning', label: 'Planificación', icon: CalendarIcon, end: true },
+  { to: '/planning/weekly-overview', label: 'Vista General', icon: FiGrid },
   { to: '/roles', label: 'Leyenda / Zonas', icon: FiLayers },
   { to: '/settings/timeslots', label: 'Config. Horarios', icon: SettingsIcon },
-  { to: '/planning/weekly-overview', label: 'Vista General Semanal', icon: FiGrid }
 ];
 
 export function Sidebar(): JSX.Element {
@@ -31,6 +31,7 @@ export function Sidebar(): JSX.Element {
             key={link.to}
             as={NavLink}
             to={link.to}
+            end={link.end}
             _hover={{ textDecor: 'none', bg: 'gray.100' }}
             _activeLink={{ bg: 'blue.50', color: 'blue.700' }}
             px={3}

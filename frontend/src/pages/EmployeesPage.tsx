@@ -21,6 +21,12 @@ import type { Employee } from '../types';
 import { downloadEmployeeWeekPdf } from '../utils/pdf';
 import { getRestDayLabel } from '../utils/weekdays';
 
+function getContractTypeLabel(value: Employee['contractType']): string {
+  if (value === 'part-time') return 'Part Time';
+  if (value === 'full-time') return 'Full Time';
+  return '-';
+}
+
 export function EmployeesPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -95,6 +101,7 @@ export function EmployeesPage(): JSX.Element {
                 <Th>Nombre</Th>
                 <Th>Activo</Th>
                 <Th>Horas semanales</Th>
+                <Th>Tipo contrato</Th>
                 <Th>Día descanso</Th>
                 <Th>Zona asignada</Th>
                 <Th>Acciones</Th>
@@ -108,6 +115,7 @@ export function EmployeesPage(): JSX.Element {
                     <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                   </Td>
                   <Td>{(employee.weeklyHours ?? 40).toFixed(1)} h</Td>
+                  <Td>{getContractTypeLabel(employee.contractType)}</Td>
                   <Td>{getRestDayLabel(employee.restDay)}</Td>
                   <Td>{employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? '-' : '-'}</Td>
                   <Td>

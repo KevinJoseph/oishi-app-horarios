@@ -1,10 +1,12 @@
-import { Badge, Box, Card, CardBody, Flex, Heading, Text, VStack } from '@chakra-ui/react';
-import { useEffect, useMemo } from 'react';
+import { Badge, Box, Button, Card, CardBody, Flex, Heading, HStack, Text, VStack, useToast } from '@chakra-ui/react';
+import { useEffect, useMemo, useState } from 'react';
 import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
 import { WeekSelector } from '../components/WeekSelector';
 import { useAppStore } from '../store/useAppStore';
+import { downloadWeeklyOverviewPdf } from '../utils/pdf';
 
 export function WeeklyOverviewPage(): JSX.Element {
+  const toast = useToast();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const timeSlots = useAppStore((state) => state.timeSlots);
@@ -18,7 +20,9 @@ export function WeeklyOverviewPage(): JSX.Element {
     if (currentWeek) ensureWeekPlan(currentWeek);
   }, [currentWeek, ensureWeekPlan]);
 
-  const days = currentWeek ? weekPlans[currentWeek.id]?.days ?? [] : [];
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
+  const days = currentWeekPlan?.days ?? [];
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);
   const assignedHoursByEmployee = useMemo(() => {
     const slotDurationById = new Map<string, number>();
@@ -45,7 +49,38 @@ export function WeeklyOverviewPage(): JSX.Element {
         <CardBody>
           <Flex justify="space-between" align="center" gap={3} wrap="wrap">
             <Heading size="md">Vista General</Heading>
-            <WeekSelector />
+            <HStack>
+              <WeekSelector />
+              <Button
+                colorScheme="teal"
+                variant="outline"
+                isLoading={isExportingPdf}
+                isDisabled={!currentWeek || !currentWeekPlan}
+                onClick={() => {
+                  if (!currentWeek || !currentWeekPlan) {
+                    toast({ status: 'warning', title: 'No hay planificación para exportar.' });
+                    return;
+                  }
+                  try {
+                    setIsExportingPdf(true);
+                    downloadWeeklyOverviewPdf({
+                      employees,
+                      roles,
+                      timeSlots,
+                      week: currentWeek,
+                      weekPlan: currentWeekPlan
+                    });
+                    toast({ status: 'success', title: 'PDF de vista general generado.' });
+                  } catch {
+                    toast({ status: 'error', title: 'No se pudo generar el PDF de vista general.' });
+                  } finally {
+                    setIsExportingPdf(false);
+                  }
+                }}
+              >
+                PDF
+              </Button>
+            </HStack>
           </Flex>
         </CardBody>
       </Card>

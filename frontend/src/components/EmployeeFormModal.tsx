@@ -32,6 +32,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
   const [name, setName] = useState('');
   const [active, setActive] = useState(true);
   const [weeklyHours, setWeeklyHours] = useState('40');
+  const [contractType, setContractType] = useState<'full-time' | 'part-time'>('full-time');
   const [restDay, setRestDay] = useState('0');
   const [notes, setNotes] = useState('');
   const [phone, setPhone] = useState('');
@@ -41,6 +42,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
     setName(editing?.name ?? '');
     setActive(editing?.active ?? true);
     setWeeklyHours(String(editing?.weeklyHours ?? 40));
+    setContractType(editing?.contractType ?? 'full-time');
     setRestDay(String(normalizeRestDay(editing?.restDay)));
     setNotes(editing?.notes ?? '');
     setPhone(editing?.phone ?? '');
@@ -51,7 +53,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>{editing ? 'Editar Empleado' : 'Nuevo Empleado'}</ModalHeader>
+        <ModalHeader>{editing ? 'Editar Colaborador' : 'Nuevo Colaborador'}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <FormControl mb={3} isRequired>
@@ -67,6 +69,13 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
                   {role.name}
                 </option>
               ))}
+            </Select>
+          </FormControl>
+          <FormControl mb={3}>
+            <FormLabel>Tipo de contrato</FormLabel>
+            <Select value={contractType} onChange={(event) => setContractType(event.target.value as 'full-time' | 'part-time')}>
+              <option value="full-time">Full Time</option>
+              <option value="part-time">Part Time</option>
             </Select>
           </FormControl>
           <FormControl mb={3}>
@@ -109,6 +118,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
                   name: name.trim(),
                   active,
                   weeklyHours: Math.max(0, Number.parseFloat(weeklyHours) || 0),
+                  contractType,
                   restDay: normalizeRestDay(Number.parseInt(restDay, 10)),
                   notes: notes.trim() || undefined,
                   phone: phone.trim() || undefined,

@@ -8,6 +8,7 @@ import { LegendDrawer } from '../components/LegendDrawer';
 import { WeekSelector } from '../components/WeekSelector';
 import { useAppStore } from '../store/useAppStore';
 import type { Assignment } from '../types';
+import { downloadDaySchedulePdf } from '../utils/pdf';
 import { getOpeningClosingSummary } from '../utils/summary';
 
 type SelectedCell = {
@@ -37,6 +38,7 @@ export function PlanningPage(): JSX.Element {
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [selectedCell, setSelectedCell] = useState<SelectedCell>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const currentWeek = weeks.find((week) => week.id === currentWeekId);
   useEffect(() => {
@@ -96,8 +98,37 @@ export function PlanningPage(): JSX.Element {
             </HStack>
             <HStack>
               <Badge colorScheme="green" px={3} py={1} rounded="md">
-                Empleados: {activeEmployeesCount}
+                Colaborador: {activeEmployeesCount}
               </Badge>
+              <Button
+                colorScheme="teal"
+                variant="outline"
+                isLoading={isExportingPdf}
+                isDisabled={!currentWeek || !activeDay}
+                onClick={() => {
+                  if (!currentWeek || !activeDay) {
+                    toast({ status: 'warning', title: 'No hay día activo para exportar.' });
+                    return;
+                  }
+                  try {
+                    setIsExportingPdf(true);
+                    downloadDaySchedulePdf({
+                      dayPlan: activeDay,
+                      employees,
+                      roles,
+                      timeSlots,
+                      week: currentWeek
+                    });
+                    toast({ status: 'success', title: `PDF generado para ${activeDay.dayName}.` });
+                  } catch {
+                    toast({ status: 'error', title: 'No se pudo generar el PDF del día.' });
+                  } finally {
+                    setIsExportingPdf(false);
+                  }
+                }}
+              >
+                PDF
+              </Button>
               <Button colorScheme="red" variant="outline" onClick={resetAll}>
                 Borrar Planificación
               </Button>

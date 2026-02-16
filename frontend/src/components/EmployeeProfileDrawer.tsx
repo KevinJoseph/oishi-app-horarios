@@ -91,10 +91,10 @@ export function EmployeeProfileDrawer({ isOpen, onClose, employee, roles, timeSl
       <DrawerOverlay />
       <DrawerContent>
         <DrawerCloseButton />
-        <DrawerHeader>Perfil de Empleado</DrawerHeader>
+        <DrawerHeader>Perfil de Colaborador</DrawerHeader>
         <DrawerBody>
           {!employee ? (
-            <Text color="gray.500">Selecciona un empleado.</Text>
+            <Text color="gray.500">Selecciona un Colaborador.</Text>
           ) : (
             <Flex direction="column" gap={3}>
               <Text fontWeight="600">{employee.name}</Text>

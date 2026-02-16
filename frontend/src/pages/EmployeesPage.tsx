@@ -77,7 +77,7 @@ export function EmployeesPage(): JSX.Element {
         <CardBody>
           <HStack justify="space-between" mb={4}>
             <Badge px={3} py={1} rounded="md" colorScheme="blue">
-              Total empleados: {employees.length}
+              Total Colaboradores: {employees.length}
             </Badge>
             <Button
               colorScheme="blue"
@@ -86,7 +86,7 @@ export function EmployeesPage(): JSX.Element {
                 onOpen();
               }}
             >
-              Nuevo Empleado
+              Nuevo Colaborador
             </Button>
           </HStack>
           <Table size="sm" bg="white">

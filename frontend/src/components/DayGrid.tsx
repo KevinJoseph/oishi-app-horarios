@@ -60,7 +60,7 @@ export function DayGrid({
               {visibleEmployees.map((employee) => {
                 const summary = employeeHoursById?.[employee.id];
                 const assigned = summary?.assignedHours ?? 0;
-                const target = summary?.targetHours ?? (employee.weeklyHours ?? 40);
+                const target = summary?.targetHours ?? (employee.weeklyHours ?? 0);
                 const progressColor = target <= 0 ? 'red.600' : assigned >= target ? 'green.600' : 'red.600';
 
                 return (

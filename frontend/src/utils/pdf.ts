@@ -152,7 +152,7 @@ function drawEmployeeSchedulePage(
   doc.text(`Estado: ${employee.active ? 'Activo' : 'Inactivo'}`, marginX, y);
   if (includeSummary) {
     const assignedHours = computeAssignedHours(employee.id, days, visibleTimeSlots);
-    const targetHours = employee.weeklyHours ?? 40;
+    const targetHours = employee.weeklyHours ?? 0;
     doc.text(`Horas: ${assignedHours.toFixed(1)}h / ${targetHours.toFixed(1)}h`, marginX + 95, y);
   }
   y += 6;

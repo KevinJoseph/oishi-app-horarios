@@ -39,7 +39,7 @@ type AppState = PersistableState & {
   setCurrentWeek: (weekId: string) => void;
   resetAll: () => void;
   upsertEmployee: (employee: Employee) => void;
-  toggleEmployeeActive: (employeeId: string) => void;
+  deleteEmployee: (employeeId: string) => void;
   upsertRole: (role: Role) => { ok: boolean; error?: string };
   deleteRole: (roleId: string) => void;
   ensureWeekPlan: (week: Week) => void;
@@ -60,6 +60,8 @@ function buildAutoWeekPlanForEmployee(
   roleId: string,
   weeklyHours: number,
   restDay: number,
+  contractType: Employee['contractType'],
+  shiftType: Employee['shiftType'],
   timeSlots: TimeSlot[],
   roles: Role[]
 ): WeekPlan {
@@ -67,18 +69,21 @@ function buildAutoWeekPlanForEmployee(
   const code = role?.validCodes[0];
   if (!code) return plan;
 
-  const orderedSlots = getAssignableTimeSlots(timeSlots);
-  const slotHoursById = new Map(orderedSlots.map((slot) => [slot.id, getSlotDurationHours(slot.start, slot.end)]));
+  const assignableSlots = getAssignableTimeSlots(timeSlots);
+  const planningSlots = getAutoPlanningTimeSlots(timeSlots, contractType, shiftType);
+  const planningSlotIds = new Set(planningSlots.map((slot) => slot.id));
+  const slotHoursById = new Map(planningSlots.map((slot) => [slot.id, getSlotDurationHours(slot.start, slot.end)]));
   let remainingHours = Math.max(0, weeklyHours);
 
   const days = plan.days.map((day) => {
     const assignments = { ...day.assignments };
     const isRestDay = parseISODateToDay(day.dateISO) === restDay;
-    for (const slot of orderedSlots) {
+    for (const slot of assignableSlots) {
       const byEmployee = { ...(assignments[slot.id] ?? {}) };
+      const isPlanningSlot = planningSlotIds.has(slot.id);
       const slotHours = slotHoursById.get(slot.id) ?? 0;
 
-      if (!isRestDay && remainingHours > 0 && slotHours > 0) {
+      if (isPlanningSlot && !isRestDay && remainingHours > 0 && slotHours > 0) {
         byEmployee[employeeId] = { roleId, code };
         remainingHours = Number((remainingHours - slotHours).toFixed(4));
       } else {
@@ -97,6 +102,19 @@ function getAssignableTimeSlots(timeSlots: TimeSlot[]): TimeSlot[] {
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
   // Regla de negocio: las horas planificadas empiezan desde el segundo bloque (12:00-13:00).
   return ordered.length > 1 ? ordered.slice(1) : ordered;
+}
+
+function getAutoPlanningTimeSlots(
+  timeSlots: TimeSlot[],
+  contractType: Employee['contractType'],
+  shiftType: Employee['shiftType']
+): TimeSlot[] {
+  const assignable = getAssignableTimeSlots(timeSlots);
+  if (contractType !== 'part-time') return assignable;
+
+  const halfCount = Math.floor(assignable.length / 2);
+  if (halfCount <= 0) return assignable;
+  return shiftType === 'night' ? assignable.slice(-halfCount) : assignable.slice(0, halfCount);
 }
 
 function clearEmployeeFromWeekPlan(plan: WeekPlan, employeeId: string, timeSlots: TimeSlot[]): WeekPlan {
@@ -216,6 +234,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         previous.mainRoleId !== normalizedEmployee.mainRoleId ||
         previous.weeklyHours !== normalizedEmployee.weeklyHours ||
         previous.restDay !== normalizedEmployee.restDay ||
+        previous.contractType !== normalizedEmployee.contractType ||
+        previous.shiftType !== normalizedEmployee.shiftType ||
         previous.active !== normalizedEmployee.active;
 
       if (!planningChanged) {
@@ -243,6 +263,8 @@ export const useAppStore = create<AppState>((set, get) => ({
               normalizedEmployee.mainRoleId as string,
               weeklyHours,
               restDay,
+              normalizedEmployee.contractType,
+              normalizedEmployee.shiftType,
               state.timeSlots,
               state.roles
             );
@@ -257,12 +279,27 @@ export const useAppStore = create<AppState>((set, get) => ({
     persistSnapshot(get, set);
   },
 
-  toggleEmployeeActive: (employeeId) => {
+  deleteEmployee: (employeeId) => {
     set((state) => {
-      const employees = state.employees.map((employee) =>
-        employee.id === employeeId ? { ...employee, active: !employee.active } : employee
-      );
-      return { employees };
+      const employees = state.employees.filter((employee) => employee.id !== employeeId);
+      const weekPlans: Record<string, WeekPlan> = {};
+
+      for (const [weekId, plan] of Object.entries(state.weekPlans)) {
+        weekPlans[weekId] = {
+          ...plan,
+          days: plan.days.map((day) => {
+            const assignments = { ...day.assignments };
+            for (const [slotId, byEmployee] of Object.entries(assignments)) {
+              const nextByEmployee = { ...byEmployee };
+              delete nextByEmployee[employeeId];
+              assignments[slotId] = nextByEmployee;
+            }
+            return { ...day, assignments };
+          })
+        };
+      }
+
+      return { employees, weekPlans };
     });
     persistSnapshot(get, set);
   },

@@ -16,8 +16,9 @@ export const mockEmployees: Employee[] = [
     id: 'emp-1',
     name: 'Ana Pérez',
     active: true,
-    weeklyHours: 0,
+    weeklyHours: 56,
     contractType: 'full-time',
+    shiftType: 'day',
     mainRoleId: 'role-caja',
     phone: '555-1001',
     restDay: 0
@@ -26,8 +27,9 @@ export const mockEmployees: Employee[] = [
     id: 'emp-2',
     name: 'Luis Gómez',
     active: true,
-    weeklyHours: 0,
+    weeklyHours: 56,
     contractType: 'full-time',
+    shiftType: 'day',
     mainRoleId: 'role-role-corredor',
     phone: '555-1002',
     restDay: 0
@@ -36,8 +38,9 @@ export const mockEmployees: Employee[] = [
     id: 'emp-3',
     name: 'Marta Ruiz',
     active: true,
-    weeklyHours: 0,
+    weeklyHours: 56,
     contractType: 'full-time',
+    shiftType: 'day',
     mainRoleId: 'role-corredor',
     phone: '555-1003',
     restDay: 0
@@ -46,8 +49,9 @@ export const mockEmployees: Employee[] = [
     id: 'emp-4',
     name: 'Diego León',
     active: true,
-    weeklyHours: 0,
+    weeklyHours: 56,
     contractType: 'full-time',
+    shiftType: 'day',
     mainRoleId: 'role-salon01',
     phone: '555-1004',
     restDay: 0
@@ -56,8 +60,9 @@ export const mockEmployees: Employee[] = [
     id: 'emp-5',
     name: 'Carla Díaz',
     active: true,
-    weeklyHours: 0,
+    weeklyHours: 56,
     contractType: 'full-time',
+    shiftType: 'day',
     mainRoleId: 'role-salon01',
     phone: '555-1005',
     restDay: 0
@@ -80,10 +85,29 @@ export const mockTimeSlots: TimeSlot[] = [
 
 export function buildMockWeeks(): Week[] {
   const monday = getCurrentMonday();
-  const nextMonday = addWeeks(monday, 1);
+  const weekStarts = Array.from({ length: 4 }).map((_, index) => addWeeks(monday, index));
+  const weekLabels = ['Semana actual', 'Semana siguiente', 'En 2 semanas', 'En 3 semanas'];
   return [
-    { id: 'week-current', label: `Semana actual (${buildWeekLabel(monday)})`, startDateISO: formatISO(monday, { representation: 'date' }) },
-    { id: 'week-next', label: `Semana siguiente (${buildWeekLabel(nextMonday)})`, startDateISO: formatISO(nextMonday, { representation: 'date' }) }
+    {
+      id: 'week-current',
+      label: `${weekLabels[0]} (${buildWeekLabel(weekStarts[0])})`,
+      startDateISO: formatISO(weekStarts[0], { representation: 'date' })
+    },
+    {
+      id: 'week-next',
+      label: `${weekLabels[1]} (${buildWeekLabel(weekStarts[1])})`,
+      startDateISO: formatISO(weekStarts[1], { representation: 'date' })
+    },
+    {
+      id: 'week-plus-2',
+      label: `${weekLabels[2]} (${buildWeekLabel(weekStarts[2])})`,
+      startDateISO: formatISO(weekStarts[2], { representation: 'date' })
+    },
+    {
+      id: 'week-plus-3',
+      label: `${weekLabels[3]} (${buildWeekLabel(weekStarts[3])})`,
+      startDateISO: formatISO(weekStarts[3], { representation: 'date' })
+    }
   ];
 }
 

@@ -1,7 +1,7 @@
 import { addDays, formatISO, parseISO } from 'date-fns';
 import { buildEmptyWeekPlan, buildMockWeeks, mockEmployees, mockRoles, mockTimeSlots } from './mocks';
 import type { WeekPlan } from '../types';
-import { formatDayNameEs } from '../utils/dates';
+import { buildWeekLabel, formatDayNameEs } from '../utils/dates';
 
 export type SeedState = {
   employees: typeof mockEmployees;
@@ -31,9 +31,17 @@ function normalizeWeekPlan(weekStartDateISO: string, sourcePlan: WeekPlan | unde
 }
 
 export function normalizePlannerState(input: SeedState): SeedState {
+  const baseWeeks = input.weeks.length >= 4 ? input.weeks : buildMockWeeks();
+  const normalizedWeeks = baseWeeks.map((week, index) => {
+    const weekPrefix = index === 0 ? 'Semana actual' : index === 1 ? 'Semana siguiente' : `En ${index} semanas`;
+    return {
+      ...week,
+      label: `${weekPrefix} (${buildWeekLabel(parseISO(week.startDateISO))})`
+    };
+  });
   const weekPlans: Record<string, WeekPlan> = {};
 
-  for (const week of input.weeks) {
+  for (const week of normalizedWeeks) {
     const normalized = normalizeWeekPlan(week.startDateISO, input.weekPlans[week.id]);
     weekPlans[week.id] = {
       weekId: normalized.weekId || week.id,
@@ -41,11 +49,13 @@ export function normalizePlannerState(input: SeedState): SeedState {
     };
   }
 
+  const normalizedEmployees = input.employees.map((employee) => normalizeEmployeeContract(employee));
+
   return {
-    employees: input.employees,
+    employees: normalizedEmployees,
     roles: input.roles,
     timeSlots: input.timeSlots,
-    weeks: input.weeks,
+    weeks: normalizedWeeks,
     weekPlans
   };
 }
@@ -65,4 +75,27 @@ export function loadSeedState(): SeedState {
   }
 
   return { employees, roles, timeSlots, weeks, weekPlans };
+}
+
+function normalizeEmployeeContract(employee: SeedState['employees'][number]): SeedState['employees'][number] {
+  if ((employee.contractType === 'full-time' || employee.contractType === 'part-time') && (employee.weeklyHours ?? 0) <= 0) {
+    return {
+      ...employee,
+      contractType: undefined,
+      shiftType: undefined,
+      weeklyHours: 0
+    };
+  }
+  if (employee.contractType === 'full-time') {
+    return { ...employee, weeklyHours: 56 };
+  }
+  if (employee.contractType === 'part-time') {
+    return { ...employee, weeklyHours: 28 };
+  }
+  return {
+    ...employee,
+    contractType: undefined,
+    shiftType: undefined,
+    weeklyHours: 0
+  };
 }

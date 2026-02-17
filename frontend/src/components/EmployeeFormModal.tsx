@@ -31,23 +31,31 @@ type Props = {
 export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: Props): JSX.Element {
   const [name, setName] = useState('');
   const [active, setActive] = useState(true);
-  const [weeklyHours, setWeeklyHours] = useState('40');
-  const [contractType, setContractType] = useState<'full-time' | 'part-time'>('full-time');
+  const [weeklyHours, setWeeklyHours] = useState('');
+  const [contractType, setContractType] = useState<'full-time' | 'part-time' | ''>('full-time');
+  const [shiftType, setShiftType] = useState<'day' | 'night'>('day');
   const [restDay, setRestDay] = useState('0');
   const [notes, setNotes] = useState('');
   const [phone, setPhone] = useState('');
   const [mainRoleId, setMainRoleId] = useState('');
 
   useEffect(() => {
+    const initialContractType =
+      editing && (editing.weeklyHours ?? 0) <= 0 ? '' : editing ? editing.contractType ?? '' : 'full-time';
     setName(editing?.name ?? '');
     setActive(editing?.active ?? true);
-    setWeeklyHours(String(editing?.weeklyHours ?? 40));
-    setContractType(editing?.contractType ?? 'full-time');
+    setContractType(initialContractType);
+    setWeeklyHours(getWeeklyHoursLabelForContract(initialContractType));
+    setShiftType(editing?.shiftType ?? 'day');
     setRestDay(String(normalizeRestDay(editing?.restDay)));
     setNotes(editing?.notes ?? '');
     setPhone(editing?.phone ?? '');
     setMainRoleId(editing?.mainRoleId ?? '');
   }, [editing, isOpen]);
+
+  useEffect(() => {
+    setWeeklyHours(getWeeklyHoursLabelForContract(contractType));
+  }, [contractType]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -71,16 +79,29 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
               ))}
             </Select>
           </FormControl>
+          <HStack mb={3} align="flex-start" spacing={3}>
+            <FormControl flex="1">
+              <FormLabel>Tipo de contrato</FormLabel>
+              <Select
+                value={contractType}
+                onChange={(event) => setContractType(event.target.value as 'full-time' | 'part-time' | '')}
+              >
+                <option value="">Sin contrato</option>
+                <option value="full-time">Full Time</option>
+                <option value="part-time">Part Time</option>
+              </Select>
+            </FormControl>
+            <FormControl flex="1">
+              <FormLabel>Horas semanales</FormLabel>
+              <Input type="number" min={0} step={0.5} value={weeklyHours} isDisabled />
+            </FormControl>
+          </HStack>
           <FormControl mb={3}>
-            <FormLabel>Tipo de contrato</FormLabel>
-            <Select value={contractType} onChange={(event) => setContractType(event.target.value as 'full-time' | 'part-time')}>
-              <option value="full-time">Full Time</option>
-              <option value="part-time">Part Time</option>
+            <FormLabel>Turno</FormLabel>
+            <Select value={shiftType} onChange={(event) => setShiftType(event.target.value as 'day' | 'night')}>
+              <option value="day">Día</option>
+              <option value="night">Noche</option>
             </Select>
-          </FormControl>
-          <FormControl mb={3}>
-            <FormLabel>Horas semanales</FormLabel>
-            <Input type="number" min={0} step={0.5} value={weeklyHours} onChange={(event) => setWeeklyHours(event.target.value)} />
           </FormControl>
           <FormControl mb={3}>
             <FormLabel>Día de descanso</FormLabel>
@@ -117,8 +138,9 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
                   id: editing?.id ?? createId('emp'),
                   name: name.trim(),
                   active,
-                  weeklyHours: Math.max(0, Number.parseFloat(weeklyHours) || 0),
-                  contractType,
+                  weeklyHours: getWeeklyHoursForContract(contractType),
+                  contractType: contractType || undefined,
+                  shiftType: contractType ? shiftType : undefined,
                   restDay: normalizeRestDay(Number.parseInt(restDay, 10)),
                   notes: notes.trim() || undefined,
                   phone: phone.trim() || undefined,
@@ -134,4 +156,15 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
       </ModalContent>
     </Modal>
   );
+}
+
+function getWeeklyHoursForContract(contractType: Employee['contractType'] | ''): number | undefined {
+  if (contractType === 'full-time') return 56;
+  if (contractType === 'part-time') return 28;
+  return 0;
+}
+
+function getWeeklyHoursLabelForContract(contractType: Employee['contractType'] | ''): string {
+  const hours = getWeeklyHoursForContract(contractType);
+  return String(hours);
 }

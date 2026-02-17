@@ -108,7 +108,7 @@ export function EmployeeProfileDrawer({ isOpen, onClose, employee, roles, timeSl
                 Zona asignada: {role?.name ?? '-'}
               </Text>
               <Text fontSize="sm" color="gray.600">
-                Horas semanales objetivo: {(employee.weeklyHours ?? 40).toFixed(1)} h
+                Horas semanales objetivo: {(employee.weeklyHours ?? 0).toFixed(1)} h
               </Text>
               <Text fontSize="sm" color="gray.600">
                 Día de descanso: {getRestDayLabel(employee.restDay)}

@@ -1,7 +1,9 @@
-import { Badge, Box, Button, Card, CardBody, Flex, Heading, HStack, Text, VStack, useToast } from '@chakra-ui/react';
+import { Badge, Box, Button, Card, CardBody, Flex, Heading, HStack, Select, SimpleGrid, Text, VStack, useToast } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
+import { DayGrid } from '../components/DayGrid';
 import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
 import { WeekSelector } from '../components/WeekSelector';
+import { WeeklyByWeeksOverviewContent } from './WeeklyByWeeksOverviewPage';
 import { useAppStore } from '../store/useAppStore';
 import { downloadWeeklyOverviewPdf } from '../utils/pdf';
 
@@ -21,6 +23,7 @@ export function WeeklyOverviewPage(): JSX.Element {
   }, [currentWeek, ensureWeekPlan]);
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [viewMode, setViewMode] = useState<'personal' | 'weeks' | 'grid'>('weeks');
   const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
   const days = currentWeekPlan?.days ?? [];
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);
@@ -42,6 +45,16 @@ export function WeeklyOverviewPage(): JSX.Element {
     }
     return summary;
   }, [days, timeSlots]);
+  const employeeHoursById = useMemo(() => {
+    const summary: Record<string, { assignedHours: number; targetHours: number }> = {};
+    for (const employee of employees) {
+      summary[employee.id] = {
+        assignedHours: assignedHoursByEmployee.get(employee.id) ?? 0,
+        targetHours: employee.weeklyHours ?? 0
+      };
+    }
+    return summary;
+  }, [assignedHoursByEmployee, employees]);
 
   return (
     <Box>
@@ -50,42 +63,81 @@ export function WeeklyOverviewPage(): JSX.Element {
           <Flex justify="space-between" align="center" gap={3} wrap="wrap">
             <Heading size="md">Vista General</Heading>
             <HStack>
-              <WeekSelector />
-              <Button
-                colorScheme="teal"
-                variant="outline"
-                isLoading={isExportingPdf}
-                isDisabled={!currentWeek || !currentWeekPlan}
-                onClick={() => {
-                  if (!currentWeek || !currentWeekPlan) {
-                    toast({ status: 'warning', title: 'No hay planificación para exportar.' });
-                    return;
-                  }
-                  try {
-                    setIsExportingPdf(true);
-                    downloadWeeklyOverviewPdf({
-                      employees,
-                      roles,
-                      timeSlots,
-                      week: currentWeek,
-                      weekPlan: currentWeekPlan
-                    });
-                    toast({ status: 'success', title: 'PDF de vista general generado.' });
-                  } catch {
-                    toast({ status: 'error', title: 'No se pudo generar el PDF de vista general.' });
-                  } finally {
-                    setIsExportingPdf(false);
-                  }
-                }}
+              <Select
+                maxW="220px"
+                value={viewMode}
+                onChange={(event) => setViewMode(event.target.value as 'personal' | 'weeks' | 'grid')}
               >
-                PDF
-              </Button>
+                <option value="personal">Personal</option>
+                <option value="grid">Grid</option>
+                <option value="weeks">Semanas</option>
+              </Select>
+              {viewMode !== 'weeks' ? (
+                <>
+                  <WeekSelector />
+                  {viewMode === 'personal' ? (
+                    <Button
+                      colorScheme="teal"
+                      variant="outline"
+                      isLoading={isExportingPdf}
+                      isDisabled={!currentWeek || !currentWeekPlan}
+                      onClick={() => {
+                        if (!currentWeek || !currentWeekPlan) {
+                          toast({ status: 'warning', title: 'No hay planificación para exportar.' });
+                          return;
+                        }
+                        try {
+                          setIsExportingPdf(true);
+                          downloadWeeklyOverviewPdf({
+                            employees,
+                            roles,
+                            timeSlots,
+                            week: currentWeek,
+                            weekPlan: currentWeekPlan
+                          });
+                          toast({ status: 'success', title: 'PDF de vista general generado.' });
+                        } catch {
+                          toast({ status: 'error', title: 'No se pudo generar el PDF de vista general.' });
+                        } finally {
+                          setIsExportingPdf(false);
+                        }
+                      }}
+                    >
+                      PDF
+                    </Button>
+                  ) : null}
+                </>
+              ) : null}
             </HStack>
           </Flex>
         </CardBody>
       </Card>
 
-      {!days.length ? (
+      {viewMode === 'weeks' ? (
+        <WeeklyByWeeksOverviewContent />
+      ) : viewMode === 'grid' ? (
+        <SimpleGrid columns={{ base: 1, xl: 2 }} spacing={4}>
+          {days.map((day) => (
+            <Card key={day.dateISO}>
+              <CardBody>
+                <Heading size="sm" mb={3}>
+                  {day.dayName} ({day.dateISO})
+                </Heading>
+                <DayGrid
+                  dayPlan={day}
+                  employees={employees}
+                  roles={roles}
+                  timeSlots={timeSlots}
+                  employeeHoursById={employeeHoursById}
+                  readOnly
+                  compact
+                  maxTableHeight="42vh"
+                />
+              </CardBody>
+            </Card>
+          ))}
+        </SimpleGrid>
+      ) : !days.length ? (
         <Card>
           <CardBody>
             <Text color="gray.500">No hay datos para esta semana.</Text>
@@ -95,7 +147,7 @@ export function WeeklyOverviewPage(): JSX.Element {
         <VStack spacing={4} align="stretch">
           {activeEmployees.map((employee) => {
             const assigned = assignedHoursByEmployee.get(employee.id) ?? 0;
-            const target = employee.weeklyHours ?? 40;
+            const target = employee.weeklyHours ?? 0;
             const progressColor = target <= 0 ? 'gray' : assigned >= target ? 'green' : 'red';
             return (
               <Card key={employee.id}>

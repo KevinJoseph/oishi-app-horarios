@@ -5,6 +5,7 @@ export type Employee = {
   weeklyHours?: number;
   restDay?: number;
   contractType?: 'full-time' | 'part-time';
+  shiftType?: 'day' | 'night';
   mainRoleId?: string;
   notes?: string;
   phone?: string;

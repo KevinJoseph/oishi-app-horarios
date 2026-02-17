@@ -1,4 +1,10 @@
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Badge,
   Box,
   Button,
@@ -14,7 +20,7 @@ import {
   useDisclosure,
   useToast
 } from '@chakra-ui/react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { useAppStore } from '../store/useAppStore';
 import type { Employee } from '../types';
@@ -27,9 +33,24 @@ function getContractTypeLabel(value: Employee['contractType']): string {
   return '-';
 }
 
+function getShiftTypeLabel(value: Employee['shiftType']): string {
+  if (value === 'day') return 'Día';
+  if (value === 'night') return 'Noche';
+  return '-';
+}
+
+function getWeeklyHoursLabel(value: Employee['weeklyHours']): string {
+  return value === undefined ? '-' : `${value.toFixed(1)} h`;
+}
+
 export function EmployeesPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isDeleteOpen,
+    onOpen: openDeleteDialog,
+    onClose: closeDeleteDialog
+  } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const timeSlots = useAppStore((state) => state.timeSlots);
@@ -37,10 +58,12 @@ export function EmployeesPage(): JSX.Element {
   const weekPlans = useAppStore((state) => state.weekPlans);
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
-  const toggleEmployeeActive = useAppStore((state) => state.toggleEmployeeActive);
+  const deleteEmployee = useAppStore((state) => state.deleteEmployee);
 
   const [editing, setEditing] = useState<Employee | undefined>(undefined);
   const [exportingEmployeeId, setExportingEmployeeId] = useState<string | null>(null);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | undefined>(undefined);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
   const currentWeek = useMemo(() => weeks.find((week) => week.id === currentWeekId), [weeks, currentWeekId]);
   const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
@@ -77,6 +100,22 @@ export function EmployeesPage(): JSX.Element {
     }
   };
 
+  const handleDeleteClick = (employee: Employee): void => {
+    setEmployeeToDelete(employee);
+    openDeleteDialog();
+  };
+
+  const handleConfirmDelete = (): void => {
+    if (!employeeToDelete) return;
+    deleteEmployee(employeeToDelete.id);
+    toast({
+      status: 'success',
+      title: `${employeeToDelete.name} fue eliminado permanentemente.`
+    });
+    setEmployeeToDelete(undefined);
+    closeDeleteDialog();
+  };
+
   return (
     <Box>
       <Card>
@@ -102,6 +141,7 @@ export function EmployeesPage(): JSX.Element {
                 <Th>Activo</Th>
                 <Th>Horas semanales</Th>
                 <Th>Tipo contrato</Th>
+                <Th>Turno</Th>
                 <Th>Día descanso</Th>
                 <Th>Zona asignada</Th>
                 <Th>Acciones</Th>
@@ -114,8 +154,9 @@ export function EmployeesPage(): JSX.Element {
                   <Td>
                     <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                   </Td>
-                  <Td>{(employee.weeklyHours ?? 40).toFixed(1)} h</Td>
+                  <Td>{getWeeklyHoursLabel(employee.weeklyHours)}</Td>
                   <Td>{getContractTypeLabel(employee.contractType)}</Td>
+                  <Td>{getShiftTypeLabel(employee.shiftType)}</Td>
                   <Td>{getRestDayLabel(employee.restDay)}</Td>
                   <Td>{employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? '-' : '-'}</Td>
                   <Td>
@@ -129,8 +170,8 @@ export function EmployeesPage(): JSX.Element {
                       >
                         Editar
                       </Button>
-                      <Button size="xs" variant="outline" onClick={() => toggleEmployeeActive(employee.id)}>
-                        {employee.active ? 'Desactivar' : 'Activar'}
+                      <Button size="xs" colorScheme="red" variant="outline" onClick={() => handleDeleteClick(employee)}>
+                        Eliminar
                       </Button>
                       <Button
                         size="xs"
@@ -159,6 +200,41 @@ export function EmployeesPage(): JSX.Element {
           upsertEmployee(employee);
         }}
       />
+
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={cancelDeleteRef}
+        onClose={() => {
+          setEmployeeToDelete(undefined);
+          closeDeleteDialog();
+        }}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Confirmar eliminación
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              ¿Estás seguro? Esta acción eliminará a {employeeToDelete?.name ?? 'este colaborador'} de forma
+              permanente.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                ref={cancelDeleteRef}
+                onClick={() => {
+                  setEmployeeToDelete(undefined);
+                  closeDeleteDialog();
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button colorScheme="red" onClick={handleConfirmDelete} ml={3}>
+                Eliminar permanentemente
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 }

@@ -57,7 +57,7 @@ export function PlanningPage(): JSX.Element {
 
   const activeEmployeesCount = useMemo(() => employees.filter((employee) => employee.active).length, [employees]);
   const employeeHoursById = useMemo(() => {
-    const targetByEmployeeId = new Map(employees.map((employee) => [employee.id, employee.weeklyHours ?? 40]));
+    const targetByEmployeeId = new Map(employees.map((employee) => [employee.id, employee.weeklyHours ?? 0]));
     const assignedByEmployeeId = new Map<string, number>();
     const slotDurationById = new Map<string, number>();
 
@@ -81,7 +81,7 @@ export function PlanningPage(): JSX.Element {
     for (const employee of employees) {
       summary[employee.id] = {
         assignedHours: assignedByEmployeeId.get(employee.id) ?? 0,
-        targetHours: targetByEmployeeId.get(employee.id) ?? 40
+        targetHours: targetByEmployeeId.get(employee.id) ?? 0
       };
     }
     return summary;

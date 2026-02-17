@@ -58,10 +58,19 @@ export async function replacePlannerState(payload: PlannerStatePayload): Promise
 
 export async function resetPlannerState(): Promise<PlannerStatePayload> {
   const seed = buildSeedState();
+  const resetState: PlannerStatePayload = {
+    ...seed,
+    employees: seed.employees.map((employee) => ({
+      ...employee,
+      contractType: undefined,
+      shiftType: undefined,
+      weeklyHours: 0
+    }))
+  };
   await PlannerStateModel.findOneAndUpdate(
     { key: STATE_KEY },
-    { $set: seed },
+    { $set: resetState },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
-  return seed;
+  return resetState;
 }

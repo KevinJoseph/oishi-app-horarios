@@ -12,8 +12,9 @@ const mockEmployees = [
         id: 'emp-1',
         name: 'Ana Pérez',
         active: true,
-        weeklyHours: 0,
+        weeklyHours: 56,
         contractType: 'full-time',
+        shiftType: 'day',
         mainRoleId: 'role-caja',
         phone: '555-1001',
         restDay: 0
@@ -22,8 +23,9 @@ const mockEmployees = [
         id: 'emp-2',
         name: 'Luis Gómez',
         active: true,
-        weeklyHours: 0,
+        weeklyHours: 56,
         contractType: 'full-time',
+        shiftType: 'day',
         mainRoleId: 'role-role-corredor',
         phone: '555-1002',
         restDay: 0
@@ -32,8 +34,9 @@ const mockEmployees = [
         id: 'emp-3',
         name: 'Marta Ruiz',
         active: true,
-        weeklyHours: 0,
+        weeklyHours: 56,
         contractType: 'full-time',
+        shiftType: 'day',
         mainRoleId: 'role-corredor',
         phone: '555-1003',
         restDay: 0
@@ -42,8 +45,9 @@ const mockEmployees = [
         id: 'emp-4',
         name: 'Diego León',
         active: true,
-        weeklyHours: 0,
+        weeklyHours: 56,
         contractType: 'full-time',
+        shiftType: 'day',
         mainRoleId: 'role-salon01',
         phone: '555-1004',
         restDay: 0
@@ -52,8 +56,9 @@ const mockEmployees = [
         id: 'emp-5',
         name: 'Carla Díaz',
         active: true,
-        weeklyHours: 0,
+        weeklyHours: 56,
         contractType: 'full-time',
+        shiftType: 'day',
         mainRoleId: 'role-salon01',
         phone: '555-1005',
         restDay: 0
@@ -105,17 +110,28 @@ function formatWeekLabel(startDate) {
 }
 function buildWeeks() {
     const monday = getCurrentMonday();
-    const nextMonday = addDays(monday, 7);
+    const weekStarts = Array.from({ length: 4 }).map((_, index) => addDays(monday, index * 7));
+    const weekLabels = ['Semana actual', 'Semana siguiente', 'En 2 semanas', 'En 3 semanas'];
     return [
         {
             id: 'week-current',
-            label: `Semana actual (${formatWeekLabel(monday)})`,
-            startDateISO: toISODate(monday)
+            label: `${weekLabels[0]} (${formatWeekLabel(weekStarts[0])})`,
+            startDateISO: toISODate(weekStarts[0])
         },
         {
             id: 'week-next',
-            label: `Semana siguiente (${formatWeekLabel(nextMonday)})`,
-            startDateISO: toISODate(nextMonday)
+            label: `${weekLabels[1]} (${formatWeekLabel(weekStarts[1])})`,
+            startDateISO: toISODate(weekStarts[1])
+        },
+        {
+            id: 'week-plus-2',
+            label: `${weekLabels[2]} (${formatWeekLabel(weekStarts[2])})`,
+            startDateISO: toISODate(weekStarts[2])
+        },
+        {
+            id: 'week-plus-3',
+            label: `${weekLabels[3]} (${formatWeekLabel(weekStarts[3])})`,
+            startDateISO: toISODate(weekStarts[3])
         }
     ];
 }

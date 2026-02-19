@@ -9,6 +9,7 @@ function sanitizePayload(payload: PlannerStatePayload): PlannerStatePayload {
     employees: payload.employees,
     roles: payload.roles,
     timeSlots: payload.timeSlots,
+    shiftRanges: payload.shiftRanges,
     weeks: payload.weeks,
     weekPlans: payload.weekPlans
   };
@@ -18,13 +19,20 @@ function mapUnknownState(raw: {
   employees: unknown[];
   roles: unknown[];
   timeSlots: unknown[];
+  shiftRanges?: unknown;
   weeks: unknown[];
   weekPlans: Record<string, unknown>;
 }): PlannerStatePayload {
+  const defaultShiftRanges = {
+    day: { startHour: 12, endHour: 17 },
+    night: { startHour: 17, endHour: 22 }
+  };
+
   return {
     employees: raw.employees as PlannerStatePayload['employees'],
     roles: raw.roles as PlannerStatePayload['roles'],
     timeSlots: raw.timeSlots as PlannerStatePayload['timeSlots'],
+    shiftRanges: (raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges,
     weeks: raw.weeks as PlannerStatePayload['weeks'],
     weekPlans: raw.weekPlans as PlannerStatePayload['weekPlans']
   };

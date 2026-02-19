@@ -11,6 +11,16 @@ export type Employee = {
   phone?: string;
 };
 
+export type ShiftRange = {
+  startHour: number;
+  endHour: number;
+};
+
+export type ShiftRanges = {
+  day: ShiftRange;
+  night: ShiftRange;
+};
+
 export type Role = {
   id: string;
   name: string;
@@ -52,6 +62,7 @@ export type PlannerStatePayload = {
   employees: Employee[];
   roles: Role[];
   timeSlots: TimeSlot[];
+  shiftRanges: ShiftRanges;
   weeks: Week[];
   weekPlans: Record<string, WeekPlan>;
 };

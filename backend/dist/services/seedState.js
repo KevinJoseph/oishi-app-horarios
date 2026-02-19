@@ -77,6 +77,23 @@ const mockTimeSlots = [
     { id: 'ts-10', label: '20:00 - 21:00', start: '20:00', end: '21:00', order: 10 },
     { id: 'ts-11', label: '21:00 - 22:00', start: '21:00', end: '22:00', order: 11 }
 ];
+function buildDefaultShiftRanges(timeSlots) {
+    const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
+    const startHour = Number.parseInt(ordered[0]?.start.slice(0, 2) ?? '12', 10);
+    const endHour = Number.parseInt(ordered[ordered.length - 1]?.end.slice(0, 2) ?? '22', 10);
+    const span = endHour - startHour;
+    if (span <= 1) {
+        return {
+            day: { startHour, endHour },
+            night: { startHour, endHour }
+        };
+    }
+    const splitHour = startHour + Math.floor(span / 2);
+    return {
+        day: { startHour, endHour: splitHour },
+        night: { startHour: splitHour, endHour }
+    };
+}
 function getCurrentMonday() {
     const now = new Date();
     const day = now.getDay();
@@ -159,6 +176,7 @@ export function buildSeedState() {
     const employees = [...mockEmployees];
     const roles = [...mockRoles];
     const timeSlots = [...mockTimeSlots];
+    const shiftRanges = buildDefaultShiftRanges(timeSlots);
     const weeks = buildWeeks();
     const weekPlans = {};
     const employeeIds = employees.map((employee) => employee.id);
@@ -170,6 +188,7 @@ export function buildSeedState() {
         employees,
         roles,
         timeSlots,
+        shiftRanges,
         weeks,
         weekPlans
     };

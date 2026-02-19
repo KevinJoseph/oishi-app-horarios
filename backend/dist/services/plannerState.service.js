@@ -6,15 +6,21 @@ function sanitizePayload(payload) {
         employees: payload.employees,
         roles: payload.roles,
         timeSlots: payload.timeSlots,
+        shiftRanges: payload.shiftRanges,
         weeks: payload.weeks,
         weekPlans: payload.weekPlans
     };
 }
 function mapUnknownState(raw) {
+    const defaultShiftRanges = {
+        day: { startHour: 12, endHour: 17 },
+        night: { startHour: 17, endHour: 22 }
+    };
     return {
         employees: raw.employees,
         roles: raw.roles,
         timeSlots: raw.timeSlots,
+        shiftRanges: raw.shiftRanges ?? defaultShiftRanges,
         weeks: raw.weeks,
         weekPlans: raw.weekPlans
     };

@@ -1,5 +1,21 @@
-import { Badge, Box, Button, Card, CardBody, Flex, HStack, Text, useDisclosure, useToast } from '@chakra-ui/react';
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+  Flex,
+  Heading,
+  HStack,
+  Stack,
+  Text,
+  useDisclosure,
+  useToast
+} from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
+import { FiDownload, FiEye, FiTrash2 } from 'react-icons/fi';
 import { CellEditorModal } from '../components/CellEditorModal';
 import { DayGrid } from '../components/DayGrid';
 import { DayTabs } from '../components/DayTabs';
@@ -88,93 +104,114 @@ export function PlanningPage(): JSX.Element {
   }, [employees, timeSlots, currentWeekPlan]);
 
   return (
-    <Box>
-      <Card mb={4}>
-        <CardBody>
-          <Flex justify="space-between" gap={3} wrap="wrap">
-            <HStack>
-              <WeekSelector />
-              <Button  colorScheme="blue" onClick={openLegend}>Ver Zonas</Button>
-            </HStack>
-            <HStack>
-              <Badge colorScheme="green" px={3} py={1} rounded="md">
-                Colaborador: {activeEmployeesCount}
-              </Badge>
-              <Button
-                colorScheme="teal"
-                variant="outline"
-                isLoading={isExportingPdf}
-                isDisabled={!currentWeek || !activeDay}
-                onClick={() => {
-                  if (!currentWeek || !activeDay) {
-                    toast({ status: 'warning', title: 'No hay día activo para exportar.' });
-                    return;
-                  }
-                  try {
-                    setIsExportingPdf(true);
-                    downloadDaySchedulePdf({
-                      dayPlan: activeDay,
-                      employees,
-                      roles,
-                      timeSlots,
-                      week: currentWeek
-                    });
-                    toast({ status: 'success', title: `PDF generado para ${activeDay.dayName}.` });
-                  } catch {
-                    toast({ status: 'error', title: 'No se pudo generar el PDF del día.' });
-                  } finally {
-                    setIsExportingPdf(false);
-                  }
-                }}
-              >
-                PDF
-              </Button>
-              <Button colorScheme="red" variant="outline" onClick={resetAll}>
-                Borrar Planificación
-              </Button>
-            </HStack>
-          </Flex>
-        </CardBody>
-      </Card>
+    <Box maxW="1480px" mx="auto" px={{ base: 3, md: 4, lg: 5 }} py={{ base: 4, md: 6 }}>
+      <Stack spacing={6}>
+        <Stack spacing={2}>
+          <Heading size={{ base: 'xs', md: 'md' }} letterSpacing="-0.02em" color="gray.800">
+            Planificación Semanal
+          </Heading>
+          <Text fontSize={{ base: 'sm', md: 'sm' }} color="gray.600">
+            Gestione y asigne turnos para sus colaboradores esta semana.
+          </Text>
+        </Stack>
 
-      {!activeDay ? (
-        <Card>
+        <Card variant="outline" borderColor="gray.200" shadow="sm">
           <CardBody>
-            <Text color="gray.500">No hay datos para esta semana.</Text>
+            <Flex direction={{ base: 'column', lg: 'row' }} gap={4} align={{ base: 'stretch', lg: 'center' }}>
+              <Flex flex="1" gap={3} wrap="wrap" align="center">
+                <Box flex="1" minW={{ base: '100%', sm: '260px' }}>
+                  <WeekSelector />
+                </Box>
+                <Button colorScheme="brand" leftIcon={<FiEye />} onClick={openLegend}>
+                  Ver Zonas
+                </Button>
+              </Flex>
+              <Flex flex="1" justify={{ base: 'flex-start', lg: 'flex-end' }} gap={3} wrap="wrap" align="center">
+                <Badge colorScheme="blue" px={3} py={1} rounded="full" variant="subtle">
+                  COLABORADORES: {activeEmployeesCount}
+                </Badge>
+                <Button
+                  colorScheme="brand"
+                  variant="outline"
+                  leftIcon={<FiDownload />}
+                  isLoading={isExportingPdf}
+                  isDisabled={!currentWeek || !activeDay}
+                  onClick={() => {
+                    if (!currentWeek || !activeDay) {
+                      toast({ status: 'warning', title: 'No hay día activo para exportar.' });
+                      return;
+                    }
+                    try {
+                      setIsExportingPdf(true);
+                      downloadDaySchedulePdf({
+                        dayPlan: activeDay,
+                        employees,
+                        roles,
+                        timeSlots,
+                        week: currentWeek
+                      });
+                      toast({ status: 'success', title: `PDF generado para ${activeDay.dayName}.` });
+                    } catch {
+                      toast({ status: 'error', title: 'No se pudo generar el PDF del día.' });
+                    } finally {
+                      setIsExportingPdf(false);
+                    }
+                  }}
+                >
+                  Exportar PDF
+                </Button>
+                <Button colorScheme="red" variant="ghost" leftIcon={<FiTrash2 />} onClick={resetAll}>
+                  Borrar Todo
+                </Button>
+              </Flex>
+            </Flex>
           </CardBody>
         </Card>
-      ) : (
-        <Card>
-          <CardBody>
-            <DayTabs days={days} activeIndex={activeDayIndex} onChange={setActiveDayIndex} />
-            <Box mt={4}>
-              <DayGrid
-                dayPlan={activeDay}
-                employees={employees}
-                roles={roles}
-                timeSlots={timeSlots}
-                employeeHoursById={employeeHoursById}
-                onCellClick={(cell) => {
-                  setSelectedCell(cell);
-                  openEditor();
-                }}
-                onEmployeeClick={(employeeId) => {
-                  setSelectedEmployeeId(employeeId);
-                  openProfile();
-                }}
-              />
-            </Box>
-            <HStack mt={4}>
-              <Badge colorScheme="orange" px={3} py={1} rounded="md">
-                Apertura: {summary.opening}
-              </Badge>
-              <Badge colorScheme="purple" px={3} py={1} rounded="md">
-                Cierre: {summary.closing}
-              </Badge>
-            </HStack>
-          </CardBody>
-        </Card>
-      )}
+
+        {!activeDay ? (
+          <Card variant="outline" borderColor="gray.200" shadow="sm">
+            <CardBody>
+              <Text color="gray.500">No hay datos para esta semana.</Text>
+            </CardBody>
+          </Card>
+        ) : (
+          <Card variant="outline" borderColor="gray.200" shadow="sm">
+            <CardHeader pb={0}>
+              <DayTabs days={days} activeIndex={activeDayIndex} onChange={setActiveDayIndex} />
+            </CardHeader>
+            <CardBody>
+              <Stack spacing={4}>
+                <Box>
+                  <DayGrid
+                    dayPlan={activeDay}
+                    employees={employees}
+                    roles={roles}
+                    timeSlots={timeSlots}
+                    employeeHoursById={employeeHoursById}
+                    onCellClick={(cell) => {
+                      setSelectedCell(cell);
+                      openEditor();
+                    }}
+                    onEmployeeClick={(employeeId) => {
+                      setSelectedEmployeeId(employeeId);
+                      openProfile();
+                    }}
+                  />
+                </Box>
+                <Divider />
+                <HStack spacing={3} flexWrap="wrap">
+                  <Badge colorScheme="orange" px={3} py={1} rounded="full" variant="subtle">
+                    Apertura: {summary.opening}
+                  </Badge>
+                  <Badge colorScheme="purple" px={3} py={1} rounded="full" variant="subtle">
+                    Cierre: {summary.closing}
+                  </Badge>
+                </HStack>
+              </Stack>
+            </CardBody>
+          </Card>
+        )}
+      </Stack>
 
       <LegendDrawer isOpen={isLegendOpen} onClose={closeLegend} roles={roles} />
       <EmployeeProfileDrawer

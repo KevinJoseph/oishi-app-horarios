@@ -9,20 +9,20 @@ type Props = {
 
 export function DayTabs({ days, activeIndex, onChange }: Props): JSX.Element {
   return (
-    <Tabs index={activeIndex} onChange={onChange} colorScheme="blue" variant="unstyled">
-      <TabList overflowX="auto" whiteSpace="nowrap" gap={1} borderBottomWidth="1px" borderColor="gray.200">
+    <Tabs index={activeIndex} onChange={onChange} colorScheme="brand" variant="unstyled">
+      <TabList overflowX="auto" whiteSpace="nowrap" gap={0} borderBottomWidth="1px" borderColor="blackAlpha.100" bg="gray.50" rounded="md">
         {days.map((day) => (
           <Tab
             key={day.dateISO}
             fontWeight="600"
-            px={3}
-            py={2}
-            borderRadius="md"
+            px={5}
+            py={3}
+            borderRadius="0"
             borderBottomWidth="2px"
             borderBottomColor="transparent"
-            _selected={{ bg: 'blue.50', color: 'blue.700', fontWeight: '800', borderBottomColor: 'blue.500' }}
+            _selected={{ bg: 'white', color: 'brand.700', fontWeight: '800', borderBottomColor: 'brand.500' }}
           >
-            {day.dayName}
+            {`${day.dayName} ${new Date(`${day.dateISO}T00:00:00`).getDate()}`}
           </Tab>
         ))}
       </TabList>

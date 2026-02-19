@@ -49,13 +49,26 @@ export function DayGrid({
   const tableMaxHeight = maxTableHeight ?? (compact ? '48vh' : '65vh');
 
   return (
-    <Box borderWidth="1px" rounded="lg" overflow="hidden" bg="white">
+    <Box borderWidth="1px" borderColor="blackAlpha.100" rounded="lg" overflow="hidden" bg="white">
       <Box overflow="auto" maxH={tableMaxHeight}>
         <Box as="table" minW={compact ? '760px' : '900px'} w="100%" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
-          <Box as="thead" position="sticky" top={0} zIndex={4} bg="gray.100">
+          <Box as="thead" position="sticky" top={0} zIndex={4} bg="gray.50">
             <Box as="tr">
-              <Box as="th" p={headerCellPadding} textAlign="left" minW={slotMinWidth} position="sticky" left={0} bg="gray.100" zIndex={5}>
-                Horario
+              <Box
+                as="th"
+                p={headerCellPadding}
+                textAlign="left"
+                minW={slotMinWidth}
+                position="sticky"
+                left={0}
+                bg="gray.50"
+                zIndex={5}
+                fontSize="xs"
+                color="gray.500"
+                letterSpacing="0.05em"
+                textTransform="uppercase"
+              >
+                Franja horaria
               </Box>
               {visibleEmployees.map((employee) => {
                 const summary = employeeHoursById?.[employee.id];
@@ -89,7 +102,7 @@ export function DayGrid({
                   fontWeight="600"
                   fontSize={compact ? 'xs' : 'sm'}
                   borderTopWidth="1px"
-                  borderColor="gray.200"
+                  borderColor="blackAlpha.100"
                   position="sticky"
                   left={0}
                   bg="white"

@@ -7,6 +7,8 @@ import {
   HStack,
   IconButton,
   Input,
+  InputGroup,
+  InputLeftElement,
   Table,
   Tbody,
   Td,
@@ -18,7 +20,7 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
-import { FiEdit2, FiFileText, FiPower, FiUserCheck } from 'react-icons/fi';
+import { FiEdit2, FiFileText, FiPower, FiSearch, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { useAppStore } from '../store/useAppStore';
 import type { Employee } from '../types';
@@ -113,14 +115,27 @@ export function EmployeesPage(): JSX.Element {
 
   return (
     <Box>
-      <Card>
-        <CardBody>
-          <HStack justify="space-between" mb={4}>
-            <Badge px={3} py={1} rounded="md" colorScheme="blue">
-              Total Colaboradores: {employees.length}
-            </Badge>
+      <Card variant="outline" borderColor="gray.200" shadow="sm" mb={4}>
+        <CardBody px={{ base: 4, md: 6 }} py={{ base: 4, md: 5 }}>
+          <HStack justify="space-between" flexWrap="wrap" gap={4}>
+            <InputGroup maxW={{ base: '100%', md: '520px' }}>
+              <InputLeftElement pointerEvents="none">
+                <FiSearch color="var(--chakra-colors-gray-400)" />
+              </InputLeftElement>
+              <Input
+                placeholder="Buscar colaborador por nombre..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                h="44px"
+                bg="white"
+                borderColor="gray.200"
+                _focusVisible={{ borderColor: 'blue.400', boxShadow: '0 0 0 1px var(--chakra-colors-blue-400)' }}
+              />
+            </InputGroup>
             <Button
               colorScheme="blue"
+              h="44px"
+              px={6}
               onClick={() => {
                 setEditing(undefined);
                 onOpen();
@@ -129,12 +144,16 @@ export function EmployeesPage(): JSX.Element {
               Nuevo Colaborador
             </Button>
           </HStack>
-          <Input
-            mb={4}
-            placeholder="Buscar colaborador por nombre"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody>
+          <HStack justify="space-between" mb={4} flexWrap="wrap" gap={3}>
+            <Badge px={3} py={1} rounded="md" colorScheme="blue" variant="subtle">
+              Total Colaboradores: {employees.length}
+            </Badge>
+          </HStack>
           <Table size="sm" bg="white">
             <Thead>
               <Tr>

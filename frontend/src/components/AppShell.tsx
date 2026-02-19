@@ -25,10 +25,25 @@ export function AppShell(): JSX.Element {
   return (
     <Flex direction={{ base: 'column', md: 'row' }} minH="100vh">
       <Sidebar />
-      <Box flex={1}>
+      <Box flex={1} display="flex" flexDirection="column" minH="100vh">
         <Topbar />
-        <Box p={{ base: 4, md: 6 }} maxW="1680px" mx="auto" w="100%">
+        <Box flex="1" p={{ base: 4, md: 6 }} maxW="1680px" mx="auto" w="100%">
           <Outlet />
+        </Box>
+        <Box
+          mt="auto"
+          py={3}
+          px={{ base: 4, md: 6 }}
+          w="100%"
+          borderTop="1px solid"
+          borderColor="gray.200"
+        >
+          <Text fontSize="xs" color="gray.400" textAlign="center">
+            Desarrollado por{' '}
+            <Text as="span" fontWeight="600" color="gray.600">
+              Oishipartners
+            </Text>
+          </Text>
         </Box>
       </Box>
     </Flex>

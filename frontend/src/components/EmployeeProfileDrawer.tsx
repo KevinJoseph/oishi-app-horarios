@@ -108,10 +108,16 @@ export function EmployeeProfileDrawer({ isOpen, onClose, employee, roles, timeSl
                 Zona asignada: {role?.name ?? '-'}
               </Text>
               <Text fontSize="sm" color="gray.600">
+                Tipo de jornada: {getContractTypeLabel(employee.contractType)}
+              </Text>
+              <Text fontSize="sm" color="gray.600">
+                Turno: {getShiftTypeLabel(employee.shiftType, employee.contractType)}
+              </Text>
+              <Text fontSize="sm" color="gray.600">
                 Horas semanales objetivo: {(employee.weeklyHours ?? 0).toFixed(1)} h
               </Text>
               <Text fontSize="sm" color="gray.600">
-                Día de descanso: {getRestDayLabel(employee.restDay)}
+                Día de descanso: {getRestDayLabelForProfile(employee.restDay, employee.contractType)}
               </Text>
               <Box borderWidth="1px" rounded="md" p={3}>
                 <Text fontSize="sm" fontWeight="600">
@@ -161,6 +167,25 @@ export function EmployeeProfileDrawer({ isOpen, onClose, employee, roles, timeSl
       </DrawerContent>
     </Drawer>
   );
+}
+
+function getContractTypeLabel(value: Employee['contractType']): string {
+  if (value === 'part-time') return 'Part Time';
+  if (value === 'full-time') return 'Full Time';
+  return 'Sin contrato';
+}
+
+function getShiftTypeLabel(value: Employee['shiftType'], contractType: Employee['contractType']): string {
+  if (!contractType) return '';
+  if (contractType === 'full-time') return 'Día/Noche';
+  if (value === 'day') return 'Día';
+  if (value === 'night') return 'Noche';
+  return '';
+}
+
+function getRestDayLabelForProfile(restDay: Employee['restDay'], contractType: Employee['contractType']): string {
+  if (!contractType) return '';
+  return getRestDayLabel(restDay);
 }
 
 function getDurationHours(start: string, end: string): number {

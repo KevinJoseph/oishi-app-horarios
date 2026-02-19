@@ -94,7 +94,7 @@ export function PlanningPage(): JSX.Element {
           <Flex justify="space-between" gap={3} wrap="wrap">
             <HStack>
               <WeekSelector />
-              <Button onClick={openLegend}>Ver Zonas</Button>
+              <Button  colorScheme="blue" onClick={openLegend}>Ver Zonas</Button>
             </HStack>
             <HStack>
               <Badge colorScheme="green" px={3} py={1} rounded="md">

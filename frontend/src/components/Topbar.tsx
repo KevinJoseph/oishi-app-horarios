@@ -4,12 +4,12 @@ import { es } from 'date-fns/locale';
 
 export function Topbar(): JSX.Element {
   return (
-    <Box bg="white" borderBottomWidth="1px" px={6} py={3}>
+    <Box bg="whiteAlpha.900" backdropFilter="saturate(180%) blur(8px)" borderBottomWidth="1px" borderBottomColor="blackAlpha.100" px={6} py={3}>
       <Flex align="center" justify="space-between">
-        <Text fontSize="md" fontWeight="600">
+        <Text fontSize="md" fontWeight="700" color="gray.800">
           Planificación de Horarios
         </Text>
-        <Text fontSize="sm" color="gray.500">
+        <Text fontSize="sm" color="gray.500" textTransform="capitalize">
           {format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}
         </Text>
       </Flex>

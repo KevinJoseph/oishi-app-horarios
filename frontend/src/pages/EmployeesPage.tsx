@@ -5,17 +5,20 @@ import {
   Card,
   CardBody,
   HStack,
+  IconButton,
   Input,
   Table,
   Tbody,
   Td,
   Th,
   Thead,
+  Tooltip,
   Tr,
   useDisclosure,
   useToast
 } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
+import { FiEdit2, FiFileText, FiPower, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { useAppStore } from '../store/useAppStore';
 import type { Employee } from '../types';
@@ -159,32 +162,40 @@ export function EmployeesPage(): JSX.Element {
                   <Td>{employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? '-' : '-'}</Td>
                   <Td>
                     <HStack>
-                      <Button
-                        size="xs"
-                        onClick={() => {
-                          setEditing(employee);
-                          onOpen();
-                        }}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        size="xs"
-                        colorScheme={employee.active ? 'orange' : 'green'}
-                        variant="outline"
-                        onClick={() => handleToggleActive(employee)}
-                      >
-                        {employee.active ? 'Desactivar' : 'Activar'}
-                      </Button>
-                      <Button
-                        size="xs"
-                        colorScheme="teal"
-                        variant="outline"
-                        onClick={() => handleDownloadPdf(employee)}
-                        isLoading={exportingEmployeeId === employee.id}
-                      >
-                        PDF
-                      </Button>
+                      <Tooltip label="Editar" hasArrow>
+                        <IconButton
+                          aria-label="Editar colaborador"
+                          size="xs"
+                          variant="outline"
+                          colorScheme="brand"
+                          icon={<FiEdit2 />}
+                          onClick={() => {
+                            setEditing(employee);
+                            onOpen();
+                          }}
+                        />
+                      </Tooltip>
+                      <Tooltip label={employee.active ? 'Desactivar' : 'Activar'} hasArrow>
+                        <IconButton
+                          aria-label={employee.active ? 'Desactivar colaborador' : 'Activar colaborador'}
+                          size="xs"
+                          variant="outline"
+                          colorScheme="brand"
+                          icon={employee.active ? <FiPower /> : <FiUserCheck />}
+                          onClick={() => handleToggleActive(employee)}
+                        />
+                      </Tooltip>
+                      <Tooltip label="Exportar PDF" hasArrow>
+                        <IconButton
+                          aria-label="Exportar PDF"
+                          size="xs"
+                          variant="outline"
+                          colorScheme="brand"
+                          icon={<FiFileText />}
+                          onClick={() => handleDownloadPdf(employee)}
+                          isLoading={exportingEmployeeId === employee.id}
+                        />
+                      </Tooltip>
                     </HStack>
                   </Td>
                 </Tr>

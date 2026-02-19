@@ -23,7 +23,7 @@ export function WeeklyOverviewPage(): JSX.Element {
   }, [currentWeek, ensureWeekPlan]);
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
-  const [viewMode, setViewMode] = useState<'personal' | 'weeks' | 'grid'>('weeks');
+  const [viewMode, setViewMode] = useState<'personal' | 'weeks' | 'grid'>('grid');
   const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
   const days = currentWeekPlan?.days ?? [];
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);

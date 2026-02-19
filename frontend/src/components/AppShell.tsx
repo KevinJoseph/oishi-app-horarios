@@ -27,7 +27,7 @@ export function AppShell(): JSX.Element {
       <Sidebar />
       <Box flex={1} display="flex" flexDirection="column" minH="100vh" minW={0}>
         <Topbar />
-        <Box flex="1" p={{ base: 3, md: 6 }} maxW="1200px" mx="auto" w="100%">
+        <Box flex="1" p={{ base: 3, md: 6 }} maxW="none" mx={0} w="100%">
           <Outlet />
         </Box>
         <Flex

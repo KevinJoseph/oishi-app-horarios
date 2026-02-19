@@ -49,60 +49,62 @@ export function RolesPage(): JSX.Element {
               Nueva Zona
             </Button>
           </HStack>
-          <Table size="sm" bg="white">
-            <Thead>
-              <Tr>
-                <Th>Color</Th>
-                <Th>Nombre</Th>
-                <Th>Códigos válidos</Th>
-                <Th>Acciones</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {roles.map((role) => (
-                <Tr key={role.id}>
-                  <Td>
-                    <Box w={5} h={5} rounded="md" bg={role.colorHex} borderWidth="1px" />
-                  </Td>
-                  <Td>{role.name}</Td>
-                  <Td>
-                    <HStack spacing={1}>
-                      {role.validCodes.map((code) => (
-                        <Badge key={code}>{code}</Badge>
-                      ))}
-                    </HStack>
-                  </Td>
-                  <Td>
-                    <HStack>
-                      <Tooltip label="Editar" hasArrow>
-                        <IconButton
-                          aria-label="Editar zona"
-                          size="xs"
-                          variant="outline"
-                          colorScheme="brand"
-                          icon={<FiEdit2 />}
-                          onClick={() => {
-                            setEditing(role);
-                            onOpen();
-                          }}
-                        />
-                      </Tooltip>
-                      <Tooltip label="Eliminar" hasArrow>
-                        <IconButton
-                          aria-label="Eliminar zona"
-                          size="xs"
-                          variant="outline"
-                          colorScheme="brand"
-                          icon={<FiTrash2 />}
-                          onClick={() => deleteRole(role.id)}
-                        />
-                      </Tooltip>
-                    </HStack>
-                  </Td>
+          <Box overflowX="auto">
+            <Table size="sm" bg="white" minW="700px">
+              <Thead>
+                <Tr>
+                  <Th>Color</Th>
+                  <Th>Nombre</Th>
+                  <Th>Códigos válidos</Th>
+                  <Th>Acciones</Th>
                 </Tr>
-              ))}
-            </Tbody>
-          </Table>
+              </Thead>
+              <Tbody>
+                {roles.map((role) => (
+                  <Tr key={role.id}>
+                    <Td>
+                      <Box w={5} h={5} rounded="md" bg={role.colorHex} borderWidth="1px" />
+                    </Td>
+                    <Td>{role.name}</Td>
+                    <Td>
+                      <HStack spacing={1}>
+                        {role.validCodes.map((code) => (
+                          <Badge key={code}>{code}</Badge>
+                        ))}
+                      </HStack>
+                    </Td>
+                    <Td>
+                      <HStack>
+                        <Tooltip label="Editar" hasArrow>
+                          <IconButton
+                            aria-label="Editar zona"
+                            size="xs"
+                            variant="outline"
+                            colorScheme="brand"
+                            icon={<FiEdit2 />}
+                            onClick={() => {
+                              setEditing(role);
+                              onOpen();
+                            }}
+                          />
+                        </Tooltip>
+                        <Tooltip label="Eliminar" hasArrow>
+                          <IconButton
+                            aria-label="Eliminar zona"
+                            size="xs"
+                            variant="outline"
+                            colorScheme="brand"
+                            icon={<FiTrash2 />}
+                            onClick={() => deleteRole(role.id)}
+                          />
+                        </Tooltip>
+                      </HStack>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
         </CardBody>
       </Card>
 

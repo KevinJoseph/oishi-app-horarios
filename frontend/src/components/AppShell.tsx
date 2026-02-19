@@ -25,26 +25,33 @@ export function AppShell(): JSX.Element {
   return (
     <Flex direction={{ base: 'column', md: 'row' }} minH="100vh">
       <Sidebar />
-      <Box flex={1} display="flex" flexDirection="column" minH="100vh">
+      <Box flex={1} display="flex" flexDirection="column" minH="100vh" minW={0}>
         <Topbar />
-        <Box flex="1" p={{ base: 4, md: 6 }} maxW="1680px" mx="auto" w="100%">
+        <Box flex="1" p={{ base: 3, md: 6 }} maxW="1200px" mx="auto" w="100%">
           <Outlet />
         </Box>
-        <Box
-          mt="auto"
+        <Flex
+          bg="white"
+          borderTopWidth="1px"
+          borderTopColor="#d8e0ea"
+          px={{ base: 4, md: 8 }}
           py={3}
-          px={{ base: 4, md: 6 }}
-          w="100%"
-          borderTop="1px solid"
-          borderColor="gray.200"
+          justify="space-between"
+          align="center"
+          fontSize="sm"
+          color="gray.600"
+          wrap="wrap"
+          gap={3}
+          display={{ base: 'none', md: 'flex' }}
         >
-          <Text fontSize="xs" color="gray.400" textAlign="center">
-            Desarrollado por{' '}
-            <Text as="span" fontWeight="600" color="gray.600">
-              Oishipartners
-            </Text>
+          <Text>
+            Desarrollado por <Text as="span" color="black" fontWeight="700">Oishipartners</Text>
           </Text>
-        </Box>
+          <Flex gap={6}>
+            <Text>Soporte</Text>
+            <Text>Política de Privacidad</Text>
+          </Flex>
+        </Flex>
       </Box>
     </Flex>
   );

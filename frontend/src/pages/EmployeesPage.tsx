@@ -154,73 +154,75 @@ export function EmployeesPage(): JSX.Element {
               Total Colaboradores: {employees.length}
             </Badge>
           </HStack>
-          <Table size="sm" bg="white">
-            <Thead>
-              <Tr>
-                <Th>Nombre</Th>
-                <Th>Activo</Th>
-                <Th>Horas semanales</Th>
-                <Th>Tipo jornada</Th>
-                <Th>Turno</Th>
-                <Th>Día descanso</Th>
-                <Th>Zona asignada</Th>
-                <Th>Acciones</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {filteredEmployees.map((employee) => (
-                <Tr key={employee.id}>
-                  <Td>{employee.name}</Td>
-                  <Td>
-                    <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
-                  </Td>
-                  <Td>{employee.contractType ? getWeeklyHoursLabel(employee.weeklyHours) : ''}</Td>
-                  <Td>{getContractTypeLabel(employee.contractType)}</Td>
-                  <Td>{getShiftTypeLabel(employee.shiftType, employee.contractType)}</Td>
-                  <Td>{getEmployeeRestDayLabel(employee.restDay, employee.contractType)}</Td>
-                  <Td>{employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? '-' : '-'}</Td>
-                  <Td>
-                    <HStack>
-                      <Tooltip label="Editar" hasArrow>
-                        <IconButton
-                          aria-label="Editar colaborador"
-                          size="xs"
-                          variant="outline"
-                          colorScheme="brand"
-                          icon={<FiEdit2 />}
-                          onClick={() => {
-                            setEditing(employee);
-                            onOpen();
-                          }}
-                        />
-                      </Tooltip>
-                      <Tooltip label={employee.active ? 'Desactivar' : 'Activar'} hasArrow>
-                        <IconButton
-                          aria-label={employee.active ? 'Desactivar colaborador' : 'Activar colaborador'}
-                          size="xs"
-                          variant="outline"
-                          colorScheme="brand"
-                          icon={employee.active ? <FiPower /> : <FiUserCheck />}
-                          onClick={() => handleToggleActive(employee)}
-                        />
-                      </Tooltip>
-                      <Tooltip label="Exportar PDF" hasArrow>
-                        <IconButton
-                          aria-label="Exportar PDF"
-                          size="xs"
-                          variant="outline"
-                          colorScheme="brand"
-                          icon={<FiFileText />}
-                          onClick={() => handleDownloadPdf(employee)}
-                          isLoading={exportingEmployeeId === employee.id}
-                        />
-                      </Tooltip>
-                    </HStack>
-                  </Td>
+          <Box overflowX="auto">
+            <Table size="sm" bg="white" minW="980px">
+              <Thead>
+                <Tr>
+                  <Th>Nombre</Th>
+                  <Th>Activo</Th>
+                  <Th>Horas semanales</Th>
+                  <Th>Tipo jornada</Th>
+                  <Th>Turno</Th>
+                  <Th>Día descanso</Th>
+                  <Th>Zona asignada</Th>
+                  <Th>Acciones</Th>
                 </Tr>
-              ))}
-            </Tbody>
-          </Table>
+              </Thead>
+              <Tbody>
+                {filteredEmployees.map((employee) => (
+                  <Tr key={employee.id}>
+                    <Td>{employee.name}</Td>
+                    <Td>
+                      <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
+                    </Td>
+                    <Td>{employee.contractType ? getWeeklyHoursLabel(employee.weeklyHours) : ''}</Td>
+                    <Td>{getContractTypeLabel(employee.contractType)}</Td>
+                    <Td>{getShiftTypeLabel(employee.shiftType, employee.contractType)}</Td>
+                    <Td>{getEmployeeRestDayLabel(employee.restDay, employee.contractType)}</Td>
+                    <Td>{employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? '-' : '-'}</Td>
+                    <Td>
+                      <HStack>
+                        <Tooltip label="Editar" hasArrow>
+                          <IconButton
+                            aria-label="Editar colaborador"
+                            size="xs"
+                            variant="outline"
+                            colorScheme="brand"
+                            icon={<FiEdit2 />}
+                            onClick={() => {
+                              setEditing(employee);
+                              onOpen();
+                            }}
+                          />
+                        </Tooltip>
+                        <Tooltip label={employee.active ? 'Desactivar' : 'Activar'} hasArrow>
+                          <IconButton
+                            aria-label={employee.active ? 'Desactivar colaborador' : 'Activar colaborador'}
+                            size="xs"
+                            variant="outline"
+                            colorScheme="brand"
+                            icon={employee.active ? <FiPower /> : <FiUserCheck />}
+                            onClick={() => handleToggleActive(employee)}
+                          />
+                        </Tooltip>
+                        <Tooltip label="Exportar PDF" hasArrow>
+                          <IconButton
+                            aria-label="Exportar PDF"
+                            size="xs"
+                            variant="outline"
+                            colorScheme="brand"
+                            icon={<FiFileText />}
+                            onClick={() => handleDownloadPdf(employee)}
+                            isLoading={exportingEmployeeId === employee.id}
+                          />
+                        </Tooltip>
+                      </HStack>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
         </CardBody>
       </Card>
 

@@ -1,21 +1,6 @@
-import {
-  Badge,
-  Box,
-  Button,
-  Card,
-  CardBody,
-  CardHeader,
-  Divider,
-  Flex,
-  Heading,
-  HStack,
-  Stack,
-  Text,
-  useDisclosure,
-  useToast
-} from '@chakra-ui/react';
+import { Badge, Box, Button, Card, CardBody, CardHeader, Divider, Flex, HStack, Stack, Text, useDisclosure, useToast } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
-import { FiDownload, FiEye, FiTrash2 } from 'react-icons/fi';
+import { FiDownload, FiEye } from 'react-icons/fi';
 import { CellEditorModal } from '../components/CellEditorModal';
 import { DayGrid } from '../components/DayGrid';
 import { DayTabs } from '../components/DayTabs';
@@ -104,18 +89,18 @@ export function PlanningPage(): JSX.Element {
   }, [employees, timeSlots, currentWeekPlan]);
 
   return (
-    <Box maxW="1480px" mx="auto" px={{ base: 3, md: 4, lg: 5 }} py={{ base: 4, md: 6 }}>
+    <Box>
       <Stack spacing={6}>
         <Stack spacing={2}>
-          <Heading size={{ base: 'xs', md: 'md' }} letterSpacing="-0.02em" color="gray.800">
-            Planificación Semanal
-          </Heading>
-          <Text fontSize={{ base: 'sm', md: 'sm' }} color="gray.600">
+          <Text fontSize={{ base: '1xl', md: '2xl' }} lineHeight="1.1" fontWeight="800" letterSpacing="-0.02em" color="#1f2f4a">
+            Planificación de Horarios
+          </Text>
+          <Text fontSize={{ base: 'xs', md: 'md' }} color="gray.600">
             Gestione y asigne turnos para sus colaboradores esta semana.
           </Text>
         </Stack>
 
-        <Card variant="outline" borderColor="gray.200" shadow="sm">
+        <Card>
           <CardBody>
             <Flex direction={{ base: 'column', lg: 'row' }} gap={4} align={{ base: 'stretch', lg: 'center' }}>
               <Flex flex="1" gap={3} wrap="wrap" align="center">
@@ -160,7 +145,7 @@ export function PlanningPage(): JSX.Element {
                 >
                   Exportar PDF
                 </Button>
-                <Button colorScheme="red" variant="ghost" leftIcon={<FiTrash2 />} onClick={resetAll}>
+                <Button colorScheme="red" variant="ghost" onClick={resetAll}>
                   Borrar Todo
                 </Button>
               </Flex>
@@ -169,13 +154,13 @@ export function PlanningPage(): JSX.Element {
         </Card>
 
         {!activeDay ? (
-          <Card variant="outline" borderColor="gray.200" shadow="sm">
+          <Card>
             <CardBody>
               <Text color="gray.500">No hay datos para esta semana.</Text>
             </CardBody>
           </Card>
         ) : (
-          <Card variant="outline" borderColor="gray.200" shadow="sm">
+          <Card>
             <CardHeader pb={0}>
               <DayTabs days={days} activeIndex={activeDayIndex} onChange={setActiveDayIndex} />
             </CardHeader>

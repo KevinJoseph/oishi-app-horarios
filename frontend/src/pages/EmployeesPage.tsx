@@ -1,16 +1,11 @@
 import {
-  AlertDialog,
-  AlertDialogBody,
-  AlertDialogContent,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogOverlay,
   Badge,
   Box,
   Button,
   Card,
   CardBody,
   HStack,
+  Input,
   Table,
   Tbody,
   Td,
@@ -20,7 +15,7 @@ import {
   useDisclosure,
   useToast
 } from '@chakra-ui/react';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { useAppStore } from '../store/useAppStore';
 import type { Employee } from '../types';
@@ -30,13 +25,20 @@ import { getRestDayLabel } from '../utils/weekdays';
 function getContractTypeLabel(value: Employee['contractType']): string {
   if (value === 'part-time') return 'Part Time';
   if (value === 'full-time') return 'Full Time';
-  return '-';
+  return 'Sin contrato';
 }
 
-function getShiftTypeLabel(value: Employee['shiftType']): string {
+function getShiftTypeLabel(value: Employee['shiftType'], contractType: Employee['contractType']): string {
+  if (!contractType) return '';
+  if (contractType === 'full-time') return 'Día/Noche';
   if (value === 'day') return 'Día';
   if (value === 'night') return 'Noche';
-  return '-';
+  return '';
+}
+
+function getEmployeeRestDayLabel(restDay: Employee['restDay'], contractType: Employee['contractType']): string {
+  if (!contractType) return '';
+  return getRestDayLabel(restDay);
 }
 
 function getWeeklyHoursLabel(value: Employee['weeklyHours']): string {
@@ -46,11 +48,6 @@ function getWeeklyHoursLabel(value: Employee['weeklyHours']): string {
 export function EmployeesPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const {
-    isOpen: isDeleteOpen,
-    onOpen: openDeleteDialog,
-    onClose: closeDeleteDialog
-  } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const timeSlots = useAppStore((state) => state.timeSlots);
@@ -58,15 +55,18 @@ export function EmployeesPage(): JSX.Element {
   const weekPlans = useAppStore((state) => state.weekPlans);
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
-  const deleteEmployee = useAppStore((state) => state.deleteEmployee);
 
   const [editing, setEditing] = useState<Employee | undefined>(undefined);
   const [exportingEmployeeId, setExportingEmployeeId] = useState<string | null>(null);
-  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | undefined>(undefined);
-  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+  const [search, setSearch] = useState('');
   const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
   const currentWeek = useMemo(() => weeks.find((week) => week.id === currentWeekId), [weeks, currentWeekId]);
   const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
+  const filteredEmployees = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return employees;
+    return employees.filter((employee) => employee.name.toLowerCase().includes(term));
+  }, [employees, search]);
 
   const handleDownloadPdf = (employee: Employee): void => {
     if (!currentWeek || !currentWeekPlan) {
@@ -100,20 +100,12 @@ export function EmployeesPage(): JSX.Element {
     }
   };
 
-  const handleDeleteClick = (employee: Employee): void => {
-    setEmployeeToDelete(employee);
-    openDeleteDialog();
-  };
-
-  const handleConfirmDelete = (): void => {
-    if (!employeeToDelete) return;
-    deleteEmployee(employeeToDelete.id);
+  const handleToggleActive = (employee: Employee): void => {
+    upsertEmployee({ ...employee, active: !employee.active });
     toast({
       status: 'success',
-      title: `${employeeToDelete.name} fue eliminado permanentemente.`
+      title: employee.active ? `${employee.name} fue desactivado.` : `${employee.name} fue activado.`
     });
-    setEmployeeToDelete(undefined);
-    closeDeleteDialog();
   };
 
   return (
@@ -134,13 +126,19 @@ export function EmployeesPage(): JSX.Element {
               Nuevo Colaborador
             </Button>
           </HStack>
+          <Input
+            mb={4}
+            placeholder="Buscar colaborador por nombre"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
           <Table size="sm" bg="white">
             <Thead>
               <Tr>
                 <Th>Nombre</Th>
                 <Th>Activo</Th>
                 <Th>Horas semanales</Th>
-                <Th>Tipo contrato</Th>
+                <Th>Tipo jornada</Th>
                 <Th>Turno</Th>
                 <Th>Día descanso</Th>
                 <Th>Zona asignada</Th>
@@ -148,16 +146,16 @@ export function EmployeesPage(): JSX.Element {
               </Tr>
             </Thead>
             <Tbody>
-              {employees.map((employee) => (
+              {filteredEmployees.map((employee) => (
                 <Tr key={employee.id}>
                   <Td>{employee.name}</Td>
                   <Td>
                     <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                   </Td>
-                  <Td>{getWeeklyHoursLabel(employee.weeklyHours)}</Td>
+                  <Td>{employee.contractType ? getWeeklyHoursLabel(employee.weeklyHours) : ''}</Td>
                   <Td>{getContractTypeLabel(employee.contractType)}</Td>
-                  <Td>{getShiftTypeLabel(employee.shiftType)}</Td>
-                  <Td>{getRestDayLabel(employee.restDay)}</Td>
+                  <Td>{getShiftTypeLabel(employee.shiftType, employee.contractType)}</Td>
+                  <Td>{getEmployeeRestDayLabel(employee.restDay, employee.contractType)}</Td>
                   <Td>{employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? '-' : '-'}</Td>
                   <Td>
                     <HStack>
@@ -170,8 +168,13 @@ export function EmployeesPage(): JSX.Element {
                       >
                         Editar
                       </Button>
-                      <Button size="xs" colorScheme="red" variant="outline" onClick={() => handleDeleteClick(employee)}>
-                        Eliminar
+                      <Button
+                        size="xs"
+                        colorScheme={employee.active ? 'orange' : 'green'}
+                        variant="outline"
+                        onClick={() => handleToggleActive(employee)}
+                      >
+                        {employee.active ? 'Desactivar' : 'Activar'}
                       </Button>
                       <Button
                         size="xs"
@@ -200,41 +203,6 @@ export function EmployeesPage(): JSX.Element {
           upsertEmployee(employee);
         }}
       />
-
-      <AlertDialog
-        isOpen={isDeleteOpen}
-        leastDestructiveRef={cancelDeleteRef}
-        onClose={() => {
-          setEmployeeToDelete(undefined);
-          closeDeleteDialog();
-        }}
-      >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Confirmar eliminación
-            </AlertDialogHeader>
-            <AlertDialogBody>
-              ¿Estás seguro? Esta acción eliminará a {employeeToDelete?.name ?? 'este colaborador'} de forma
-              permanente.
-            </AlertDialogBody>
-            <AlertDialogFooter>
-              <Button
-                ref={cancelDeleteRef}
-                onClick={() => {
-                  setEmployeeToDelete(undefined);
-                  closeDeleteDialog();
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button colorScheme="red" onClick={handleConfirmDelete} ml={3}>
-                Eliminar permanentemente
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
     </Box>
   );
 }

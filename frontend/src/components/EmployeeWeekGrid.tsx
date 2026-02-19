@@ -13,7 +13,7 @@ type Props = {
 export function EmployeeWeekGrid({ employee, days, roles, timeSlots, maxTableHeight = '46vh' }: Props): JSX.Element {
   const roleById = new Map(roles.map((role) => [role.id, role]));
   const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
-  const visibleSlots = orderedSlots.length > 1 ? orderedSlots.slice(1) : orderedSlots;
+  const visibleSlots = orderedSlots;
 
   return (
     <Box borderWidth="1px" rounded="lg" overflow="hidden" bg="white">

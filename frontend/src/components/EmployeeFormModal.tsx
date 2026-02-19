@@ -13,7 +13,8 @@ import {
   ModalHeader,
   ModalOverlay,
   Select,
-  Textarea
+  Textarea,
+  useToast
 } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
 import type { Employee, Role } from '../types';
@@ -29,10 +30,11 @@ type Props = {
 };
 
 export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: Props): JSX.Element {
+  const toast = useToast();
   const [name, setName] = useState('');
   const [active, setActive] = useState(true);
   const [weeklyHours, setWeeklyHours] = useState('');
-  const [contractType, setContractType] = useState<'full-time' | 'part-time' | ''>('full-time');
+  const [contractType, setContractType] = useState<'full-time' | 'part-time' | ''>('');
   const [shiftType, setShiftType] = useState<'day' | 'night'>('day');
   const [restDay, setRestDay] = useState('0');
   const [notes, setNotes] = useState('');
@@ -40,12 +42,10 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
   const [mainRoleId, setMainRoleId] = useState('');
 
   useEffect(() => {
-    const initialContractType =
-      editing && (editing.weeklyHours ?? 0) <= 0 ? '' : editing ? editing.contractType ?? '' : 'full-time';
     setName(editing?.name ?? '');
     setActive(editing?.active ?? true);
-    setContractType(initialContractType);
-    setWeeklyHours(getWeeklyHoursLabelForContract(initialContractType));
+    setContractType(editing?.contractType ?? '');
+    setWeeklyHours(editing?.weeklyHours !== undefined ? String(editing.weeklyHours) : '0');
     setShiftType(editing?.shiftType ?? 'day');
     setRestDay(String(normalizeRestDay(editing?.restDay)));
     setNotes(editing?.notes ?? '');
@@ -54,8 +54,12 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
   }, [editing, isOpen]);
 
   useEffect(() => {
-    setWeeklyHours(getWeeklyHoursLabelForContract(contractType));
+    if (contractType === '') {
+      setWeeklyHours('');
+    }
   }, [contractType]);
+
+  const isWithoutContract = contractType === '';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -81,7 +85,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
           </FormControl>
           <HStack mb={3} align="flex-start" spacing={3}>
             <FormControl flex="1">
-              <FormLabel>Tipo de contrato</FormLabel>
+              <FormLabel>Tipo de jornada</FormLabel>
               <Select
                 value={contractType}
                 onChange={(event) => setContractType(event.target.value as 'full-time' | 'part-time' | '')}
@@ -91,28 +95,54 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
                 <option value="part-time">Part Time</option>
               </Select>
             </FormControl>
-            <FormControl flex="1">
+            <FormControl flex="1" isRequired>
               <FormLabel>Horas semanales</FormLabel>
-              <Input type="number" min={0} step={0.5} value={weeklyHours} isDisabled />
+              <Input
+                type="number"
+                min={0.5}
+                step={0.5}
+                value={weeklyHours}
+                onChange={(event) => setWeeklyHours(event.target.value)}
+                isDisabled={isWithoutContract}
+              />
             </FormControl>
           </HStack>
-          <FormControl mb={3}>
-            <FormLabel>Turno</FormLabel>
-            <Select value={shiftType} onChange={(event) => setShiftType(event.target.value as 'day' | 'night')}>
-              <option value="day">Día</option>
-              <option value="night">Noche</option>
-            </Select>
-          </FormControl>
-          <FormControl mb={3}>
-            <FormLabel>Día de descanso</FormLabel>
-            <Select value={restDay} onChange={(event) => setRestDay(event.target.value)}>
-              {WEEKDAY_OPTIONS.map((day) => (
-                <option key={day.value} value={day.value}>
-                  {day.label}
-                </option>
-              ))}
-            </Select>
-          </FormControl>
+          <HStack mb={3} align="flex-start" spacing={3}>
+            <FormControl flex="1">
+              <FormLabel>Turno</FormLabel>
+              <Select
+                value={contractType === 'full-time' ? 'both' : contractType === '' ? 'none' : shiftType}
+                onChange={(event) => {
+                  if (event.target.value === 'both' || event.target.value === 'none') return;
+                  setShiftType(event.target.value as 'day' | 'night');
+                }}
+                isDisabled={contractType === 'full-time' || isWithoutContract}
+              >
+                <option value="none"></option>
+                <option value="both">Día/Noche</option>
+                <option value="day">Día</option>
+                <option value="night">Noche</option>
+              </Select>
+            </FormControl>
+            <FormControl flex="1">
+              <FormLabel>Día de descanso</FormLabel>
+              <Select
+                value={isWithoutContract ? 'none' : restDay}
+                onChange={(event) => {
+                  if (event.target.value === 'none') return;
+                  setRestDay(event.target.value);
+                }}
+                isDisabled={isWithoutContract}
+              >
+                <option value="none"></option>
+                {WEEKDAY_OPTIONS.map((day) => (
+                  <option key={day.value} value={day.value}>
+                    {day.label}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+          </HStack>
           <FormControl mb={3}>
             <FormLabel>Teléfono</FormLabel>
             <Input value={phone} onChange={(event) => setPhone(event.target.value)} />
@@ -134,14 +164,22 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
               colorScheme="blue"
               onClick={() => {
                 if (!name.trim()) return;
+                const parsedWeeklyHours = Number.parseFloat(weeklyHours);
+                if (!isWithoutContract && (!Number.isFinite(parsedWeeklyHours) || parsedWeeklyHours <= 0)) {
+                  toast({
+                    status: 'error',
+                    title: 'Horas semanales es obligatorio.'
+                  });
+                  return;
+                }
                 onSave({
                   id: editing?.id ?? createId('emp'),
                   name: name.trim(),
                   active,
-                  weeklyHours: getWeeklyHoursForContract(contractType),
+                  weeklyHours: isWithoutContract ? 0 : parsedWeeklyHours,
                   contractType: contractType || undefined,
-                  shiftType: contractType ? shiftType : undefined,
-                  restDay: normalizeRestDay(Number.parseInt(restDay, 10)),
+                  shiftType: contractType === 'part-time' ? shiftType : undefined,
+                  restDay: isWithoutContract ? undefined : normalizeRestDay(Number.parseInt(restDay, 10)),
                   notes: notes.trim() || undefined,
                   phone: phone.trim() || undefined,
                   mainRoleId: mainRoleId || undefined
@@ -156,15 +194,4 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
       </ModalContent>
     </Modal>
   );
-}
-
-function getWeeklyHoursForContract(contractType: Employee['contractType'] | ''): number | undefined {
-  if (contractType === 'full-time') return 56;
-  if (contractType === 'part-time') return 28;
-  return 0;
-}
-
-function getWeeklyHoursLabelForContract(contractType: Employee['contractType'] | ''): string {
-  const hours = getWeeklyHoursForContract(contractType);
-  return String(hours);
 }

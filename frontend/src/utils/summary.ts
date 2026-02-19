@@ -14,10 +14,7 @@ function countAssigned(dayPlan: DayPlan, slotIds: string[]): number {
 
 export function getOpeningClosingSummary(dayPlan: DayPlan, timeSlots: TimeSlot[]): { opening: number; closing: number } {
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
-  // La grilla diaria oculta el primer bloque horario por regla de negocio.
-  // "Apertura" debe usar el primer bloque visible para mantener consistencia visual.
-  const firstVisible = ordered.length > 1 ? ordered[1] : ordered[0];
-  const openingSlots = firstVisible ? [firstVisible.id] : [];
+  const openingSlots = ordered.length ? [ordered[0].id] : [];
   const closingSlots = ordered.length ? [ordered[ordered.length - 1].id] : [];
   return {
     opening: countAssigned(dayPlan, openingSlots),

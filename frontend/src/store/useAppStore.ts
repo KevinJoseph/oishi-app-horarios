@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { fetchPlannerState, resetPlannerState as resetPlannerStateApi, savePlannerState } from '../api/plannerApi';
 import { loadSeedState, normalizePlannerState } from '../data/seed';
 import { buildEmptyWeekPlan } from '../data/mocks';
-import type { Assignment, Employee, Role, TimeSlot, Week, WeekPlan } from '../types';
+import type { Assignment, Employee, Role, ShiftRanges, TimeSlot, Week, WeekPlan } from '../types';
 import { normalizeRestDay } from '../utils/weekdays';
 
 type UpdateAssignmentInput = {
@@ -46,6 +46,8 @@ type AppState = PersistableState & {
   updateAssignment: (input: UpdateAssignmentInput) => { ok: boolean; error?: string };
   updateEmployeeDayAssignments: (input: UpdateEmployeeDayAssignmentsInput) => { ok: boolean; error?: string };
   updateEmployeeDayByHours: (input: UpdateEmployeeDayByHoursInput) => { ok: boolean; error?: string };
+  setPlanningHoursRange: (startHour: number, endHour: number) => { ok: boolean; error?: string };
+  setShiftRanges: (input: ShiftRanges) => { ok: boolean; error?: string };
 };
 
 const seeded = loadSeedState();
@@ -60,8 +62,8 @@ function buildAutoWeekPlanForEmployee(
   roleId: string,
   weeklyHours: number,
   restDay: number,
-  contractType: Employee['contractType'],
   shiftType: Employee['shiftType'],
+  shiftRanges: ShiftRanges,
   timeSlots: TimeSlot[],
   roles: Role[]
 ): WeekPlan {
@@ -70,7 +72,7 @@ function buildAutoWeekPlanForEmployee(
   if (!code) return plan;
 
   const assignableSlots = getAssignableTimeSlots(timeSlots);
-  const planningSlots = getAutoPlanningTimeSlots(timeSlots, contractType, shiftType);
+  const planningSlots = getAutoPlanningTimeSlots(timeSlots, shiftType, shiftRanges);
   const planningSlotIds = new Set(planningSlots.map((slot) => slot.id));
   const slotHoursById = new Map(planningSlots.map((slot) => [slot.id, getSlotDurationHours(slot.start, slot.end)]));
   let remainingHours = Math.max(0, weeklyHours);
@@ -99,22 +101,25 @@ function buildAutoWeekPlanForEmployee(
 }
 
 function getAssignableTimeSlots(timeSlots: TimeSlot[]): TimeSlot[] {
-  const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
-  // Regla de negocio: las horas planificadas empiezan desde el segundo bloque (12:00-13:00).
-  return ordered.length > 1 ? ordered.slice(1) : ordered;
+  return [...timeSlots].sort((a, b) => a.order - b.order);
 }
 
 function getAutoPlanningTimeSlots(
   timeSlots: TimeSlot[],
-  contractType: Employee['contractType'],
-  shiftType: Employee['shiftType']
+  shiftType: Employee['shiftType'],
+  shiftRanges: ShiftRanges
 ): TimeSlot[] {
   const assignable = getAssignableTimeSlots(timeSlots);
-  if (contractType !== 'part-time') return assignable;
-
-  const halfCount = Math.floor(assignable.length / 2);
-  if (halfCount <= 0) return assignable;
-  return shiftType === 'night' ? assignable.slice(-halfCount) : assignable.slice(0, halfCount);
+  if (!shiftType) return assignable;
+  const range = shiftType === 'night' ? shiftRanges.night : shiftRanges.day;
+  const start = range.startHour * 60;
+  const end = range.endHour * 60;
+  return assignable.filter((slot) => {
+    const slotStart = parseTimeToMinutes(slot.start);
+    const slotEnd = parseTimeToMinutes(slot.end);
+    if (slotStart === null || slotEnd === null) return false;
+    return slotStart >= start && slotEnd <= end;
+  });
 }
 
 function clearEmployeeFromWeekPlan(plan: WeekPlan, employeeId: string, timeSlots: TimeSlot[]): WeekPlan {
@@ -151,11 +156,108 @@ function parseISODateToDay(dateISO: string): number {
   return new Date(`${dateISO}T00:00:00`).getDay();
 }
 
+function formatHourLabel(hour: number): string {
+  return `${String(hour).padStart(2, '0')}:00`;
+}
+
+function buildTimeSlotsFromHourRange(startHour: number, endHour: number): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  let order = 1;
+  for (let hour = startHour; hour < endHour; hour += 1) {
+    const start = formatHourLabel(hour);
+    const end = formatHourLabel(hour + 1);
+    slots.push({
+      id: `ts-${start.replace(':', '')}-${end.replace(':', '')}`,
+      label: `${start} - ${end}`,
+      start,
+      end,
+      order
+    });
+    order += 1;
+  }
+  return slots;
+}
+
+function buildDefaultShiftRanges(startHour: number, endHour: number): ShiftRanges {
+  const span = endHour - startHour;
+  if (span <= 1) {
+    return {
+      day: { startHour, endHour },
+      night: { startHour, endHour }
+    };
+  }
+  const splitHour = startHour + Math.floor(span / 2);
+  return {
+    day: { startHour, endHour: splitHour },
+    night: { startHour: splitHour, endHour }
+  };
+}
+
+function getPlanningHoursBounds(timeSlots: TimeSlot[]): { startHour: number; endHour: number } {
+  const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
+  const startHour = Number.parseInt(ordered[0]?.start.slice(0, 2) ?? '12', 10);
+  const endHour = Number.parseInt(ordered[ordered.length - 1]?.end.slice(0, 2) ?? '22', 10);
+  return { startHour, endHour };
+}
+
+function normalizeShiftRangesToPlanningBounds(
+  ranges: ShiftRanges,
+  planningStartHour: number,
+  planningEndHour: number
+): ShiftRanges {
+  const isValid = (value: { startHour: number; endHour: number }) =>
+    Number.isInteger(value.startHour) &&
+    Number.isInteger(value.endHour) &&
+    value.startHour >= planningStartHour &&
+    value.endHour <= planningEndHour &&
+    value.endHour > value.startHour;
+
+  if (isValid(ranges.day) && isValid(ranges.night)) {
+    return ranges;
+  }
+  return buildDefaultShiftRanges(planningStartHour, planningEndHour);
+}
+
+function remapWeekPlansToTimeSlots(
+  weekPlans: Record<string, WeekPlan>,
+  timeSlots: TimeSlot[],
+  employeeIds: string[]
+): Record<string, WeekPlan> {
+  const next: Record<string, WeekPlan> = {};
+
+  for (const [weekId, plan] of Object.entries(weekPlans)) {
+    next[weekId] = {
+      ...plan,
+      days: plan.days.map((day) => {
+        const assignments: WeekPlan['days'][number]['assignments'] = {};
+        for (const slot of timeSlots) {
+          const existing = day.assignments[slot.id];
+          if (existing) {
+            assignments[slot.id] = existing;
+            continue;
+          }
+
+          const byEmployee: WeekPlan['days'][number]['assignments'][string] = {};
+          for (const employeeId of employeeIds) {
+            byEmployee[employeeId] = { roleId: null, code: 'LIBRE' };
+          }
+          assignments[slot.id] = byEmployee;
+        }
+
+        return { ...day, assignments };
+      })
+    };
+  }
+
+  return next;
+}
+
 function toPersistableState(state: AppState): PersistableState {
   return {
     employees: state.employees,
     roles: state.roles,
     timeSlots: state.timeSlots,
+    shiftRanges: state.shiftRanges,
     weeks: state.weeks,
     weekPlans: state.weekPlans
   };
@@ -263,8 +365,8 @@ export const useAppStore = create<AppState>((set, get) => ({
               normalizedEmployee.mainRoleId as string,
               weeklyHours,
               restDay,
-              normalizedEmployee.contractType,
               normalizedEmployee.shiftType,
+              state.shiftRanges,
               state.timeSlots,
               state.roles
             );
@@ -480,6 +582,51 @@ export const useAppStore = create<AppState>((set, get) => ({
       const weekPlans = { ...state.weekPlans, [weekId]: weekPlan };
       return { weekPlans };
     });
+    persistSnapshot(get, set);
+    return { ok: true };
+  },
+
+  setPlanningHoursRange: (startHour, endHour) => {
+    if (!Number.isInteger(startHour) || !Number.isInteger(endHour)) {
+      return { ok: false, error: 'El rango debe usar horas enteras.' };
+    }
+    if (startHour < 0 || startHour > 22 || endHour < 1 || endHour > 23) {
+      return { ok: false, error: 'El rango debe estar entre 00:00 y 23:00.' };
+    }
+    if (endHour <= startHour) {
+      return { ok: false, error: 'La hora fin debe ser mayor que la hora inicio.' };
+    }
+
+    const nextTimeSlots = buildTimeSlotsFromHourRange(startHour, endHour);
+    if (!nextTimeSlots.length) {
+      return { ok: false, error: 'El rango seleccionado no genera bloques.' };
+    }
+
+    set((state) => {
+      const employeeIds = state.employees.map((employee) => employee.id);
+      const weekPlans = remapWeekPlansToTimeSlots(state.weekPlans, nextTimeSlots, employeeIds);
+      const normalizedShiftRanges = normalizeShiftRangesToPlanningBounds(state.shiftRanges, startHour, endHour);
+      return { timeSlots: nextTimeSlots, shiftRanges: normalizedShiftRanges, weekPlans };
+    });
+    persistSnapshot(get, set);
+    return { ok: true };
+  },
+
+  setShiftRanges: (input) => {
+    const { timeSlots } = get();
+    const { startHour, endHour } = getPlanningHoursBounds(timeSlots);
+    const normalized = normalizeShiftRangesToPlanningBounds(input, startHour, endHour);
+    const inputChanged =
+      normalized.day.startHour !== input.day.startHour ||
+      normalized.day.endHour !== input.day.endHour ||
+      normalized.night.startHour !== input.night.startHour ||
+      normalized.night.endHour !== input.night.endHour;
+
+    if (inputChanged) {
+      return { ok: false, error: 'Los turnos deben estar dentro del rango de planificación y tener inicio/fin válido.' };
+    }
+
+    set({ shiftRanges: normalized });
     persistSnapshot(get, set);
     return { ok: true };
   }

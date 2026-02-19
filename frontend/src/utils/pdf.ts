@@ -225,8 +225,7 @@ function tintRoleCellColor(roleHex?: string): [number, number, number] {
 }
 
 function getVisibleTimeSlots(timeSlots: TimeSlot[]): TimeSlot[] {
-  const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
-  return ordered.length > 1 ? ordered.slice(1) : ordered;
+  return [...timeSlots].sort((a, b) => a.order - b.order);
 }
 
 function computeAssignedHours(employeeId: string, days: WeekPlan['days'], slots: TimeSlot[]): number {

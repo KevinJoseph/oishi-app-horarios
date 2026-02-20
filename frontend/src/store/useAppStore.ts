@@ -69,12 +69,20 @@ function buildAutoWeekPlanForEmployee(
 ): WeekPlan {
   const role = roles.find((item) => item.id === roleId);
   const code = role?.validCodes[0];
-  if (!code) return plan;
+  if (!code) return clearEmployeeFromWeekPlan(plan, employeeId, timeSlots);
 
   const assignableSlots = getAssignableTimeSlots(timeSlots);
-  const planningSlots = getAutoPlanningTimeSlots(timeSlots, shiftType, shiftRanges);
-  const planningSlotIds = new Set(planningSlots.map((slot) => slot.id));
-  const slotHoursById = new Map(planningSlots.map((slot) => [slot.id, getSlotDurationHours(slot.start, slot.end)]));
+  const preferredPlanningSlots = getAutoPlanningTimeSlots(timeSlots, shiftType, shiftRanges);
+  const workingDays = plan.days.filter((day) => parseISODateToDay(day.dateISO) !== restDay).length;
+  const preferredDailyHours = preferredPlanningSlots.reduce(
+    (sum, slot) => sum + getSlotDurationHours(slot.start, slot.end),
+    0
+  );
+  // Si el rango del turno no cubre las horas semanales, ampliamos a todos los bloques.
+  const effectivePlanningSlots =
+    preferredDailyHours * workingDays >= Math.max(0, weeklyHours) ? preferredPlanningSlots : assignableSlots;
+  const planningSlotIds = new Set(effectivePlanningSlots.map((slot) => slot.id));
+  const slotHoursById = new Map(effectivePlanningSlots.map((slot) => [slot.id, getSlotDurationHours(slot.start, slot.end)]));
   let remainingHours = Math.max(0, weeklyHours);
 
   const days = plan.days.map((day) => {
@@ -98,6 +106,48 @@ function buildAutoWeekPlanForEmployee(
   });
 
   return { ...plan, days };
+}
+
+function rebuildWeekPlansFromEmployees(
+  weekPlans: Record<string, WeekPlan>,
+  employees: Employee[],
+  roles: Role[],
+  timeSlots: TimeSlot[],
+  shiftRanges: ShiftRanges
+): Record<string, WeekPlan> {
+  const roleIds = new Set(roles.map((role) => role.id));
+  const next: Record<string, WeekPlan> = {};
+
+  for (const [weekId, weekPlan] of Object.entries(weekPlans)) {
+    let plan = weekPlan;
+
+    for (const employee of employees) {
+      const weeklyHours = Math.max(0, employee.weeklyHours ?? 0);
+      const hasMainRole = Boolean(employee.mainRoleId && roleIds.has(employee.mainRoleId));
+      const shouldAutoAssign = employee.active && hasMainRole && weeklyHours > 0;
+
+      if (!shouldAutoAssign) {
+        plan = clearEmployeeFromWeekPlan(plan, employee.id, timeSlots);
+        continue;
+      }
+
+      plan = buildAutoWeekPlanForEmployee(
+        plan,
+        employee.id,
+        employee.mainRoleId as string,
+        weeklyHours,
+        normalizeRestDay(employee.restDay),
+        employee.shiftType,
+        shiftRanges,
+        timeSlots,
+        roles
+      );
+    }
+
+    next[weekId] = plan;
+  }
+
+  return next;
 }
 
 function getAssignableTimeSlots(timeSlots: TimeSlot[]): TimeSlot[] {
@@ -604,9 +654,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set((state) => {
       const employeeIds = state.employees.map((employee) => employee.id);
-      const weekPlans = remapWeekPlansToTimeSlots(state.weekPlans, nextTimeSlots, employeeIds);
+      const remappedWeekPlans = remapWeekPlansToTimeSlots(state.weekPlans, nextTimeSlots, employeeIds);
       const normalizedShiftRanges = normalizeShiftRangesToPlanningBounds(state.shiftRanges, startHour, endHour);
-      return { timeSlots: nextTimeSlots, shiftRanges: normalizedShiftRanges, weekPlans };
+      const rebuiltWeekPlans = rebuildWeekPlansFromEmployees(
+        remappedWeekPlans,
+        state.employees,
+        state.roles,
+        nextTimeSlots,
+        normalizedShiftRanges
+      );
+      return { timeSlots: nextTimeSlots, shiftRanges: normalizedShiftRanges, weekPlans: rebuiltWeekPlans };
     });
     persistSnapshot(get, set);
     return { ok: true };
@@ -626,7 +683,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { ok: false, error: 'Los turnos deben estar dentro del rango de planificación y tener inicio/fin válido.' };
     }
 
-    set({ shiftRanges: normalized });
+    set((state) => {
+      const weekPlans = rebuildWeekPlansFromEmployees(
+        state.weekPlans,
+        state.employees,
+        state.roles,
+        state.timeSlots,
+        normalized
+      );
+      return { shiftRanges: normalized, weekPlans };
+    });
     persistSnapshot(get, set);
     return { ok: true };
   }

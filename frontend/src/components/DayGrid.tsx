@@ -57,7 +57,7 @@ export function DayGrid({
               <Box
                 as="th"
                 p={headerCellPadding}
-                textAlign="left"
+                textAlign="center"
                 minW={slotMinWidth}
                 position="sticky"
                 left={0}
@@ -99,6 +99,7 @@ export function DayGrid({
                 <Box
                   as="td"
                   p={rowCellPadding}
+                  textAlign="center"
                   fontWeight="600"
                   fontSize={compact ? 'xs' : 'sm'}
                   borderTopWidth="1px"

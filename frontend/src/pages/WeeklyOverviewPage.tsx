@@ -129,6 +129,7 @@ export function WeeklyOverviewPage(): JSX.Element {
                   roles={roles}
                   timeSlots={timeSlots}
                   employeeHoursById={employeeHoursById}
+                  showEmployeeCodeInCells
                   readOnly
                   compact
                   maxTableHeight="42vh"

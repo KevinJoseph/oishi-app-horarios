@@ -4,11 +4,13 @@ import type { Assignment, Role } from '../types';
 type Props = {
   assignment: Assignment;
   role?: Role;
+  labelOverride?: string;
   onClick?: () => void;
 };
 
-export function AssignmentCell({ assignment, role, onClick }: Props): JSX.Element {
+export function AssignmentCell({ assignment, role, labelOverride, onClick }: Props): JSX.Element {
   const isFree = assignment.roleId === null;
+  const label = isFree ? 'LIBRE' : labelOverride ?? assignment.code;
   return (
     <Box
       minH="48px"
@@ -29,7 +31,7 @@ export function AssignmentCell({ assignment, role, onClick }: Props): JSX.Elemen
         fontSize="xs"
         fontWeight="700"
       >
-        {assignment.code}
+        {label}
       </Badge>
     </Box>
   );

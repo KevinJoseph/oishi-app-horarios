@@ -88,7 +88,7 @@ export function normalizePlannerState(input: SeedState): SeedState {
     };
   }
 
-  const normalizedEmployees = input.employees.map((employee) => normalizeEmployeeContract(employee));
+  const normalizedEmployees = normalizeEmployeeCodes(input.employees).map((employee) => normalizeEmployeeContract(employee));
 
   return {
     employees: normalizedEmployees,
@@ -101,7 +101,7 @@ export function normalizePlannerState(input: SeedState): SeedState {
 }
 
 export function loadSeedState(): SeedState {
-  const employees = [...mockEmployees];
+  const employees = normalizeEmployeeCodes([...mockEmployees]);
   const roles = [...mockRoles];
   const timeSlots = [...mockTimeSlots];
   const shiftRanges = buildDefaultShiftRanges(timeSlots);
@@ -123,4 +123,31 @@ function normalizeEmployeeContract(employee: SeedState['employees'][number]): Se
     ...employee,
     weeklyHours: Math.max(0, employee.weeklyHours ?? 0)
   };
+}
+
+function normalizeEmployeeCodes<T extends { code?: string }>(employees: T[]): T[] {
+  const used = new Set<number>();
+  const next = employees.map((employee) => ({ ...employee }));
+
+  for (const employee of next) {
+    const match = employee.code?.trim().match(/^CO-(\d+)$/i);
+    if (!match) continue;
+    const numeric = Number.parseInt(match[1], 10);
+    if (Number.isInteger(numeric) && numeric > 0) {
+      used.add(numeric);
+      employee.code = `CO-${String(numeric).padStart(2, '0')}`;
+    }
+  }
+
+  let cursor = 1;
+  for (const employee of next) {
+    const match = employee.code?.trim().match(/^CO-(\d+)$/i);
+    if (match) continue;
+    while (used.has(cursor)) cursor += 1;
+    employee.code = `CO-${String(cursor).padStart(2, '0')}`;
+    used.add(cursor);
+    cursor += 1;
+  }
+
+  return next;
 }

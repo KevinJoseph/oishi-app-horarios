@@ -21,6 +21,7 @@ type Props = {
   employeeHoursById?: Record<string, EmployeeHoursSummary>;
   onCellClick?: (payload: CellPayload) => void;
   onEmployeeClick?: (employeeId: string) => void;
+  showEmployeeCodeInCells?: boolean;
   readOnly?: boolean;
   compact?: boolean;
   maxTableHeight?: string;
@@ -34,6 +35,7 @@ export function DayGrid({
   employeeHoursById,
   onCellClick,
   onEmployeeClick,
+  showEmployeeCodeInCells = false,
   readOnly = false,
   compact = false,
   maxTableHeight
@@ -119,6 +121,7 @@ export function DayGrid({
                       <AssignmentCell
                         assignment={assignment}
                         role={role}
+                        labelOverride={assignment.roleId ? (showEmployeeCodeInCells ? employee.code ?? employee.name : undefined) : undefined}
                         onClick={
                           readOnly ? undefined : () => onCellClick?.({ timeSlotId: slot.id, employeeId: employee.id, assignment })
                         }

@@ -56,6 +56,19 @@ function validRoleCodes(roles: Role[]): Set<string> {
   return new Set(roles.flatMap((role) => role.validCodes.map((code) => `${role.id}|${code}`)));
 }
 
+function getNextEmployeeCode(employees: Employee[]): string {
+  let maxCode = 0;
+  for (const employee of employees) {
+    const match = employee.code?.trim().match(/^CO-(\d+)$/i);
+    if (!match) continue;
+    const numeric = Number.parseInt(match[1], 10);
+    if (Number.isInteger(numeric) && numeric > maxCode) {
+      maxCode = numeric;
+    }
+  }
+  return `CO-${String(maxCode + 1).padStart(2, '0')}`;
+}
+
 function buildAutoWeekPlanForEmployee(
   plan: WeekPlan,
   employeeId: string,
@@ -374,8 +387,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   upsertEmployee: (employee) => {
     set((state) => {
-      const normalizedEmployee: Employee = { ...employee, restDay: normalizeRestDay(employee.restDay) };
-      const previous = state.employees.find((item) => item.id === normalizedEmployee.id);
+      const previous = state.employees.find((item) => item.id === employee.id);
+      const normalizedEmployee: Employee = {
+        ...employee,
+        restDay: normalizeRestDay(employee.restDay),
+        code: employee.code ?? previous?.code ?? getNextEmployeeCode(state.employees)
+      };
       const exists = Boolean(previous);
       const employees = exists
         ? state.employees.map((item) => (item.id === normalizedEmployee.id ? normalizedEmployee : item))

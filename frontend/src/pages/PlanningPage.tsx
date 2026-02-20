@@ -1,6 +1,6 @@
 import { Badge, Box, Button, Card, CardBody, CardHeader, Divider, Flex, HStack, Stack, Text, useDisclosure, useToast } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
-import { FiDownload, FiEye } from 'react-icons/fi';
+import { FiAlertTriangle, FiDownload, FiEye } from 'react-icons/fi';
 import { CellEditorModal } from '../components/CellEditorModal';
 import { DayGrid } from '../components/DayGrid';
 import { DayTabs } from '../components/DayTabs';
@@ -160,41 +160,63 @@ export function PlanningPage(): JSX.Element {
             </CardBody>
           </Card>
         ) : (
-          <Card>
-            <CardHeader pb={0}>
-              <DayTabs days={days} activeIndex={activeDayIndex} onChange={setActiveDayIndex} />
-            </CardHeader>
-            <CardBody>
-              <Stack spacing={4}>
-                <Box>
-                  <DayGrid
-                    dayPlan={activeDay}
-                    employees={employees}
-                    roles={roles}
-                    timeSlots={timeSlots}
-                    employeeHoursById={employeeHoursById}
-                    onCellClick={(cell) => {
-                      setSelectedCell(cell);
-                      openEditor();
-                    }}
-                    onEmployeeClick={(employeeId) => {
-                      setSelectedEmployeeId(employeeId);
-                      openProfile();
-                    }}
-                  />
-                </Box>
-                <Divider />
-                <HStack spacing={3} flexWrap="wrap">
-                  <Badge colorScheme="orange" px={3} py={1} rounded="full" variant="subtle">
-                    Apertura: {summary.opening}
-                  </Badge>
-                  <Badge colorScheme="purple" px={3} py={1} rounded="full" variant="subtle">
-                    Cierre: {summary.closing}
-                  </Badge>
+          <Stack spacing={4}>
+            <Card>
+              <CardHeader pb={0}>
+                <DayTabs days={days} activeIndex={activeDayIndex} onChange={setActiveDayIndex} />
+              </CardHeader>
+              <CardBody>
+                <Stack spacing={4}>
+                  <Box>
+                    <DayGrid
+                      dayPlan={activeDay}
+                      employees={employees}
+                      roles={roles}
+                      timeSlots={timeSlots}
+                      employeeHoursById={employeeHoursById}
+                      showEmployeeCodeInCells
+                      onCellClick={(cell) => {
+                        setSelectedCell(cell);
+                        openEditor();
+                      }}
+                      onEmployeeClick={(employeeId) => {
+                        setSelectedEmployeeId(employeeId);
+                        openProfile();
+                      }}
+                    />
+                  </Box>
+                  <Divider />
+                  <HStack spacing={3} flexWrap="wrap">
+                    <Badge colorScheme="orange" px={3} py={1} rounded="full" variant="subtle">
+                      Apertura: {summary.opening}
+                    </Badge>
+                    <Badge colorScheme="purple" px={3} py={1} rounded="full" variant="subtle">
+                      Cierre: {summary.closing}
+                    </Badge>
+                  </HStack>
+                </Stack>
+              </CardBody>
+            </Card>
+
+            <Card bg="orange.50" borderColor="orange.200" borderWidth="1px">
+              <CardBody>
+                <HStack align="start" spacing={3}>
+                  <Box color="orange.500" mt={0.5}>
+                    <FiAlertTriangle />
+                  </Box>
+                  <Stack spacing={1}>
+                    <Text fontWeight="700" color="orange.800">
+                      Notas de Planificación
+                    </Text>
+                    <Text fontSize="sm" color="orange.900">
+                      Por favor primero verifica las configuraciones de los horarios antes de asignar las horas semanales de los
+                      colaboradores.
+                    </Text>
+                  </Stack>
                 </HStack>
-              </Stack>
-            </CardBody>
-          </Card>
+              </CardBody>
+            </Card>
+          </Stack>
         )}
       </Stack>
 

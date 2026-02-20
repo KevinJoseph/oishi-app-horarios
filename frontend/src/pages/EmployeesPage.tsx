@@ -70,7 +70,11 @@ export function EmployeesPage(): JSX.Element {
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return employees;
-    return employees.filter((employee) => employee.name.toLowerCase().includes(term));
+    return employees.filter(
+      (employee) =>
+        employee.name.toLowerCase().includes(term) ||
+        (employee.code ?? '').toLowerCase().includes(term)
+    );
   }, [employees, search]);
 
   const handleDownloadPdf = (employee: Employee): void => {
@@ -158,6 +162,7 @@ export function EmployeesPage(): JSX.Element {
             <Table size="sm" bg="white" minW="980px">
               <Thead>
                 <Tr>
+                  <Th>Código</Th>
                   <Th>Nombre</Th>
                   <Th>Activo</Th>
                   <Th>Horas semanales</Th>
@@ -171,6 +176,7 @@ export function EmployeesPage(): JSX.Element {
               <Tbody>
                 {filteredEmployees.map((employee) => (
                   <Tr key={employee.id}>
+                    <Td>{employee.code ?? '-'}</Td>
                     <Td>{employee.name}</Td>
                     <Td>
                       <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>

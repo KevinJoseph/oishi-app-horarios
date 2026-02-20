@@ -1,5 +1,6 @@
 export type Employee = {
   id: string;
+  code?: string;
   name: string;
   active: boolean;
   weeklyHours?: number;

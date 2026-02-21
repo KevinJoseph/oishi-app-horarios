@@ -59,7 +59,41 @@ export function PlanningPage(): JSX.Element {
   const closingTarget = dayValidation?.closing ?? 0;
   const openingDelta = summary.opening - openingTarget;
   const closingDelta = summary.closing - closingTarget;
+  const getCoverageStatus = (delta: number): 'ok' | 'excess' | 'missing' => {
+    if (delta === 0) return 'ok';
+    return delta > 0 ? 'excess' : 'missing';
+  };
+  const validationToneByStatus = {
+    ok: {
+      bg: 'green.50',
+      borderColor: 'green.200',
+      iconColor: 'green.500',
+      textColor: 'green.700',
+      Icon: FiCheckCircle
+    },
+    excess: {
+      bg: 'yellow.50',
+      borderColor: 'yellow.300',
+      iconColor: 'yellow.600',
+      textColor: 'yellow.700',
+      Icon: FiAlertTriangle
+    },
+    missing: {
+      bg: 'red.50',
+      borderColor: 'red.200',
+      iconColor: 'red.500',
+      textColor: 'red.700',
+      Icon: FiXCircle
+    }
+  } as const;
+  const openingStatus = getCoverageStatus(openingDelta);
+  const closingStatus = getCoverageStatus(closingDelta);
+  const openingTone = validationToneByStatus[openingStatus];
+  const closingTone = validationToneByStatus[closingStatus];
+  const OpeningStatusIcon = openingTone.Icon;
+  const ClosingStatusIcon = closingTone.Icon;
   const hasValidationMismatch = openingDelta !== 0 || closingDelta !== 0;
+  const hasMissingCoverage = openingStatus === 'missing' || closingStatus === 'missing';
   const repeatedRestDayInfo = useMemo(() => {
     const counts = new Map<number, number>();
     for (const employee of employees) {
@@ -230,7 +264,7 @@ export function PlanningPage(): JSX.Element {
               <CardBody>
                 <Stack spacing={3}>
                   <HStack spacing={2} color="blue.700">
-                    <Box color={hasValidationMismatch ? 'orange.500' : 'blue.500'} mt={0.5}>
+                    <Box color={hasMissingCoverage ? 'red.500' : hasValidationMismatch ? 'orange.500' : 'blue.500'} mt={0.5}>
                       {hasValidationMismatch ? <FiAlertTriangle /> : <FiCheckCircle />}
                     </Box>
                     <Text fontWeight="800" letterSpacing="0.03em" textTransform="uppercase">
@@ -239,19 +273,19 @@ export function PlanningPage(): JSX.Element {
                   </HStack>
 
                   <Box
-                    bg={openingDelta === 0 ? 'green.50' : 'red.50'}
+                    bg={openingTone.bg}
                     borderWidth="1px"
-                    borderColor={openingDelta === 0 ? 'green.200' : 'red.200'}
+                    borderColor={openingTone.borderColor}
                     rounded="md"
                     px={4}
                     py={3}
                   >
                     <HStack align="start" spacing={2}>
-                      <Box color={openingDelta === 0 ? 'green.500' : 'red.500'} mt={0.5}>
-                        {openingDelta === 0 ? <FiCheckCircle /> : <FiXCircle />}
+                      <Box color={openingTone.iconColor} mt={0.5}>
+                        <OpeningStatusIcon />
                       </Box>
                       <Stack spacing={0} flex="1">
-                        <Text fontSize="sm" fontWeight="700" color={openingDelta === 0 ? 'green.700' : 'red.700'}>
+                        <Text fontSize="sm" fontWeight="700" color={openingTone.textColor}>
                           Apertura:{' '}
                           {openingDelta > 0
                             ? `se requiere ${openingTarget} y hay ${summary.opening}. Se excedió por ${openingDelta}.`
@@ -259,7 +293,7 @@ export function PlanningPage(): JSX.Element {
                               ? `se requiere ${openingTarget} y sólo hay ${summary.opening}.`
                               : `cobertura correcta (${summary.opening}/${openingTarget}).`}
                         </Text>
-                        <Text fontSize="sm" color={openingDelta === 0 ? 'green.700' : 'red.700'}>
+                        <Text fontSize="sm" color={openingTone.textColor}>
                           Plan de acción:{' '}
                           {openingDelta > 0
                             ? `Reasignar ${openingDelta} colaborador(es) fuera del turno de apertura.`
@@ -272,19 +306,19 @@ export function PlanningPage(): JSX.Element {
                   </Box>
 
                   <Box
-                    bg={closingDelta === 0 ? 'green.50' : 'red.50'}
+                    bg={closingTone.bg}
                     borderWidth="1px"
-                    borderColor={closingDelta === 0 ? 'green.200' : 'red.200'}
+                    borderColor={closingTone.borderColor}
                     rounded="md"
                     px={4}
                     py={3}
                   >
                     <HStack align="start" spacing={2}>
-                      <Box color={closingDelta === 0 ? 'green.500' : 'red.500'} mt={0.5}>
-                        {closingDelta === 0 ? <FiCheckCircle /> : <FiXCircle />}
+                      <Box color={closingTone.iconColor} mt={0.5}>
+                        <ClosingStatusIcon />
                       </Box>
                       <Stack spacing={0} flex="1">
-                        <Text fontSize="sm" fontWeight="700" color={closingDelta === 0 ? 'green.700' : 'red.700'}>
+                        <Text fontSize="sm" fontWeight="700" color={closingTone.textColor}>
                           Cierre:{' '}
                           {closingDelta > 0
                             ? `se requiere ${closingTarget} y hay ${summary.closing}. Se excedió por ${closingDelta}.`
@@ -292,7 +326,7 @@ export function PlanningPage(): JSX.Element {
                               ? `se requiere ${closingTarget} y sólo hay ${summary.closing}.`
                               : `cobertura correcta (${summary.closing}/${closingTarget}).`}
                         </Text>
-                        <Text fontSize="sm" color={closingDelta === 0 ? 'green.700' : 'red.700'}>
+                        <Text fontSize="sm" color={closingTone.textColor}>
                           Plan de acción:{' '}
                           {closingDelta > 0
                             ? `Reasignar ${closingDelta} colaborador(es) fuera del turno de cierre.`

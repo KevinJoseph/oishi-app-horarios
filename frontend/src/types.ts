@@ -22,6 +22,13 @@ export type ShiftRanges = {
   night: ShiftRange;
 };
 
+export type ValidationRequirement = {
+  opening: number;
+  closing: number;
+};
+
+export type ValidationRequirements = Record<number, ValidationRequirement>;
+
 export type Role = {
   id: string;
   name: string;

@@ -1,6 +1,6 @@
 import { addDays, formatISO, parseISO } from 'date-fns';
 import { buildEmptyWeekPlan, buildMockWeeks, mockEmployees, mockRoles, mockTimeSlots } from './mocks';
-import type { ShiftRanges, WeekPlan } from '../types';
+import type { ShiftRanges, ValidationRequirements, WeekPlan } from '../types';
 import { buildWeekLabel, formatDayNameEs } from '../utils/dates';
 
 export type SeedState = {
@@ -8,6 +8,7 @@ export type SeedState = {
   roles: typeof mockRoles;
   timeSlots: typeof mockTimeSlots;
   shiftRanges: ShiftRanges;
+  validationRequirements: ValidationRequirements;
   weeks: ReturnType<typeof buildMockWeeks>;
   weekPlans: Record<string, WeekPlan>;
 };
@@ -48,6 +49,32 @@ function normalizeShiftRanges(input: Partial<ShiftRanges> | undefined, timeSlots
     day: { startHour: day.startHour, endHour: day.endHour },
     night: { startHour: night.startHour, endHour: night.endHour }
   };
+}
+
+function buildDefaultValidationRequirements(): ValidationRequirements {
+  return {
+    0: { opening: 0, closing: 0 },
+    1: { opening: 0, closing: 0 },
+    2: { opening: 0, closing: 0 },
+    3: { opening: 0, closing: 0 },
+    4: { opening: 0, closing: 0 },
+    5: { opening: 0, closing: 0 },
+    6: { opening: 0, closing: 0 }
+  };
+}
+
+function normalizeValidationRequirements(input: ValidationRequirements | undefined): ValidationRequirements {
+  const defaults = buildDefaultValidationRequirements();
+  if (!input) return defaults;
+
+  const sanitized: ValidationRequirements = { ...defaults };
+  for (const day of [0, 1, 2, 3, 4, 5, 6]) {
+    const source = input[day];
+    const opening = Number.isFinite(source?.opening) ? Math.max(0, Math.trunc(source.opening)) : 0;
+    const closing = Number.isFinite(source?.closing) ? Math.max(0, Math.trunc(source.closing)) : 0;
+    sanitized[day] = { opening, closing };
+  }
+  return sanitized;
 }
 
 function normalizeWeekPlan(weekStartDateISO: string, sourcePlan: WeekPlan | undefined): WeekPlan {
@@ -95,6 +122,7 @@ export function normalizePlannerState(input: SeedState): SeedState {
     roles: input.roles,
     timeSlots: input.timeSlots,
     shiftRanges: normalizeShiftRanges(input.shiftRanges, input.timeSlots),
+    validationRequirements: normalizeValidationRequirements(input.validationRequirements),
     weeks: normalizedWeeks,
     weekPlans
   };
@@ -105,6 +133,7 @@ export function loadSeedState(): SeedState {
   const roles = [...mockRoles];
   const timeSlots = [...mockTimeSlots];
   const shiftRanges = buildDefaultShiftRanges(timeSlots);
+  const validationRequirements = buildDefaultValidationRequirements();
   const weeks = buildMockWeeks();
   const weekPlans: Record<string, WeekPlan> = {};
 
@@ -115,7 +144,7 @@ export function loadSeedState(): SeedState {
     weekPlans[week.id] = buildEmptyWeekPlan(week, employeeIds, timeSlotIds);
   }
 
-  return { employees, roles, timeSlots, shiftRanges, weeks, weekPlans };
+  return { employees, roles, timeSlots, shiftRanges, validationRequirements, weeks, weekPlans };
 }
 
 function normalizeEmployeeContract(employee: SeedState['employees'][number]): SeedState['employees'][number] {

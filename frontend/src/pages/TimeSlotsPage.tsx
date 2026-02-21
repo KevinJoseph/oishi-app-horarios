@@ -1,13 +1,35 @@
-import { Badge, Box, Button, Card, CardBody, FormControl, FormLabel, HStack, Select, Text, useToast } from '@chakra-ui/react';
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  CardBody,
+  FormControl,
+  FormLabel,
+  HStack,
+  Input,
+  Select,
+  Table,
+  Tbody,
+  Td,
+  Text,
+  Th,
+  Thead,
+  Tr,
+  useToast
+} from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
+import type { ValidationRequirements } from '../types';
 import { useAppStore } from '../store/useAppStore';
 
 export function TimeSlotsPage(): JSX.Element {
   const toast = useToast();
   const timeSlots = useAppStore((state) => state.timeSlots);
   const shiftRanges = useAppStore((state) => state.shiftRanges);
+  const validationRequirements = useAppStore((state) => state.validationRequirements);
   const setPlanningHoursRange = useAppStore((state) => state.setPlanningHoursRange);
   const setShiftRanges = useAppStore((state) => state.setShiftRanges);
+  const setValidationRequirements = useAppStore((state) => state.setValidationRequirements);
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
 
   const initialStartHour = useMemo(() => Number.parseInt(ordered[0]?.start.slice(0, 2) ?? '12', 10), [ordered]);
@@ -35,6 +57,7 @@ export function TimeSlotsPage(): JSX.Element {
   const [dayEndHour, setDayEndHour] = useState(String(shiftRanges.day.endHour));
   const [nightStartHour, setNightStartHour] = useState(String(shiftRanges.night.startHour));
   const [nightEndHour, setNightEndHour] = useState(String(shiftRanges.night.endHour));
+  const [localValidation, setLocalValidation] = useState<ValidationRequirements>(validationRequirements);
 
   useEffect(() => {
     setStartHour(String(initialStartHour));
@@ -48,8 +71,24 @@ export function TimeSlotsPage(): JSX.Element {
     setNightEndHour(String(shiftRanges.night.endHour));
   }, [shiftRanges.day.startHour, shiftRanges.day.endHour, shiftRanges.night.startHour, shiftRanges.night.endHour]);
 
+  useEffect(() => {
+    setLocalValidation(validationRequirements);
+  }, [validationRequirements]);
+
   const hourOptions = useMemo(() => Array.from({ length: 24 }, (_, hour) => hour), []);
   const currentRangeLabel = ordered.length ? `${ordered[0].start} - ${ordered[ordered.length - 1].end}` : '-';
+  const daysConfig = useMemo(
+    () => [
+      { day: 1, label: 'Lunes' },
+      { day: 2, label: 'Martes' },
+      { day: 3, label: 'Miércoles' },
+      { day: 4, label: 'Jueves' },
+      { day: 5, label: 'Viernes' },
+      { day: 6, label: 'Sábado' },
+      { day: 0, label: 'Domingo' }
+    ],
+    []
+  );
 
   const dayRange = useMemo(
     () => ({ start: Number.parseInt(dayStartHour, 10), end: Number.parseInt(dayEndHour, 10) }),
@@ -89,6 +128,18 @@ export function TimeSlotsPage(): JSX.Element {
     // Toggle en fila Noche: si está activo, lo quita; si está inactivo, lo agrega.
     const nextBoundary = isActive ? slotEnd : slotStart;
     setBoundary(nextBoundary);
+  };
+
+  const handleValidationInput = (day: number, field: 'opening' | 'closing', rawValue: string): void => {
+    const parsed = Number.parseInt(rawValue, 10);
+    const value = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    setLocalValidation((prev) => ({
+      ...prev,
+      [day]: {
+        ...(prev[day] ?? { opening: 0, closing: 0 }),
+        [field]: value
+      }
+    }));
   };
 
   return (
@@ -251,6 +302,68 @@ export function TimeSlotsPage(): JSX.Element {
             Selección actual: Día {String(dayRange.start).padStart(2, '0')}:00 - {String(dayRange.end).padStart(2, '0')}:00 | Noche{' '}
             {String(nightRange.start).padStart(2, '0')}:00 - {String(nightRange.end).padStart(2, '0')}:00
           </Text>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody>
+          <Text fontWeight="600" mb={3}>
+            Configuración de Validaciones
+          </Text>
+          <Text fontSize="sm" color="gray.600" mb={4}>
+            Defina la dotación mínima de apertura y cierre por día para mostrar alertas en Notas de Planificación.
+          </Text>
+          <Box overflowX="auto">
+            <Table size="sm" minW="640px">
+              <Thead>
+                <Tr>
+                  <Th>Día</Th>
+                  <Th>Requerimiento apertura</Th>
+                  <Th>Requerimiento cierre</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {daysConfig.map(({ day, label }) => (
+                  <Tr key={day}>
+                    <Td fontWeight="600">{label}</Td>
+                    <Td>
+                      <Input
+                        type="number"
+                        min={0}
+                        maxW="120px"
+                        value={String(localValidation[day]?.opening ?? 0)}
+                        onChange={(event) => handleValidationInput(day, 'opening', event.target.value)}
+                      />
+                    </Td>
+                    <Td>
+                      <Input
+                        type="number"
+                        min={0}
+                        maxW="120px"
+                        value={String(localValidation[day]?.closing ?? 0)}
+                        onChange={(event) => handleValidationInput(day, 'closing', event.target.value)}
+                      />
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
+          <HStack mt={4}>
+            <Button
+              colorScheme="blue"
+              onClick={() => {
+                const result = setValidationRequirements(localValidation);
+                if (!result.ok) {
+                  toast({ status: 'error', title: result.error ?? 'No se pudo guardar la configuración de validaciones.' });
+                  return;
+                }
+                toast({ status: 'success', title: 'Validaciones actualizadas.' });
+              }}
+            >
+              Guardar validaciones
+            </Button>
+          </HStack>
         </CardBody>
       </Card>
     </Box>

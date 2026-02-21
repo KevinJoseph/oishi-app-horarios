@@ -10,6 +10,7 @@ function sanitizePayload(payload: PlannerStatePayload): PlannerStatePayload {
     roles: payload.roles,
     timeSlots: payload.timeSlots,
     shiftRanges: payload.shiftRanges,
+    validationRequirements: payload.validationRequirements,
     weeks: payload.weeks,
     weekPlans: payload.weekPlans
   };
@@ -20,6 +21,7 @@ function mapUnknownState(raw: {
   roles: unknown[];
   timeSlots: unknown[];
   shiftRanges?: unknown;
+  validationRequirements?: unknown;
   weeks: unknown[];
   weekPlans: Record<string, unknown>;
 }): PlannerStatePayload {
@@ -27,12 +29,23 @@ function mapUnknownState(raw: {
     day: { startHour: 12, endHour: 17 },
     night: { startHour: 17, endHour: 22 }
   };
+  const defaultValidationRequirements = {
+    0: { opening: 0, closing: 0 },
+    1: { opening: 0, closing: 0 },
+    2: { opening: 0, closing: 0 },
+    3: { opening: 0, closing: 0 },
+    4: { opening: 0, closing: 0 },
+    5: { opening: 0, closing: 0 },
+    6: { opening: 0, closing: 0 }
+  };
 
   return {
     employees: raw.employees as PlannerStatePayload['employees'],
     roles: raw.roles as PlannerStatePayload['roles'],
     timeSlots: raw.timeSlots as PlannerStatePayload['timeSlots'],
     shiftRanges: (raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges,
+    validationRequirements:
+      (raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements,
     weeks: raw.weeks as PlannerStatePayload['weeks'],
     weekPlans: raw.weekPlans as PlannerStatePayload['weekPlans']
   };

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { fetchPlannerState, resetPlannerState as resetPlannerStateApi, savePlannerState } from '../api/plannerApi';
 import { loadSeedState, normalizePlannerState } from '../data/seed';
 import { buildEmptyWeekPlan } from '../data/mocks';
-import type { Assignment, Employee, Role, ShiftRanges, TimeSlot, Week, WeekPlan } from '../types';
+import type { Assignment, Employee, Role, ShiftRanges, TimeSlot, ValidationRequirements, Week, WeekPlan } from '../types';
 import { normalizeRestDay } from '../utils/weekdays';
 
 type UpdateAssignmentInput = {
@@ -48,6 +48,7 @@ type AppState = PersistableState & {
   updateEmployeeDayByHours: (input: UpdateEmployeeDayByHoursInput) => { ok: boolean; error?: string };
   setPlanningHoursRange: (startHour: number, endHour: number) => { ok: boolean; error?: string };
   setShiftRanges: (input: ShiftRanges) => { ok: boolean; error?: string };
+  setValidationRequirements: (input: ValidationRequirements) => { ok: boolean; error?: string };
 };
 
 const seeded = loadSeedState();
@@ -321,6 +322,7 @@ function toPersistableState(state: AppState): PersistableState {
     roles: state.roles,
     timeSlots: state.timeSlots,
     shiftRanges: state.shiftRanges,
+    validationRequirements: state.validationRequirements,
     weeks: state.weeks,
     weekPlans: state.weekPlans
   };
@@ -710,6 +712,43 @@ export const useAppStore = create<AppState>((set, get) => ({
       );
       return { shiftRanges: normalized, weekPlans };
     });
+    persistSnapshot(get, set);
+    return { ok: true };
+  },
+
+  setValidationRequirements: (input) => {
+    const sanitized: ValidationRequirements = {
+      0: {
+        opening: Number.isFinite(input[0]?.opening) ? Math.max(0, Math.trunc(input[0].opening)) : 0,
+        closing: Number.isFinite(input[0]?.closing) ? Math.max(0, Math.trunc(input[0].closing)) : 0
+      },
+      1: {
+        opening: Number.isFinite(input[1]?.opening) ? Math.max(0, Math.trunc(input[1].opening)) : 0,
+        closing: Number.isFinite(input[1]?.closing) ? Math.max(0, Math.trunc(input[1].closing)) : 0
+      },
+      2: {
+        opening: Number.isFinite(input[2]?.opening) ? Math.max(0, Math.trunc(input[2].opening)) : 0,
+        closing: Number.isFinite(input[2]?.closing) ? Math.max(0, Math.trunc(input[2].closing)) : 0
+      },
+      3: {
+        opening: Number.isFinite(input[3]?.opening) ? Math.max(0, Math.trunc(input[3].opening)) : 0,
+        closing: Number.isFinite(input[3]?.closing) ? Math.max(0, Math.trunc(input[3].closing)) : 0
+      },
+      4: {
+        opening: Number.isFinite(input[4]?.opening) ? Math.max(0, Math.trunc(input[4].opening)) : 0,
+        closing: Number.isFinite(input[4]?.closing) ? Math.max(0, Math.trunc(input[4].closing)) : 0
+      },
+      5: {
+        opening: Number.isFinite(input[5]?.opening) ? Math.max(0, Math.trunc(input[5].opening)) : 0,
+        closing: Number.isFinite(input[5]?.closing) ? Math.max(0, Math.trunc(input[5].closing)) : 0
+      },
+      6: {
+        opening: Number.isFinite(input[6]?.opening) ? Math.max(0, Math.trunc(input[6].opening)) : 0,
+        closing: Number.isFinite(input[6]?.closing) ? Math.max(0, Math.trunc(input[6].closing)) : 0
+      }
+    };
+
+    set({ validationRequirements: sanitized });
     persistSnapshot(get, set);
     return { ok: true };
   }

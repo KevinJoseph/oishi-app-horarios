@@ -94,6 +94,17 @@ function buildDefaultShiftRanges(timeSlots) {
         night: { startHour: splitHour, endHour }
     };
 }
+function buildDefaultValidationRequirements() {
+    return {
+        0: { opening: 0, closing: 0 },
+        1: { opening: 0, closing: 0 },
+        2: { opening: 0, closing: 0 },
+        3: { opening: 0, closing: 0 },
+        4: { opening: 0, closing: 0 },
+        5: { opening: 0, closing: 0 },
+        6: { opening: 0, closing: 0 }
+    };
+}
 function getCurrentMonday() {
     const now = new Date();
     const day = now.getDay();
@@ -177,6 +188,7 @@ export function buildSeedState() {
     const roles = [...mockRoles];
     const timeSlots = [...mockTimeSlots];
     const shiftRanges = buildDefaultShiftRanges(timeSlots);
+    const validationRequirements = buildDefaultValidationRequirements();
     const weeks = buildWeeks();
     const weekPlans = {};
     const employeeIds = employees.map((employee) => employee.id);
@@ -189,6 +201,7 @@ export function buildSeedState() {
         roles,
         timeSlots,
         shiftRanges,
+        validationRequirements,
         weeks,
         weekPlans
     };

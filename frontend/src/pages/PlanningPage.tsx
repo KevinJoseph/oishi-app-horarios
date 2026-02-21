@@ -1,6 +1,6 @@
 import { Badge, Box, Button, Card, CardBody, CardHeader, Divider, Flex, HStack, Stack, Text, useDisclosure, useToast } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
-import { FiAlertTriangle, FiDownload, FiEye } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheckCircle, FiDownload, FiEye, FiXCircle } from 'react-icons/fi';
 import { CellEditorModal } from '../components/CellEditorModal';
 import { DayGrid } from '../components/DayGrid';
 import { DayTabs } from '../components/DayTabs';
@@ -11,6 +11,7 @@ import { useAppStore } from '../store/useAppStore';
 import type { Assignment } from '../types';
 import { downloadDaySchedulePdf } from '../utils/pdf';
 import { getOpeningClosingSummary } from '../utils/summary';
+import { normalizeRestDay } from '../utils/weekdays';
 
 type SelectedCell = {
   timeSlotId: string;
@@ -30,6 +31,7 @@ export function PlanningPage(): JSX.Element {
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
   const currentWeekId = useAppStore((state) => state.currentWeekId);
+  const validationRequirements = useAppStore((state) => state.validationRequirements);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
   const updateAssignment = useAppStore((state) => state.updateAssignment);
   const updateEmployeeDayAssignments = useAppStore((state) => state.updateEmployeeDayAssignments);
@@ -51,6 +53,32 @@ export function PlanningPage(): JSX.Element {
   const activeDay = days[activeDayIndex];
   const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId);
   const summary = activeDay ? getOpeningClosingSummary(activeDay, timeSlots) : { opening: 0, closing: 0 };
+  const activeDayOfWeek = activeDay ? new Date(`${activeDay.dateISO}T00:00:00`).getDay() : null;
+  const dayValidation = activeDayOfWeek === null ? { opening: 0, closing: 0 } : validationRequirements[activeDayOfWeek];
+  const openingTarget = dayValidation?.opening ?? 0;
+  const closingTarget = dayValidation?.closing ?? 0;
+  const openingDelta = summary.opening - openingTarget;
+  const closingDelta = summary.closing - closingTarget;
+  const hasValidationMismatch = openingDelta !== 0 || closingDelta !== 0;
+  const repeatedRestDayInfo = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const employee of employees) {
+      if (!employee.active) continue;
+      const restDay = normalizeRestDay(employee.restDay);
+      counts.set(restDay, (counts.get(restDay) ?? 0) + 1);
+    }
+
+    const repeatedDays = [...counts.entries()].filter(([, count]) => count >= 2);
+    if (!repeatedDays.length) return null;
+
+    const dayLabels = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const [restDay, count] = repeatedDays.sort((a, b) => b[1] - a[1])[0];
+
+    return {
+      count,
+      label: dayLabels[restDay] ?? 'N/D'
+    };
+  }, [employees]);
 
   useEffect(() => {
     setActiveDayIndex(0);
@@ -198,22 +226,97 @@ export function PlanningPage(): JSX.Element {
               </CardBody>
             </Card>
 
-            <Card bg="orange.50" borderColor="orange.200" borderWidth="1px">
+            <Card bg="white" borderColor="gray.200" borderWidth="1px" w={{ base: '100%', xl: '50%' }}>
               <CardBody>
-                <HStack align="start" spacing={3}>
-                  <Box color="orange.500" mt={0.5}>
-                    <FiAlertTriangle />
-                  </Box>
-                  <Stack spacing={1}>
-                    <Text fontWeight="700" color="orange.800">
+                <Stack spacing={3}>
+                  <HStack spacing={2} color="blue.700">
+                    <Box color={hasValidationMismatch ? 'orange.500' : 'blue.500'} mt={0.5}>
+                      {hasValidationMismatch ? <FiAlertTriangle /> : <FiCheckCircle />}
+                    </Box>
+                    <Text fontWeight="800" letterSpacing="0.03em" textTransform="uppercase">
                       Notas de Planificación
                     </Text>
-                    <Text fontSize="sm" color="orange.900">
-                      Por favor primero verifica las configuraciones de los horarios antes de asignar las horas semanales de los
-                      colaboradores.
-                    </Text>
-                  </Stack>
-                </HStack>
+                  </HStack>
+
+                  <Box
+                    bg={openingDelta === 0 ? 'green.50' : 'red.50'}
+                    borderWidth="1px"
+                    borderColor={openingDelta === 0 ? 'green.200' : 'red.200'}
+                    rounded="md"
+                    px={4}
+                    py={3}
+                  >
+                    <HStack align="start" spacing={2}>
+                      <Box color={openingDelta === 0 ? 'green.500' : 'red.500'} mt={0.5}>
+                        {openingDelta === 0 ? <FiCheckCircle /> : <FiXCircle />}
+                      </Box>
+                      <Stack spacing={0} flex="1">
+                        <Text fontSize="sm" fontWeight="700" color={openingDelta === 0 ? 'green.700' : 'red.700'}>
+                          Apertura:{' '}
+                          {openingDelta > 0
+                            ? `se requiere ${openingTarget} y hay ${summary.opening}. Se excedió por ${openingDelta}.`
+                            : openingDelta < 0
+                              ? `se requiere ${openingTarget} y sólo hay ${summary.opening}.`
+                              : `cobertura correcta (${summary.opening}/${openingTarget}).`}
+                        </Text>
+                        <Text fontSize="sm" color={openingDelta === 0 ? 'green.700' : 'red.700'}>
+                          Plan de acción:{' '}
+                          {openingDelta > 0
+                            ? `Reasignar ${openingDelta} colaborador(es) fuera del turno de apertura.`
+                            : openingDelta < 0
+                              ? `Reasignar al menos ${Math.abs(openingDelta)} colaborador(es) al turno de apertura.`
+                              : 'Mantener cobertura actual.'}
+                        </Text>
+                      </Stack>
+                    </HStack>
+                  </Box>
+
+                  <Box
+                    bg={closingDelta === 0 ? 'green.50' : 'red.50'}
+                    borderWidth="1px"
+                    borderColor={closingDelta === 0 ? 'green.200' : 'red.200'}
+                    rounded="md"
+                    px={4}
+                    py={3}
+                  >
+                    <HStack align="start" spacing={2}>
+                      <Box color={closingDelta === 0 ? 'green.500' : 'red.500'} mt={0.5}>
+                        {closingDelta === 0 ? <FiCheckCircle /> : <FiXCircle />}
+                      </Box>
+                      <Stack spacing={0} flex="1">
+                        <Text fontSize="sm" fontWeight="700" color={closingDelta === 0 ? 'green.700' : 'red.700'}>
+                          Cierre:{' '}
+                          {closingDelta > 0
+                            ? `se requiere ${closingTarget} y hay ${summary.closing}. Se excedió por ${closingDelta}.`
+                            : closingDelta < 0
+                              ? `se requiere ${closingTarget} y sólo hay ${summary.closing}.`
+                              : `cobertura correcta (${summary.closing}/${closingTarget}).`}
+                        </Text>
+                        <Text fontSize="sm" color={closingDelta === 0 ? 'green.700' : 'red.700'}>
+                          Plan de acción:{' '}
+                          {closingDelta > 0
+                            ? `Reasignar ${closingDelta} colaborador(es) fuera del turno de cierre.`
+                            : closingDelta < 0
+                              ? `Reasignar al menos ${Math.abs(closingDelta)} colaborador(es) al turno de cierre.`
+                              : 'Mantener cobertura actual.'}
+                        </Text>
+                      </Stack>
+                    </HStack>
+                  </Box>
+
+                  {repeatedRestDayInfo ? (
+                    <Box bg="yellow.50" borderWidth="1px" borderColor="yellow.300" rounded="md" px={4} py={3}>
+                      <HStack align="start" spacing={2}>
+                        <Box color="yellow.600" mt={0.5}>
+                          <FiAlertTriangle />
+                        </Box>
+                        <Text fontSize="sm" fontWeight="700" color="yellow.700">
+                          Alerta: Existen {repeatedRestDayInfo.count} colaboradores con descanso el mismo día ({repeatedRestDayInfo.label}).
+                        </Text>
+                      </HStack>
+                    </Box>
+                  ) : null}
+                </Stack>
               </CardBody>
             </Card>
           </Stack>

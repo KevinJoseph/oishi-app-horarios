@@ -1,4 +1,13 @@
-import type { Employee, PlannerStatePayload, Role, ShiftRanges, TimeSlot, Week, WeekPlan } from '../types/planner.js';
+import type {
+  Employee,
+  PlannerStatePayload,
+  Role,
+  ShiftRanges,
+  TimeSlot,
+  ValidationRequirements,
+  Week,
+  WeekPlan
+} from '../types/planner.js';
 
 const dayNameFormatter = new Intl.DateTimeFormat('es-ES', { weekday: 'long' });
 
@@ -103,6 +112,18 @@ function buildDefaultShiftRanges(timeSlots: TimeSlot[]): ShiftRanges {
   };
 }
 
+function buildDefaultValidationRequirements(): ValidationRequirements {
+  return {
+    0: { opening: 0, closing: 0 },
+    1: { opening: 0, closing: 0 },
+    2: { opening: 0, closing: 0 },
+    3: { opening: 0, closing: 0 },
+    4: { opening: 0, closing: 0 },
+    5: { opening: 0, closing: 0 },
+    6: { opening: 0, closing: 0 }
+  };
+}
+
 function getCurrentMonday(): Date {
   const now = new Date();
   const day = now.getDay();
@@ -196,6 +217,7 @@ export function buildSeedState(): PlannerStatePayload {
   const roles = [...mockRoles];
   const timeSlots = [...mockTimeSlots];
   const shiftRanges = buildDefaultShiftRanges(timeSlots);
+  const validationRequirements = buildDefaultValidationRequirements();
   const weeks = buildWeeks();
   const weekPlans: Record<string, WeekPlan> = {};
 
@@ -211,6 +233,7 @@ export function buildSeedState(): PlannerStatePayload {
     roles,
     timeSlots,
     shiftRanges,
+    validationRequirements,
     weeks,
     weekPlans
   };

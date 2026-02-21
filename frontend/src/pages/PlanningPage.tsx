@@ -1,6 +1,6 @@
 import { Badge, Box, Button, Card, CardBody, CardHeader, Divider, Flex, HStack, Stack, Text, useDisclosure, useToast } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
-import { FiAlertTriangle, FiCheckCircle, FiDownload, FiEye, FiXCircle } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheckCircle, FiDownload, FiEye, FiTrash2, FiXCircle } from 'react-icons/fi';
 import { CellEditorModal } from '../components/CellEditorModal';
 import { DayGrid } from '../components/DayGrid';
 import { DayTabs } from '../components/DayTabs';
@@ -131,8 +131,8 @@ export function PlanningPage(): JSX.Element {
         <Card>
           <CardBody>
             <Flex direction={{ base: 'column', lg: 'row' }} gap={4} align={{ base: 'stretch', lg: 'center' }}>
-              <Flex flex="1" gap={3} wrap="wrap" align="center">
-                <Box flex="1" minW={{ base: '100%', sm: '260px' }}>
+              <Flex gap={3} wrap="wrap" align="center">
+                <Box w={{ base: '100%', lg: '300px' }} minW={{ base: '100%', sm: '260px' }}>
                   <WeekSelector />
                 </Box>
                 <Button colorScheme="brand" leftIcon={<FiEye />} onClick={openLegend}>
@@ -173,7 +173,7 @@ export function PlanningPage(): JSX.Element {
                 >
                   Exportar PDF
                 </Button>
-                <Button colorScheme="red" variant="ghost" onClick={resetAll}>
+                <Button colorScheme="red" variant="outline" leftIcon={<FiTrash2 />} onClick={resetAll}>
                   Borrar Todo
                 </Button>
               </Flex>

@@ -20,6 +20,7 @@ import { useState } from 'react';
 import { FiEdit2, FiTrash2 } from 'react-icons/fi';
 import { RoleFormModal } from '../components/RoleFormModal';
 import { useAppStore } from '../store/useAppStore';
+import { useAuthStore } from '../store/useAuthStore';
 import type { Role } from '../types';
 
 export function RolesPage(): JSX.Element {
@@ -28,6 +29,8 @@ export function RolesPage(): JSX.Element {
   const roles = useAppStore((state) => state.roles);
   const upsertRole = useAppStore((state) => state.upsertRole);
   const deleteRole = useAppStore((state) => state.deleteRole);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const canEdit = currentUser?.role === 'administrador';
 
   const [editing, setEditing] = useState<Role | undefined>(undefined);
 
@@ -45,6 +48,7 @@ export function RolesPage(): JSX.Element {
                 setEditing(undefined);
                 onOpen();
               }}
+              isDisabled={!canEdit}
             >
               Nueva Zona
             </Button>
@@ -86,6 +90,7 @@ export function RolesPage(): JSX.Element {
                               setEditing(role);
                               onOpen();
                             }}
+                            isDisabled={!canEdit}
                           />
                         </Tooltip>
                         <Tooltip label="Eliminar" hasArrow>
@@ -96,6 +101,7 @@ export function RolesPage(): JSX.Element {
                             colorScheme="brand"
                             icon={<FiTrash2 />}
                             onClick={() => deleteRole(role.id)}
+                            isDisabled={!canEdit}
                           />
                         </Tooltip>
                       </HStack>
@@ -113,6 +119,9 @@ export function RolesPage(): JSX.Element {
         onClose={onClose}
         editing={editing}
         onSave={(role) => {
+          if (!canEdit) {
+            return { ok: false, error: 'Perfil lector: solo visualización.' };
+          }
           const result = upsertRole(role);
           if (!result.ok) {
             toast({ status: 'error', title: result.error ?? 'No se pudo guardar la zonas.' });

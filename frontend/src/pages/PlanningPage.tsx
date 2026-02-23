@@ -8,6 +8,7 @@ import { EmployeeProfileDrawer } from '../components/EmployeeProfileDrawer';
 import { LegendDrawer } from '../components/LegendDrawer';
 import { WeekSelector } from '../components/WeekSelector';
 import { useAppStore } from '../store/useAppStore';
+import { useAuthStore } from '../store/useAuthStore';
 import type { Assignment } from '../types';
 import { downloadDaySchedulePdf } from '../utils/pdf';
 import { getOpeningClosingSummary } from '../utils/summary';
@@ -37,6 +38,8 @@ export function PlanningPage(): JSX.Element {
   const updateEmployeeDayAssignments = useAppStore((state) => state.updateEmployeeDayAssignments);
   const updateEmployeeDayByHours = useAppStore((state) => state.updateEmployeeDayByHours);
   const resetAll = useAppStore((state) => state.resetAll);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const canEdit = currentUser?.role === 'administrador';
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [selectedCell, setSelectedCell] = useState<SelectedCell>(null);
@@ -207,7 +210,13 @@ export function PlanningPage(): JSX.Element {
                 >
                   Exportar PDF
                 </Button>
-                <Button colorScheme="red" variant="outline" leftIcon={<FiTrash2 />} onClick={resetAll}>
+                <Button
+                  colorScheme="red"
+                  variant="outline"
+                  leftIcon={<FiTrash2 />}
+                  onClick={resetAll}
+                  isDisabled={!canEdit}
+                >
                   Borrar Todo
                 </Button>
               </Flex>
@@ -237,10 +246,15 @@ export function PlanningPage(): JSX.Element {
                       timeSlots={timeSlots}
                       employeeHoursById={employeeHoursById}
                       showEmployeeCodeInCells
-                      onCellClick={(cell) => {
-                        setSelectedCell(cell);
-                        openEditor();
-                      }}
+                      readOnly={!canEdit}
+                      onCellClick={
+                        canEdit
+                          ? (cell) => {
+                              setSelectedCell(cell);
+                              openEditor();
+                            }
+                          : undefined
+                      }
                       onEmployeeClick={(employeeId) => {
                         setSelectedEmployeeId(employeeId);
                         openProfile();
@@ -357,7 +371,7 @@ export function PlanningPage(): JSX.Element {
         )}
       </Stack>
 
-      <LegendDrawer isOpen={isLegendOpen} onClose={closeLegend} roles={roles} />
+      <LegendDrawer isOpen={isLegendOpen} onClose={closeLegend} roles={roles} canManage={canEdit} />
       <EmployeeProfileDrawer
         isOpen={isProfileOpen}
         onClose={closeProfile}
@@ -373,6 +387,10 @@ export function PlanningPage(): JSX.Element {
         employeeName={employees.find((employee) => employee.id === selectedCell?.employeeId)?.name}
         roles={roles}
         onSave={({ assignment, applyToEmployeeDay, dayHours }) => {
+          if (!canEdit) {
+            toast({ status: 'error', title: 'Perfil lector: solo visualización.' });
+            return;
+          }
           if (!selectedCell || !activeDay || !currentWeek) return;
           let result;
           if (applyToEmployeeDay && dayHours !== undefined) {

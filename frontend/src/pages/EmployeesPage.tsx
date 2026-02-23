@@ -23,6 +23,7 @@ import { useMemo, useState } from 'react';
 import { FiEdit2, FiFileText, FiPower, FiSearch, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { useAppStore } from '../store/useAppStore';
+import { useAuthStore } from '../store/useAuthStore';
 import type { Employee } from '../types';
 import { downloadEmployeeWeekPdf } from '../utils/pdf';
 import { getRestDayLabel } from '../utils/weekdays';
@@ -60,6 +61,8 @@ export function EmployeesPage(): JSX.Element {
   const weekPlans = useAppStore((state) => state.weekPlans);
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const canEdit = currentUser?.role === 'administrador';
 
   const [editing, setEditing] = useState<Employee | undefined>(undefined);
   const [exportingEmployeeId, setExportingEmployeeId] = useState<string | null>(null);
@@ -110,6 +113,7 @@ export function EmployeesPage(): JSX.Element {
   };
 
   const handleToggleActive = (employee: Employee): void => {
+    if (!canEdit) return;
     upsertEmployee({ ...employee, active: !employee.active });
     toast({
       status: 'success',
@@ -144,6 +148,7 @@ export function EmployeesPage(): JSX.Element {
                 setEditing(undefined);
                 onOpen();
               }}
+              isDisabled={!canEdit}
             >
               Nuevo Colaborador
             </Button>
@@ -199,6 +204,7 @@ export function EmployeesPage(): JSX.Element {
                               setEditing(employee);
                               onOpen();
                             }}
+                            isDisabled={!canEdit}
                           />
                         </Tooltip>
                         <Tooltip label={employee.active ? 'Desactivar' : 'Activar'} hasArrow>
@@ -209,6 +215,7 @@ export function EmployeesPage(): JSX.Element {
                             colorScheme="brand"
                             icon={employee.active ? <FiPower /> : <FiUserCheck />}
                             onClick={() => handleToggleActive(employee)}
+                            isDisabled={!canEdit}
                           />
                         </Tooltip>
                         <Tooltip label="Exportar PDF" hasArrow>
@@ -238,6 +245,7 @@ export function EmployeesPage(): JSX.Element {
         editing={editing}
         roles={roles}
         onSave={(employee) => {
+          if (!canEdit) return;
           upsertEmployee(employee);
         }}
       />

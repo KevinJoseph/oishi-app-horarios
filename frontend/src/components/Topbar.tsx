@@ -1,12 +1,21 @@
-import { Box, Flex, HStack, Icon, Text } from '@chakra-ui/react';
+import { Box, Button, Flex, HStack, Icon, Text } from '@chakra-ui/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { FiBell, FiCalendar } from 'react-icons/fi';
+import { FiBell, FiCalendar, FiLogOut } from 'react-icons/fi';
+import { useAuthStore } from '../store/useAuthStore';
+
+function getRoleLabel(role: string | undefined): string {
+  return role === 'administrador' ? 'Administrador' : 'Lector';
+}
 
 export function Topbar(): JSX.Element {
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const logout = useAuthStore((state) => state.logout);
+  const loading = useAuthStore((state) => state.loading);
+
   return (
     <Box bg="white" borderBottomWidth="1px" borderBottomColor="#d8e0ea" px={{ base: 4, md: 8 }} py={4}>
-      <Flex align="center" justify="space-between">
+      <Flex align="center" justify="space-between" gap={3}>
         <HStack spacing={3} color="gray.500" fontSize="sm" display={{ base: 'none', md: 'flex' }}>
           <Text>Inicio</Text>
           <Text>/</Text>
@@ -25,6 +34,25 @@ export function Topbar(): JSX.Element {
             </Text>
           </HStack>
           <Icon as={FiBell} color="gray.700" boxSize={5} display={{ base: 'none', md: 'block' }} />
+          <HStack spacing={2} display={{ base: 'none', md: 'flex' }}>
+            <Text fontSize="sm" fontWeight="600">
+              {currentUser?.name ?? ''}
+            </Text>
+            <Text fontSize="xs" color="gray.500">
+              ({getRoleLabel(currentUser?.role)})
+            </Text>
+          </HStack>
+          <Button
+            size="sm"
+            variant="outline"
+            leftIcon={<FiLogOut />}
+            onClick={() => {
+              void logout();
+            }}
+            isLoading={loading}
+          >
+            Salir
+          </Button>
         </HStack>
       </Flex>
     </Box>

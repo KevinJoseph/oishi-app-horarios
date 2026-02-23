@@ -19,9 +19,10 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   roles: Role[];
+  canManage: boolean;
 };
 
-export function LegendDrawer({ isOpen, onClose, roles }: Props): JSX.Element {
+export function LegendDrawer({ isOpen, onClose, roles, canManage }: Props): JSX.Element {
   const navigate = useNavigate();
   return (
     <Drawer isOpen={isOpen} placement="right" onClose={onClose} size="sm">
@@ -49,7 +50,9 @@ export function LegendDrawer({ isOpen, onClose, roles }: Props): JSX.Element {
                 </Flex>
               </Box>
             ))}
-            <Button onClick={() => navigate('/roles')}>Administrar Leyenda</Button>
+            <Button onClick={() => navigate('/roles')} isDisabled={!canManage}>
+              Administrar Leyenda
+            </Button>
           </Flex>
         </DrawerBody>
       </DrawerContent>

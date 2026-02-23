@@ -21,6 +21,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import type { ValidationRequirements } from '../types';
 import { useAppStore } from '../store/useAppStore';
+import { useAuthStore } from '../store/useAuthStore';
 
 export function TimeSlotsPage(): JSX.Element {
   const toast = useToast();
@@ -30,6 +31,8 @@ export function TimeSlotsPage(): JSX.Element {
   const setPlanningHoursRange = useAppStore((state) => state.setPlanningHoursRange);
   const setShiftRanges = useAppStore((state) => state.setShiftRanges);
   const setValidationRequirements = useAppStore((state) => state.setValidationRequirements);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const canEdit = currentUser?.role === 'administrador';
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
 
   const initialStartHour = useMemo(() => Number.parseInt(ordered[0]?.start.slice(0, 2) ?? '12', 10), [ordered]);
@@ -155,7 +158,7 @@ export function TimeSlotsPage(): JSX.Element {
           <HStack mb={4} align="end" spacing={3} flexWrap="wrap">
             <FormControl maxW="220px">
               <FormLabel>Hora inicio</FormLabel>
-              <Select value={startHour} onChange={(event) => setStartHour(event.target.value)}>
+              <Select value={startHour} onChange={(event) => setStartHour(event.target.value)} isDisabled={!canEdit}>
                 {hourOptions.slice(0, 23).map((hour) => (
                   <option key={hour} value={hour}>
                     {String(hour).padStart(2, '0')}:00
@@ -165,7 +168,7 @@ export function TimeSlotsPage(): JSX.Element {
             </FormControl>
             <FormControl maxW="220px">
               <FormLabel>Hora fin</FormLabel>
-              <Select value={endHour} onChange={(event) => setEndHour(event.target.value)}>
+              <Select value={endHour} onChange={(event) => setEndHour(event.target.value)} isDisabled={!canEdit}>
                 {hourOptions.slice(1).map((hour) => (
                   <option key={hour} value={hour}>
                     {String(hour).padStart(2, '0')}:00
@@ -175,6 +178,7 @@ export function TimeSlotsPage(): JSX.Element {
             </FormControl>
             <Button
               colorScheme="blue"
+              isDisabled={!canEdit}
               onClick={() => {
                 const result = setPlanningHoursRange(Number.parseInt(startHour, 10), Number.parseInt(endHour, 10));
                 if (!result.ok) {
@@ -223,6 +227,7 @@ export function TimeSlotsPage(): JSX.Element {
                     colorScheme="teal"
                     variant={isActive ? 'solid' : 'outline'}
                     onClick={() => handleDayClick(slot.start, slot.end, isActive)}
+                    isDisabled={!canEdit}
                   >
                     {slot.label}
                   </Button>
@@ -245,6 +250,7 @@ export function TimeSlotsPage(): JSX.Element {
                     colorScheme="orange"
                     variant={isActive ? 'solid' : 'outline'}
                     onClick={() => handleNightClick(slot.start, slot.end, isActive)}
+                    isDisabled={!canEdit}
                   >
                     {slot.label}
                   </Button>
@@ -256,6 +262,7 @@ export function TimeSlotsPage(): JSX.Element {
           <HStack mb={4} align="end" spacing={3} flexWrap="wrap">
             <Button
               colorScheme="blue"
+              isDisabled={!canEdit}
               onClick={() => {
                 if (rangesOverlap) {
                   toast({ status: 'error', title: 'Los turnos Día y Noche no deben solaparse.' });
@@ -333,6 +340,7 @@ export function TimeSlotsPage(): JSX.Element {
                         maxW="120px"
                         value={String(localValidation[day]?.opening ?? 0)}
                         onChange={(event) => handleValidationInput(day, 'opening', event.target.value)}
+                        isDisabled={!canEdit}
                       />
                     </Td>
                     <Td>
@@ -342,6 +350,7 @@ export function TimeSlotsPage(): JSX.Element {
                         maxW="120px"
                         value={String(localValidation[day]?.closing ?? 0)}
                         onChange={(event) => handleValidationInput(day, 'closing', event.target.value)}
+                        isDisabled={!canEdit}
                       />
                     </Td>
                   </Tr>
@@ -352,6 +361,7 @@ export function TimeSlotsPage(): JSX.Element {
           <HStack mt={4}>
             <Button
               colorScheme="blue"
+              isDisabled={!canEdit}
               onClick={() => {
                 const result = setValidationRequirements(localValidation);
                 if (!result.ok) {

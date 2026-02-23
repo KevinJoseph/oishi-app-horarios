@@ -1,16 +1,22 @@
-import { Avatar, Box, Flex, Icon, Link, Text } from '@chakra-ui/react';
+import { Box, Flex, Icon, Link, Text } from '@chakra-ui/react';
 import { NavLink } from 'react-router-dom';
-import { FiCalendar, FiGrid, FiLayers, FiSettings, FiUsers } from 'react-icons/fi';
+import { FiCalendar, FiGrid, FiLayers, FiSettings, FiShield, FiUsers } from 'react-icons/fi';
+import { useAuthStore } from '../store/useAuthStore';
 
 const links = [
   { to: '/employees', label: 'Colaboradores', icon: FiUsers },
   { to: '/planning', label: 'Planificación', icon: FiCalendar, end: true },
   { to: '/planning/weekly-overview', label: 'Vista General', icon: FiGrid },
   { to: '/roles', label: 'Leyenda / Zonas', icon: FiLayers },
-  { to: '/settings/timeslots', label: 'Config. Horarios', icon: FiSettings },
+  { to: '/users', label: 'Usuarios', icon: FiShield },
+  { to: '/settings/timeslots', label: 'Config. Horarios', icon: FiSettings }
 ];
 
 export function Sidebar(): JSX.Element {
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const isAdmin = currentUser?.role === 'administrador';
+  const visibleLinks = isAdmin ? links : links.filter((link) => link.to !== '/users');
+
   return (
     <Box
       bg="white"
@@ -26,7 +32,13 @@ export function Sidebar(): JSX.Element {
       justifyContent="space-between"
     >
       <Box>
-        <Text fontSize={{ base: '1xl', md: '2xl' }} fontWeight="800" mb={{ base: 3, md: 8 }} color="#1f7ad0" letterSpacing="-0.03em">
+        <Text
+          fontSize={{ base: '1xl', md: '2xl' }}
+          fontWeight="800"
+          mb={{ base: 3, md: 8 }}
+          color="#1f7ad0"
+          letterSpacing="-0.03em"
+        >
           OishiPartners
         </Text>
         <Flex
@@ -36,7 +48,7 @@ export function Sidebar(): JSX.Element {
           overflowX={{ base: 'auto', md: 'visible' }}
           pb={{ base: 1, md: 0 }}
         >
-          {links.map((link) => (
+          {visibleLinks.map((link) => (
             <Link
               key={link.to}
               as={NavLink}

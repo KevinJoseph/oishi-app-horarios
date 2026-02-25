@@ -235,6 +235,7 @@ export function buildSeedState(): PlannerStatePayload {
     shiftRanges,
     validationRequirements,
     weeks,
-    weekPlans
+    weekPlans,
+    validatedWeekIds: []
   };
 }

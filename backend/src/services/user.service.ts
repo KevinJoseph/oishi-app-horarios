@@ -10,7 +10,7 @@ function normalizeUsername(value: string): string {
 }
 
 function validateRole(role: string): role is UserRole {
-  return role === 'administrador' || role === 'lector';
+  return role === 'administrador' || role === 'supervisor' || role === 'lector';
 }
 
 function validatePassword(password: string): void {
@@ -145,7 +145,7 @@ export async function updateUser(
       throw new HttpError(400, 'Rol inválido.');
     }
 
-    if (user.role === 'administrador' && payload.role === 'lector' && String(user._id) === actorUserId) {
+    if (user.role === 'administrador' && payload.role !== 'administrador' && String(user._id) === actorUserId) {
       const admins = await UserModel.countDocuments({ role: 'administrador' });
       if (admins <= 1) {
         throw new HttpError(400, 'Debe existir al menos un usuario administrador.');

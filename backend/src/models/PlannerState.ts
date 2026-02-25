@@ -8,6 +8,7 @@ type PlannerStateDocument = {
   validationRequirements: unknown;
   weeks: unknown[];
   weekPlans: Record<string, unknown>;
+  validatedWeekIds: string[];
   updatedAt: Date;
   createdAt: Date;
 };
@@ -21,7 +22,8 @@ const PlannerStateSchema = new Schema<PlannerStateDocument>(
     shiftRanges: { type: Schema.Types.Mixed, required: true },
     validationRequirements: { type: Schema.Types.Mixed, required: true },
     weeks: { type: [Schema.Types.Mixed], required: true },
-    weekPlans: { type: Schema.Types.Mixed, required: true }
+    weekPlans: { type: Schema.Types.Mixed, required: true },
+    validatedWeekIds: { type: [String], required: true, default: [] }
   },
   {
     timestamps: true,

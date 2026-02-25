@@ -16,7 +16,7 @@ const UserSchema = new Schema<UserDocument>(
   {
     username: { type: String, required: true, unique: true, index: true, lowercase: true, trim: true },
     name: { type: String, required: true, trim: true },
-    role: { type: String, required: true, enum: ['administrador', 'lector'] },
+    role: { type: String, required: true, enum: ['administrador', 'supervisor', 'lector'] },
     passwordHash: { type: String, required: true },
     passwordSalt: { type: String, required: true }
   },

@@ -62,7 +62,7 @@ export function EmployeesPage(): JSX.Element {
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
   const currentUser = useAuthStore((state) => state.currentUser);
-  const canEdit = currentUser?.role === 'administrador';
+  const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
 
   const [editing, setEditing] = useState<Employee | undefined>(undefined);
   const [exportingEmployeeId, setExportingEmployeeId] = useState<string | null>(null);

@@ -32,7 +32,7 @@ export function TimeSlotsPage(): JSX.Element {
   const setShiftRanges = useAppStore((state) => state.setShiftRanges);
   const setValidationRequirements = useAppStore((state) => state.setValidationRequirements);
   const currentUser = useAuthStore((state) => state.currentUser);
-  const canEdit = currentUser?.role === 'administrador';
+  const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
 
   const initialStartHour = useMemo(() => Number.parseInt(ordered[0]?.start.slice(0, 2) ?? '12', 10), [ordered]);

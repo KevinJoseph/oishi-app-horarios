@@ -46,6 +46,8 @@ type AppState = PersistableState & {
   updateAssignment: (input: UpdateAssignmentInput) => { ok: boolean; error?: string };
   updateEmployeeDayAssignments: (input: UpdateEmployeeDayAssignmentsInput) => { ok: boolean; error?: string };
   updateEmployeeDayByHours: (input: UpdateEmployeeDayByHoursInput) => { ok: boolean; error?: string };
+  validateWeekPlan: (weekId: string) => { ok: boolean; error?: string };
+  desvalidateWeekPlan: (weekId: string) => { ok: boolean; error?: string };
   setPlanningHoursRange: (startHour: number, endHour: number) => { ok: boolean; error?: string };
   setShiftRanges: (input: ShiftRanges) => { ok: boolean; error?: string };
   setValidationRequirements: (input: ValidationRequirements) => { ok: boolean; error?: string };
@@ -220,6 +222,10 @@ function parseISODateToDay(dateISO: string): number {
   return new Date(`${dateISO}T00:00:00`).getDay();
 }
 
+function invalidateWeekValidation(validatedWeekIds: string[], weekId: string): string[] {
+  return validatedWeekIds.filter((validatedWeekId) => validatedWeekId !== weekId);
+}
+
 function formatHourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`;
 }
@@ -324,7 +330,8 @@ function toPersistableState(state: AppState): PersistableState {
     shiftRanges: state.shiftRanges,
     validationRequirements: state.validationRequirements,
     weeks: state.weeks,
-    weekPlans: state.weekPlans
+    weekPlans: state.weekPlans,
+    validatedWeekIds: state.validatedWeekIds
   };
 }
 
@@ -445,7 +452,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         [currentWeekId]: nextWeekPlan
       };
 
-      return { employees, weekPlans };
+      return { employees, weekPlans, validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, currentWeekId) };
     });
     persistSnapshot(get, set);
   },
@@ -470,7 +477,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         };
       }
 
-      return { employees, weekPlans };
+      return { employees, weekPlans, validatedWeekIds: [] };
     });
     persistSnapshot(get, set);
   },
@@ -485,7 +492,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => {
       const exists = state.roles.some((item) => item.id === role.id);
       const next = exists ? state.roles.map((item) => (item.id === role.id ? role : item)) : [...state.roles, role];
-      return { roles: next };
+      return { roles: next, validatedWeekIds: [] };
     });
     persistSnapshot(get, set);
     return { ok: true };
@@ -512,7 +519,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           })
         };
       }
-      return { roles, weekPlans };
+      return { roles, weekPlans, validatedWeekIds: [] };
     });
     persistSnapshot(get, set);
   },
@@ -559,7 +566,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       const weekPlan = { ...plan, days };
       const weekPlans = { ...state.weekPlans, [weekId]: weekPlan };
-      return { weekPlans };
+      return { weekPlans, validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, weekId) };
     });
     persistSnapshot(get, set);
     return { ok: true };
@@ -590,7 +597,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       const weekPlan = { ...plan, days };
       const weekPlans = { ...state.weekPlans, [weekId]: weekPlan };
-      return { weekPlans };
+      return { weekPlans, validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, weekId) };
     });
     persistSnapshot(get, set);
     return { ok: true };
@@ -649,7 +656,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       const weekPlan = { ...plan, days };
       const weekPlans = { ...state.weekPlans, [weekId]: weekPlan };
-      return { weekPlans };
+      return { weekPlans, validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, weekId) };
     });
     persistSnapshot(get, set);
     return { ok: true };
@@ -682,7 +689,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         nextTimeSlots,
         normalizedShiftRanges
       );
-      return { timeSlots: nextTimeSlots, shiftRanges: normalizedShiftRanges, weekPlans: rebuiltWeekPlans };
+      return { timeSlots: nextTimeSlots, shiftRanges: normalizedShiftRanges, weekPlans: rebuiltWeekPlans, validatedWeekIds: [] };
     });
     persistSnapshot(get, set);
     return { ok: true };
@@ -710,7 +717,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         state.timeSlots,
         normalized
       );
-      return { shiftRanges: normalized, weekPlans };
+      return { shiftRanges: normalized, weekPlans, validatedWeekIds: [] };
     });
     persistSnapshot(get, set);
     return { ok: true };
@@ -748,7 +755,35 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     };
 
-    set({ validationRequirements: sanitized });
+    set({ validationRequirements: sanitized, validatedWeekIds: [] });
+    persistSnapshot(get, set);
+    return { ok: true };
+  },
+
+  validateWeekPlan: (weekId) => {
+    if (!weekId.trim()) {
+      return { ok: false, error: 'Semana inválida para validar.' };
+    }
+
+    set((state) => {
+      if (!state.weekPlans[weekId]) return {};
+      if (state.validatedWeekIds.includes(weekId)) return {};
+      return { validatedWeekIds: [...state.validatedWeekIds, weekId] };
+    });
+    persistSnapshot(get, set);
+    return { ok: true };
+  },
+
+  desvalidateWeekPlan: (weekId) => {
+    if (!weekId.trim()) {
+      return { ok: false, error: 'Semana inválida para retornar validación.' };
+    }
+
+    set((state) => {
+      if (!state.weekPlans[weekId]) return {};
+      if (!state.validatedWeekIds.includes(weekId)) return {};
+      return { validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, weekId) };
+    });
     persistSnapshot(get, set);
     return { ok: true };
   }

@@ -1,6 +1,28 @@
-import { Badge, Box, Button, Card, CardBody, CardHeader, Divider, Flex, HStack, Stack, Text, useDisclosure, useToast } from '@chakra-ui/react';
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+  Flex,
+  HStack,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  Stack,
+  Text,
+  Tooltip,
+  useDisclosure,
+  useToast
+} from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
-import { FiAlertTriangle, FiCheckCircle, FiDownload, FiEye, FiTrash2, FiXCircle } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheckCircle, FiDownload, FiEye, FiXCircle } from 'react-icons/fi';
 import { CellEditorModal } from '../components/CellEditorModal';
 import { DayGrid } from '../components/DayGrid';
 import { DayTabs } from '../components/DayTabs';
@@ -25,6 +47,7 @@ export function PlanningPage(): JSX.Element {
   const { isOpen: isLegendOpen, onOpen: openLegend, onClose: closeLegend } = useDisclosure();
   const { isOpen: isProfileOpen, onOpen: openProfile, onClose: closeProfile } = useDisclosure();
   const { isOpen: isEditorOpen, onOpen: openEditor, onClose: closeEditor } = useDisclosure();
+  const { isOpen: isValidateModalOpen, onOpen: openValidateModal, onClose: closeValidateModal } = useDisclosure();
 
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
@@ -32,14 +55,17 @@ export function PlanningPage(): JSX.Element {
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
   const currentWeekId = useAppStore((state) => state.currentWeekId);
+  const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
   const validationRequirements = useAppStore((state) => state.validationRequirements);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
   const updateAssignment = useAppStore((state) => state.updateAssignment);
   const updateEmployeeDayAssignments = useAppStore((state) => state.updateEmployeeDayAssignments);
   const updateEmployeeDayByHours = useAppStore((state) => state.updateEmployeeDayByHours);
-  const resetAll = useAppStore((state) => state.resetAll);
+  const validateWeekPlan = useAppStore((state) => state.validateWeekPlan);
+  const desvalidateWeekPlan = useAppStore((state) => state.desvalidateWeekPlan);
   const currentUser = useAuthStore((state) => state.currentUser);
-  const canEdit = currentUser?.role === 'administrador';
+  const isSupervisor = currentUser?.role === 'supervisor';
+  const canEdit = currentUser?.role === 'administrador' || isSupervisor;
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [selectedCell, setSelectedCell] = useState<SelectedCell>(null);
@@ -47,6 +73,7 @@ export function PlanningPage(): JSX.Element {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const currentWeek = weeks.find((week) => week.id === currentWeekId);
+  const isCurrentWeekValidated = currentWeek ? validatedWeekIds.includes(currentWeek.id) : false;
   useEffect(() => {
     if (currentWeek) ensureWeekPlan(currentWeek);
   }, [currentWeek, ensureWeekPlan]);
@@ -210,15 +237,28 @@ export function PlanningPage(): JSX.Element {
                 >
                   Exportar PDF
                 </Button>
-                <Button
-                  colorScheme="red"
-                  variant="outline"
-                  leftIcon={<FiTrash2 />}
-                  onClick={resetAll}
-                  isDisabled={!canEdit}
-                >
-                  Borrar Todo
-                </Button>
+                {isSupervisor ? (
+                  <Tooltip
+                    label={
+                      isCurrentWeekValidated
+                        ? 'Se quitará la validación de la planificación al confirmar.'
+                        : 'Se validará la planificación al confirmar.'
+                    }
+                    hasArrow
+                  >
+                    <Button
+                      colorScheme={isCurrentWeekValidated ? 'orange' : 'green'}
+                      onClick={openValidateModal}
+                      isDisabled={!currentWeek}
+                    >
+                      {isCurrentWeekValidated ? 'Retornar' : 'Validar'}
+                    </Button>
+                  </Tooltip>
+                ) : (
+                  <Badge colorScheme={isCurrentWeekValidated ? 'green' : 'orange'} px={3} py={1} rounded="full" variant="subtle">
+                    {isCurrentWeekValidated ? 'Planificación Validada' : 'Planificación No Validada'}
+                  </Badge>
+                )}
               </Flex>
             </Flex>
           </CardBody>
@@ -423,6 +463,51 @@ export function PlanningPage(): JSX.Element {
           }
         }}
       />
+      <Modal isOpen={isValidateModalOpen} onClose={closeValidateModal} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>{isCurrentWeekValidated ? 'Quitar validación' : 'Validar planificación'}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>
+              {isCurrentWeekValidated
+                ? '¿Desea quitar la validación de la planificación de la semana seleccionada?'
+                : '¿Desea validar la planificación de la semana seleccionada?'}
+            </Text>
+          </ModalBody>
+          <ModalFooter>
+            <HStack>
+              <Button variant="ghost" onClick={closeValidateModal}>
+                Cancelar
+              </Button>
+              <Button
+                colorScheme={isCurrentWeekValidated ? 'orange' : 'green'}
+                onClick={() => {
+                  if (!currentWeek) return;
+                  const result = isCurrentWeekValidated
+                    ? desvalidateWeekPlan(currentWeek.id)
+                    : validateWeekPlan(currentWeek.id);
+                  if (!result.ok) {
+                    toast({
+                      status: 'error',
+                      title: result.error ?? (isCurrentWeekValidated ? 'No se pudo quitar la validación.' : 'No se pudo validar la planificación.')
+                    });
+                    return;
+                  }
+                  toast({
+                    status: 'success',
+                    title: isCurrentWeekValidated ? 'Validación quitada.' : 'Planificación validada.'
+                  });
+                  closeValidateModal();
+                }}
+                isDisabled={!currentWeek}
+              >
+                {isCurrentWeekValidated ? 'Confirmar retorno' : 'Confirmar validación'}
+              </Button>
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }

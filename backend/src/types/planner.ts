@@ -73,4 +73,5 @@ export type PlannerStatePayload = {
   validationRequirements: ValidationRequirements;
   weeks: Week[];
   weekPlans: Record<string, WeekPlan>;
+  validatedWeekIds: string[];
 };

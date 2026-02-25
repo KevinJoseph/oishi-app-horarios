@@ -12,7 +12,8 @@ function sanitizePayload(payload: PlannerStatePayload): PlannerStatePayload {
     shiftRanges: payload.shiftRanges,
     validationRequirements: payload.validationRequirements,
     weeks: payload.weeks,
-    weekPlans: payload.weekPlans
+    weekPlans: payload.weekPlans,
+    validatedWeekIds: payload.validatedWeekIds
   };
 }
 
@@ -24,6 +25,7 @@ function mapUnknownState(raw: {
   validationRequirements?: unknown;
   weeks: unknown[];
   weekPlans: Record<string, unknown>;
+  validatedWeekIds?: unknown;
 }): PlannerStatePayload {
   const defaultShiftRanges = {
     day: { startHour: 12, endHour: 17 },
@@ -47,7 +49,10 @@ function mapUnknownState(raw: {
     validationRequirements:
       (raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements,
     weeks: raw.weeks as PlannerStatePayload['weeks'],
-    weekPlans: raw.weekPlans as PlannerStatePayload['weekPlans']
+    weekPlans: raw.weekPlans as PlannerStatePayload['weekPlans'],
+    validatedWeekIds: Array.isArray(raw.validatedWeekIds)
+      ? raw.validatedWeekIds.filter((value): value is string => typeof value === 'string')
+      : []
   };
 }
 

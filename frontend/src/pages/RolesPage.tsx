@@ -30,7 +30,7 @@ export function RolesPage(): JSX.Element {
   const upsertRole = useAppStore((state) => state.upsertRole);
   const deleteRole = useAppStore((state) => state.deleteRole);
   const currentUser = useAuthStore((state) => state.currentUser);
-  const canEdit = currentUser?.role === 'administrador';
+  const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
 
   const [editing, setEditing] = useState<Role | undefined>(undefined);
 

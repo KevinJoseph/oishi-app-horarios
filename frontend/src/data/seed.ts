@@ -11,6 +11,7 @@ export type SeedState = {
   validationRequirements: ValidationRequirements;
   weeks: ReturnType<typeof buildMockWeeks>;
   weekPlans: Record<string, WeekPlan>;
+  validatedWeekIds: string[];
 };
 
 function buildDefaultShiftRanges(timeSlots: SeedState['timeSlots']): ShiftRanges {
@@ -116,6 +117,8 @@ export function normalizePlannerState(input: SeedState): SeedState {
   }
 
   const normalizedEmployees = normalizeEmployeeCodes(input.employees).map((employee) => normalizeEmployeeContract(employee));
+  const knownWeekIds = new Set(normalizedWeeks.map((week) => week.id));
+  const validatedWeekIds = (input.validatedWeekIds ?? []).filter((weekId) => knownWeekIds.has(weekId));
 
   return {
     employees: normalizedEmployees,
@@ -124,7 +127,8 @@ export function normalizePlannerState(input: SeedState): SeedState {
     shiftRanges: normalizeShiftRanges(input.shiftRanges, input.timeSlots),
     validationRequirements: normalizeValidationRequirements(input.validationRequirements),
     weeks: normalizedWeeks,
-    weekPlans
+    weekPlans,
+    validatedWeekIds
   };
 }
 
@@ -144,7 +148,7 @@ export function loadSeedState(): SeedState {
     weekPlans[week.id] = buildEmptyWeekPlan(week, employeeIds, timeSlotIds);
   }
 
-  return { employees, roles, timeSlots, shiftRanges, validationRequirements, weeks, weekPlans };
+  return { employees, roles, timeSlots, shiftRanges, validationRequirements, weeks, weekPlans, validatedWeekIds: [] };
 }
 
 function normalizeEmployeeContract(employee: SeedState['employees'][number]): SeedState['employees'][number] {

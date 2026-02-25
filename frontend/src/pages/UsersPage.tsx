@@ -31,11 +31,14 @@ function safeText(value: unknown, fallback = ''): string {
 }
 
 function normalizeUser(user: Partial<AppUser>): AppUser {
+  const normalizedRole =
+    user.role === 'administrador' || user.role === 'supervisor' || user.role === 'lector' ? user.role : 'lector';
+
   return {
     id: safeText(user.id, ''),
     username: safeText(user.username, ''),
     name: safeText(user.name, 'Sin nombre'),
-    role: user.role === 'administrador' ? 'administrador' : 'lector',
+    role: normalizedRole,
     createdAt: safeText(user.createdAt, new Date(0).toISOString()),
     updatedAt: safeText(user.updatedAt, new Date(0).toISOString())
   };
@@ -135,8 +138,8 @@ export function UsersPage(): JSX.Element {
                     </Td>
                     <Td>{user.username}</Td>
                     <Td>
-                      <Badge colorScheme={user.role === 'administrador' ? 'green' : 'gray'}>
-                        {user.role === 'administrador' ? 'Administrador' : 'Lector'}
+                      <Badge colorScheme={user.role === 'administrador' ? 'green' : user.role === 'supervisor' ? 'blue' : 'gray'}>
+                        {user.role === 'administrador' ? 'Administrador' : user.role === 'supervisor' ? 'Supervisor' : 'Lector'}
                       </Badge>
                     </Td>
                     <Td>{new Date(user.createdAt).toLocaleDateString()}</Td>

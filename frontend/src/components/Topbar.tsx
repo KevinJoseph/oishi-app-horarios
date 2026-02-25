@@ -5,7 +5,9 @@ import { FiBell, FiCalendar, FiLogOut } from 'react-icons/fi';
 import { useAuthStore } from '../store/useAuthStore';
 
 function getRoleLabel(role: string | undefined): string {
-  return role === 'administrador' ? 'Administrador' : 'Lector';
+  if (role === 'administrador') return 'Administrador';
+  if (role === 'supervisor') return 'Supervisor';
+  return 'Lector';
 }
 
 export function Topbar(): JSX.Element {

@@ -21,6 +21,16 @@ type DownloadWeeklyOverviewPdfInput = {
   validatedByName: string | null;
 };
 
+type DownloadWeeklyGridPdfInput = {
+  employees: Employee[];
+  roles: Role[];
+  timeSlots: TimeSlot[];
+  week: Week;
+  weekPlan: WeekPlan;
+  isValidated: boolean;
+  validatedByName: string | null;
+};
+
 type DownloadDaySchedulePdfInput = {
   dayPlan: DayPlan;
   employees: Employee[];
@@ -97,6 +107,46 @@ export function downloadDaySchedulePdf({
   validatedByName
 }: DownloadDaySchedulePdfInput): void {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+  drawDaySchedulePage(doc, { dayPlan, employees, roles, timeSlots, week, isValidated, validatedByName });
+
+  const safeDay = `${dayPlan.dayName}-${dayPlan.dateISO}`.replace(/[^\w-]+/g, '-').toLowerCase();
+  doc.save(`horario-dia-${safeDay}.pdf`);
+}
+
+export function downloadWeeklyGridPdf({
+  employees,
+  roles,
+  timeSlots,
+  week,
+  weekPlan,
+  isValidated,
+  validatedByName
+}: DownloadWeeklyGridPdfInput): void {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+  const days = weekPlan.days;
+
+  days.forEach((dayPlan, index) => {
+    if (index > 0) doc.addPage();
+    drawDaySchedulePage(doc, { dayPlan, employees, roles, timeSlots, week, isValidated, validatedByName });
+  });
+
+  const safeWeek = week.label.replace(/[^\w-]+/g, '-');
+  doc.save(`vista-grid-${safeWeek}.pdf`);
+}
+
+function drawDaySchedulePage(
+  doc: jsPDF,
+  input: {
+    dayPlan: DayPlan;
+    employees: Employee[];
+    roles: Role[];
+    timeSlots: TimeSlot[];
+    week: Week;
+    isValidated: boolean;
+    validatedByName: string | null;
+  }
+): void {
+  const { dayPlan, employees, roles, timeSlots, week, isValidated, validatedByName } = input;
   const roleColorById = new Map(roles.map((role) => [role.id, role.colorHex]));
   const activeEmployees = employees.filter((employee) => employee.active);
   const visibleTimeSlots = getVisibleTimeSlots(timeSlots);
@@ -144,9 +194,6 @@ export function downloadDaySchedulePdf({
     y += rowHeight;
   }
   drawLegendBottom(doc, roles, marginX, y + 6, pageWidth - marginX * 2);
-
-  const safeDay = `${dayPlan.dayName}-${dayPlan.dateISO}`.replace(/[^\w-]+/g, '-').toLowerCase();
-  doc.save(`horario-dia-${safeDay}.pdf`);
 }
 
 function drawEmployeeSchedulePage(

@@ -5,7 +5,7 @@ import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
 import { WeekSelector } from '../components/WeekSelector';
 import { WeeklyByWeeksOverviewContent } from './WeeklyByWeeksOverviewPage';
 import { useAppStore } from '../store/useAppStore';
-import { downloadWeeklyOverviewPdf } from '../utils/pdf';
+import { downloadWeeklyGridPdf, downloadWeeklyOverviewPdf } from '../utils/pdf';
 
 export function WeeklyOverviewPage(): JSX.Element {
   const toast = useToast();
@@ -78,7 +78,7 @@ export function WeeklyOverviewPage(): JSX.Element {
               {viewMode !== 'weeks' ? (
                 <>
                   <WeekSelector />
-                  {viewMode === 'personal' ? (
+                  {viewMode === 'personal' || viewMode === 'grid' ? (
                     <Button
                       colorScheme="teal"
                       variant="outline"
@@ -91,7 +91,7 @@ export function WeeklyOverviewPage(): JSX.Element {
                         }
                         try {
                           setIsExportingPdf(true);
-                          downloadWeeklyOverviewPdf({
+                          const payload = {
                             employees,
                             roles,
                             timeSlots,
@@ -99,10 +99,19 @@ export function WeeklyOverviewPage(): JSX.Element {
                             weekPlan: currentWeekPlan,
                             isValidated: validatedWeekIds.includes(currentWeek.id),
                             validatedByName: currentWeekAudit?.validatedByName ?? null
-                          });
-                          toast({ status: 'success', title: 'PDF de vista general generado.' });
+                          };
+                          if (viewMode === 'grid') {
+                            downloadWeeklyGridPdf(payload);
+                            toast({ status: 'success', title: 'PDF del modo Grid generado.' });
+                          } else {
+                            downloadWeeklyOverviewPdf(payload);
+                            toast({ status: 'success', title: 'PDF de vista general generado.' });
+                          }
                         } catch {
-                          toast({ status: 'error', title: 'No se pudo generar el PDF de vista general.' });
+                          toast({
+                            status: 'error',
+                            title: viewMode === 'grid' ? 'No se pudo generar el PDF del modo Grid.' : 'No se pudo generar el PDF de vista general.'
+                          });
                         } finally {
                           setIsExportingPdf(false);
                         }

@@ -220,12 +220,17 @@ export function buildSeedState(): PlannerStatePayload {
   const validationRequirements = buildDefaultValidationRequirements();
   const weeks = buildWeeks();
   const weekPlans: Record<string, WeekPlan> = {};
+  const weekAuditById: PlannerStatePayload['weekAuditById'] = {};
 
   const employeeIds = employees.map((employee) => employee.id);
   const timeSlotIds = timeSlots.map((slot) => slot.id);
 
   for (const week of weeks) {
     weekPlans[week.id] = buildEmptyWeekPlan(week, employeeIds, timeSlotIds);
+    weekAuditById[week.id] = {
+      createdByName: null,
+      validatedByName: null
+    };
   }
 
   return {
@@ -236,6 +241,7 @@ export function buildSeedState(): PlannerStatePayload {
     validationRequirements,
     weeks,
     weekPlans,
-    validatedWeekIds: []
+    validatedWeekIds: [],
+    weekAuditById
   };
 }

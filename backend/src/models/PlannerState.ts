@@ -9,6 +9,7 @@ type PlannerStateDocument = {
   weeks: unknown[];
   weekPlans: Record<string, unknown>;
   validatedWeekIds: string[];
+  weekAuditById: Record<string, unknown>;
   updatedAt: Date;
   createdAt: Date;
 };
@@ -23,7 +24,8 @@ const PlannerStateSchema = new Schema<PlannerStateDocument>(
     validationRequirements: { type: Schema.Types.Mixed, required: true },
     weeks: { type: [Schema.Types.Mixed], required: true },
     weekPlans: { type: Schema.Types.Mixed, required: true },
-    validatedWeekIds: { type: [String], required: true, default: [] }
+    validatedWeekIds: { type: [String], required: true, default: [] },
+    weekAuditById: { type: Schema.Types.Mixed, required: true, default: {} }
   },
   {
     timestamps: true,

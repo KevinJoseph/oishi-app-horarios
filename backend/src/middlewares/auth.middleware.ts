@@ -44,3 +44,17 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
 
   next();
 }
+
+export function requirePlannerWrite(req: Request, res: Response, next: NextFunction): void {
+  if (!req.authUser) {
+    res.status(401).json({ error: 'No autenticado.' });
+    return;
+  }
+
+  if (req.authUser.role !== 'administrador' && req.authUser.role !== 'supervisor') {
+    res.status(403).json({ error: 'No autorizado. Se requiere perfil administrador o supervisor.' });
+    return;
+  }
+
+  next();
+}

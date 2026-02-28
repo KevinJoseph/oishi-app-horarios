@@ -65,6 +65,11 @@ export type WeekPlan = {
   days: DayPlan[];
 };
 
+export type WeekAudit = {
+  createdByName: string | null;
+  validatedByName: string | null;
+};
+
 export type PlannerStatePayload = {
   employees: Employee[];
   roles: Role[];
@@ -74,4 +79,5 @@ export type PlannerStatePayload = {
   weeks: Week[];
   weekPlans: Record<string, WeekPlan>;
   validatedWeekIds: string[];
+  weekAuditById: Record<string, WeekAudit>;
 };

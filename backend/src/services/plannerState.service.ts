@@ -13,7 +13,8 @@ function sanitizePayload(payload: PlannerStatePayload): PlannerStatePayload {
     validationRequirements: payload.validationRequirements,
     weeks: payload.weeks,
     weekPlans: payload.weekPlans,
-    validatedWeekIds: payload.validatedWeekIds
+    validatedWeekIds: payload.validatedWeekIds,
+    weekAuditById: payload.weekAuditById
   };
 }
 
@@ -26,6 +27,7 @@ function mapUnknownState(raw: {
   weeks: unknown[];
   weekPlans: Record<string, unknown>;
   validatedWeekIds?: unknown;
+  weekAuditById?: unknown;
 }): PlannerStatePayload {
   const defaultShiftRanges = {
     day: { startHour: 12, endHour: 17 },
@@ -52,7 +54,11 @@ function mapUnknownState(raw: {
     weekPlans: raw.weekPlans as PlannerStatePayload['weekPlans'],
     validatedWeekIds: Array.isArray(raw.validatedWeekIds)
       ? raw.validatedWeekIds.filter((value): value is string => typeof value === 'string')
-      : []
+      : [],
+    weekAuditById:
+      raw.weekAuditById && typeof raw.weekAuditById === 'object'
+        ? (raw.weekAuditById as PlannerStatePayload['weekAuditById'])
+        : {}
   };
 }
 

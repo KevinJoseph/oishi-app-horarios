@@ -102,6 +102,8 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
             >
               <option value="salon">Salón</option>
               <option value="cocina">Cocina</option>
+              <option value="oficina">Oficina</option>
+              <option value="produccion">Producción</option>
             </Select>
           </FormControl>
           <FormControl mb={3}>

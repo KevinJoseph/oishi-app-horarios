@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { fetchPlannerState, resetPlannerState as resetPlannerStateApi, savePlannerState } from '../api/plannerApi';
 import { loadSeedState, normalizePlannerState } from '../data/seed';
 import { buildEmptyWeekPlan } from '../data/mocks';
+import { AREA_IDS } from '../types';
 import type { AreaId, Assignment, Employee, Role, ShiftRanges, TimeSlot, ValidationRequirements, Week, WeekAudit, WeekPlan } from '../types';
 import { normalizeRestDay } from '../utils/weekdays';
 
@@ -75,7 +76,7 @@ function resolveScopedWeekId(currentAreaId: AreaId, weekId: string): string {
 function areaFromWeekId(weekId: string): AreaId {
   if (!weekId.includes('::')) return 'salon';
   const [areaId] = weekId.split('::');
-  return areaId === 'cocina' ? 'cocina' : 'salon';
+  return AREA_IDS.includes(areaId as AreaId) ? (areaId as AreaId) : 'salon';
 }
 
 function rolesForArea(roles: Role[], areaId: AreaId): Role[] {

@@ -6,6 +6,7 @@ import { WeekSelector } from '../components/WeekSelector';
 import { WeeklyByWeeksOverviewContent } from './WeeklyByWeeksOverviewPage';
 import { useAppStore } from '../store/useAppStore';
 import { downloadWeeklyGridPdf, downloadWeeklyOverviewPdf } from '../utils/pdf';
+import type { AreaId } from '../types';
 
 export function WeeklyOverviewPage(): JSX.Element {
   const toast = useToast();
@@ -20,7 +21,7 @@ export function WeeklyOverviewPage(): JSX.Element {
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
 
-  const scopedWeekKey = (areaId: 'salon' | 'cocina', weekId: string): string => `${areaId}::${weekId}`;
+  const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const employees = useMemo(
     () => allEmployees.filter((employee) => (employee.areaId ?? 'salon') === currentAreaId),
     [allEmployees, currentAreaId]

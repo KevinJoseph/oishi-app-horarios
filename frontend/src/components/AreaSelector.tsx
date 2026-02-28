@@ -4,7 +4,9 @@ import type { AreaId } from '../types';
 
 const AREA_OPTIONS: Array<{ id: AreaId; label: string }> = [
   { id: 'salon', label: 'Area Salon' },
-  { id: 'cocina', label: 'Area Cocina' }
+  { id: 'cocina', label: 'Area Cocina' },
+  { id: 'oficina', label: 'Area Oficina' },
+  { id: 'produccion', label: 'Area Produccion' }
 ];
 
 type Props = {

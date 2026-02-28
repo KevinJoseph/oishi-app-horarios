@@ -14,7 +14,7 @@ import type {
 } from '../types';
 import { buildWeekLabel, formatDayNameEs } from '../utils/dates';
 
-const AREA_IDS: AreaId[] = ['salon', 'cocina'];
+const AREA_IDS: AreaId[] = ['salon', 'cocina', 'oficina', 'produccion'];
 const DEFAULT_AREA_ID: AreaId = 'salon';
 
 export type SeedState = {
@@ -165,7 +165,9 @@ export function normalizePlannerState(input: SeedState): SeedState {
 
   const normalizedEmployees = normalizeEmployeeCodes(input.employees).map((employee) => normalizeEmployeeContract(employee));
   const normalizedRoles = normalizeRolesByArea(input.roles);
-  const currentAreaId = (input.currentAreaId ?? DEFAULT_AREA_ID) as AreaId;
+  const currentAreaId = AREA_IDS.includes(input.currentAreaId as AreaId)
+    ? (input.currentAreaId as AreaId)
+    : DEFAULT_AREA_ID;
   const rawTimeSlotsByArea = (input.timeSlotsByArea ?? {}) as Partial<TimeSlotsByArea>;
   const rawShiftRangesByArea = (input.shiftRangesByArea ?? {}) as Partial<ShiftRangesByArea>;
   const rawValidationByArea = (input.validationRequirementsByArea ?? {}) as Partial<ValidationRequirementsByArea>;
@@ -174,15 +176,21 @@ export function normalizePlannerState(input: SeedState): SeedState {
   const fallbackValidation = normalizeValidationRequirements(input.validationRequirements);
   const timeSlotsByArea = {
     salon: cloneTimeSlots(rawTimeSlotsByArea.salon ?? fallbackTimeSlots),
-    cocina: cloneTimeSlots(rawTimeSlotsByArea.cocina ?? fallbackTimeSlots)
+    cocina: cloneTimeSlots(rawTimeSlotsByArea.cocina ?? fallbackTimeSlots),
+    oficina: cloneTimeSlots(rawTimeSlotsByArea.oficina ?? fallbackTimeSlots),
+    produccion: cloneTimeSlots(rawTimeSlotsByArea.produccion ?? fallbackTimeSlots)
   } satisfies TimeSlotsByArea;
   const shiftRangesByArea = {
     salon: normalizeShiftRanges(rawShiftRangesByArea.salon ?? fallbackShiftRanges, timeSlotsByArea.salon),
-    cocina: normalizeShiftRanges(rawShiftRangesByArea.cocina ?? fallbackShiftRanges, timeSlotsByArea.cocina)
+    cocina: normalizeShiftRanges(rawShiftRangesByArea.cocina ?? fallbackShiftRanges, timeSlotsByArea.cocina),
+    oficina: normalizeShiftRanges(rawShiftRangesByArea.oficina ?? fallbackShiftRanges, timeSlotsByArea.oficina),
+    produccion: normalizeShiftRanges(rawShiftRangesByArea.produccion ?? fallbackShiftRanges, timeSlotsByArea.produccion)
   } satisfies ShiftRangesByArea;
   const validationRequirementsByArea = {
     salon: normalizeValidationRequirements(rawValidationByArea.salon ?? fallbackValidation),
-    cocina: normalizeValidationRequirements(rawValidationByArea.cocina ?? fallbackValidation)
+    cocina: normalizeValidationRequirements(rawValidationByArea.cocina ?? fallbackValidation),
+    oficina: normalizeValidationRequirements(rawValidationByArea.oficina ?? fallbackValidation),
+    produccion: normalizeValidationRequirements(rawValidationByArea.produccion ?? fallbackValidation)
   } satisfies ValidationRequirementsByArea;
   const knownWeekIds = new Set(normalizedWeeks.map((week) => week.id));
   const validatedWeekIds = (input.validatedWeekIds ?? [])
@@ -229,15 +237,21 @@ export function loadSeedState(): SeedState {
   const validationRequirements = buildDefaultValidationRequirements();
   const timeSlotsByArea: TimeSlotsByArea = {
     salon: cloneTimeSlots(timeSlots),
-    cocina: cloneTimeSlots(timeSlots)
+    cocina: cloneTimeSlots(timeSlots),
+    oficina: cloneTimeSlots(timeSlots),
+    produccion: cloneTimeSlots(timeSlots)
   };
   const shiftRangesByArea: ShiftRangesByArea = {
     salon: buildDefaultShiftRanges(timeSlotsByArea.salon),
-    cocina: buildDefaultShiftRanges(timeSlotsByArea.cocina)
+    cocina: buildDefaultShiftRanges(timeSlotsByArea.cocina),
+    oficina: buildDefaultShiftRanges(timeSlotsByArea.oficina),
+    produccion: buildDefaultShiftRanges(timeSlotsByArea.produccion)
   };
   const validationRequirementsByArea: ValidationRequirementsByArea = {
     salon: buildDefaultValidationRequirements(),
-    cocina: buildDefaultValidationRequirements()
+    cocina: buildDefaultValidationRequirements(),
+    oficina: buildDefaultValidationRequirements(),
+    produccion: buildDefaultValidationRequirements()
   };
   const weeks = buildMockWeeks();
   const weekPlans: Record<string, WeekPlan> = {};

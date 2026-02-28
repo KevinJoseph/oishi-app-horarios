@@ -58,7 +58,10 @@ function getWeeklyHoursLabel(value: Employee['weeklyHours']): string {
 }
 
 function getAreaLabel(value: Employee['areaId']): string {
-  return value === 'cocina' ? 'Cocina' : 'Salón';
+  if (value === 'cocina') return 'Cocina';
+  if (value === 'oficina') return 'Oficina';
+  if (value === 'produccion') return 'Producción';
+  return 'Salón';
 }
 
 export function EmployeesPage(): JSX.Element {

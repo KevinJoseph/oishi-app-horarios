@@ -236,9 +236,22 @@ export function buildSeedState(): PlannerStatePayload {
   return {
     employees,
     roles,
+    currentAreaId: 'salon',
     timeSlots,
     shiftRanges,
     validationRequirements,
+    timeSlotsByArea: {
+      salon: [...timeSlots],
+      cocina: [...timeSlots]
+    },
+    shiftRangesByArea: {
+      salon: shiftRanges,
+      cocina: shiftRanges
+    },
+    validationRequirementsByArea: {
+      salon: validationRequirements,
+      cocina: validationRequirements
+    },
     weeks,
     weekPlans,
     validatedWeekIds: [],

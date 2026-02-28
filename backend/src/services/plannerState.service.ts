@@ -8,9 +8,13 @@ function sanitizePayload(payload: PlannerStatePayload): PlannerStatePayload {
   return {
     employees: payload.employees,
     roles: payload.roles,
+    currentAreaId: payload.currentAreaId,
     timeSlots: payload.timeSlots,
     shiftRanges: payload.shiftRanges,
     validationRequirements: payload.validationRequirements,
+    timeSlotsByArea: payload.timeSlotsByArea,
+    shiftRangesByArea: payload.shiftRangesByArea,
+    validationRequirementsByArea: payload.validationRequirementsByArea,
     weeks: payload.weeks,
     weekPlans: payload.weekPlans,
     validatedWeekIds: payload.validatedWeekIds,
@@ -21,9 +25,13 @@ function sanitizePayload(payload: PlannerStatePayload): PlannerStatePayload {
 function mapUnknownState(raw: {
   employees: unknown[];
   roles: unknown[];
+  currentAreaId?: unknown;
   timeSlots: unknown[];
   shiftRanges?: unknown;
   validationRequirements?: unknown;
+  timeSlotsByArea?: unknown;
+  shiftRangesByArea?: unknown;
+  validationRequirementsByArea?: unknown;
   weeks: unknown[];
   weekPlans: Record<string, unknown>;
   validatedWeekIds?: unknown;
@@ -46,10 +54,32 @@ function mapUnknownState(raw: {
   return {
     employees: raw.employees as PlannerStatePayload['employees'],
     roles: raw.roles as PlannerStatePayload['roles'],
+    currentAreaId: raw.currentAreaId === 'cocina' ? 'cocina' : 'salon',
     timeSlots: raw.timeSlots as PlannerStatePayload['timeSlots'],
     shiftRanges: (raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges,
     validationRequirements:
       (raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements,
+    timeSlotsByArea:
+      raw.timeSlotsByArea && typeof raw.timeSlotsByArea === 'object'
+        ? (raw.timeSlotsByArea as PlannerStatePayload['timeSlotsByArea'])
+        : {
+            salon: raw.timeSlots as PlannerStatePayload['timeSlots'],
+            cocina: raw.timeSlots as PlannerStatePayload['timeSlots']
+          },
+    shiftRangesByArea:
+      raw.shiftRangesByArea && typeof raw.shiftRangesByArea === 'object'
+        ? (raw.shiftRangesByArea as PlannerStatePayload['shiftRangesByArea'])
+        : {
+            salon: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+            cocina: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges)
+          },
+    validationRequirementsByArea:
+      raw.validationRequirementsByArea && typeof raw.validationRequirementsByArea === 'object'
+        ? (raw.validationRequirementsByArea as PlannerStatePayload['validationRequirementsByArea'])
+        : {
+            salon: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+            cocina: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements)
+          },
     weeks: raw.weeks as PlannerStatePayload['weeks'],
     weekPlans: raw.weekPlans as PlannerStatePayload['weekPlans'],
     validatedWeekIds: Array.isArray(raw.validatedWeekIds)

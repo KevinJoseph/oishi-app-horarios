@@ -1,19 +1,52 @@
 import { addDays, formatISO, parseISO } from 'date-fns';
 import { buildEmptyWeekPlan, buildMockWeeks, mockEmployees, mockRoles, mockTimeSlots } from './mocks';
-import type { ShiftRanges, ValidationRequirements, WeekAudit, WeekPlan } from '../types';
+import type {
+  AreaId,
+  Role,
+  ShiftRanges,
+  ShiftRangesByArea,
+  TimeSlot,
+  TimeSlotsByArea,
+  ValidationRequirements,
+  ValidationRequirementsByArea,
+  WeekAudit,
+  WeekPlan
+} from '../types';
 import { buildWeekLabel, formatDayNameEs } from '../utils/dates';
+
+const AREA_IDS: AreaId[] = ['salon', 'cocina'];
+const DEFAULT_AREA_ID: AreaId = 'salon';
 
 export type SeedState = {
   employees: typeof mockEmployees;
   roles: typeof mockRoles;
-  timeSlots: typeof mockTimeSlots;
+  currentAreaId: AreaId;
+  timeSlots: TimeSlot[];
   shiftRanges: ShiftRanges;
   validationRequirements: ValidationRequirements;
+  timeSlotsByArea: TimeSlotsByArea;
+  shiftRangesByArea: ShiftRangesByArea;
+  validationRequirementsByArea: ValidationRequirementsByArea;
   weeks: ReturnType<typeof buildMockWeeks>;
   weekPlans: Record<string, WeekPlan>;
   validatedWeekIds: string[];
   weekAuditById: Record<string, WeekAudit>;
 };
+
+function scopedWeekKey(areaId: AreaId, weekId: string): string {
+  return `${areaId}::${weekId}`;
+}
+
+function normalizeRolesByArea(roles: Role[]): Role[] {
+  return roles.map((role) => ({
+    ...role,
+    areaId: role.areaId ?? DEFAULT_AREA_ID
+  }));
+}
+
+function cloneTimeSlots(timeSlots: TimeSlot[]): TimeSlot[] {
+  return timeSlots.map((slot) => ({ ...slot }));
+}
 
 function sanitizeWeekAudit(value: unknown): WeekAudit {
   const source = value as Partial<WeekAudit> | null | undefined;
@@ -118,28 +151,69 @@ export function normalizePlannerState(input: SeedState): SeedState {
   const weekPlans: Record<string, WeekPlan> = {};
 
   for (const week of normalizedWeeks) {
-    const normalized = normalizeWeekPlan(week.startDateISO, input.weekPlans[week.id]);
-    weekPlans[week.id] = {
-      weekId: normalized.weekId || week.id,
-      days: normalized.days
-    };
+    for (const areaId of AREA_IDS) {
+      const scopedKey = scopedWeekKey(areaId, week.id);
+      const legacyKey = areaId === DEFAULT_AREA_ID ? week.id : '';
+      const sourcePlan = input.weekPlans[scopedKey] ?? (legacyKey ? input.weekPlans[legacyKey] : undefined);
+      const normalized = normalizeWeekPlan(week.startDateISO, sourcePlan);
+      weekPlans[scopedKey] = {
+        weekId: normalized.weekId || week.id,
+        days: normalized.days
+      };
+    }
   }
 
   const normalizedEmployees = normalizeEmployeeCodes(input.employees).map((employee) => normalizeEmployeeContract(employee));
+  const normalizedRoles = normalizeRolesByArea(input.roles);
+  const currentAreaId = (input.currentAreaId ?? DEFAULT_AREA_ID) as AreaId;
+  const rawTimeSlotsByArea = (input.timeSlotsByArea ?? {}) as Partial<TimeSlotsByArea>;
+  const rawShiftRangesByArea = (input.shiftRangesByArea ?? {}) as Partial<ShiftRangesByArea>;
+  const rawValidationByArea = (input.validationRequirementsByArea ?? {}) as Partial<ValidationRequirementsByArea>;
+  const fallbackTimeSlots = cloneTimeSlots(input.timeSlots);
+  const fallbackShiftRanges = normalizeShiftRanges(input.shiftRanges, fallbackTimeSlots);
+  const fallbackValidation = normalizeValidationRequirements(input.validationRequirements);
+  const timeSlotsByArea = {
+    salon: cloneTimeSlots(rawTimeSlotsByArea.salon ?? fallbackTimeSlots),
+    cocina: cloneTimeSlots(rawTimeSlotsByArea.cocina ?? fallbackTimeSlots)
+  } satisfies TimeSlotsByArea;
+  const shiftRangesByArea = {
+    salon: normalizeShiftRanges(rawShiftRangesByArea.salon ?? fallbackShiftRanges, timeSlotsByArea.salon),
+    cocina: normalizeShiftRanges(rawShiftRangesByArea.cocina ?? fallbackShiftRanges, timeSlotsByArea.cocina)
+  } satisfies ShiftRangesByArea;
+  const validationRequirementsByArea = {
+    salon: normalizeValidationRequirements(rawValidationByArea.salon ?? fallbackValidation),
+    cocina: normalizeValidationRequirements(rawValidationByArea.cocina ?? fallbackValidation)
+  } satisfies ValidationRequirementsByArea;
   const knownWeekIds = new Set(normalizedWeeks.map((week) => week.id));
-  const validatedWeekIds = (input.validatedWeekIds ?? []).filter((weekId) => knownWeekIds.has(weekId));
+  const validatedWeekIds = (input.validatedWeekIds ?? [])
+    .map((key) => {
+      if (key.includes('::')) return key;
+      return scopedWeekKey(DEFAULT_AREA_ID, key);
+    })
+    .filter((key) => {
+      const [areaId, weekId] = key.split('::');
+      return AREA_IDS.includes(areaId as AreaId) && knownWeekIds.has(weekId);
+    });
   const weekAuditById: Record<string, WeekAudit> = {};
   const inputWeekAuditById = (input.weekAuditById ?? {}) as Record<string, unknown>;
   for (const week of normalizedWeeks) {
-    weekAuditById[week.id] = sanitizeWeekAudit(inputWeekAuditById[week.id]);
+    for (const areaId of AREA_IDS) {
+      const scopedKey = scopedWeekKey(areaId, week.id);
+      const legacyKey = areaId === DEFAULT_AREA_ID ? week.id : '';
+      weekAuditById[scopedKey] = sanitizeWeekAudit(inputWeekAuditById[scopedKey] ?? (legacyKey ? inputWeekAuditById[legacyKey] : undefined));
+    }
   }
 
   return {
     employees: normalizedEmployees,
-    roles: input.roles,
-    timeSlots: input.timeSlots,
-    shiftRanges: normalizeShiftRanges(input.shiftRanges, input.timeSlots),
-    validationRequirements: normalizeValidationRequirements(input.validationRequirements),
+    roles: normalizedRoles as SeedState['roles'],
+    currentAreaId,
+    timeSlots: timeSlotsByArea[currentAreaId] ?? timeSlotsByArea.salon,
+    shiftRanges: shiftRangesByArea[currentAreaId] ?? shiftRangesByArea.salon,
+    validationRequirements: validationRequirementsByArea[currentAreaId] ?? validationRequirementsByArea.salon,
+    timeSlotsByArea,
+    shiftRangesByArea,
+    validationRequirementsByArea,
     weeks: normalizedWeeks,
     weekPlans,
     validatedWeekIds,
@@ -149,10 +223,22 @@ export function normalizePlannerState(input: SeedState): SeedState {
 
 export function loadSeedState(): SeedState {
   const employees = normalizeEmployeeCodes([...mockEmployees]);
-  const roles = [...mockRoles];
+  const roles = normalizeRolesByArea([...mockRoles]) as SeedState['roles'];
   const timeSlots = [...mockTimeSlots];
   const shiftRanges = buildDefaultShiftRanges(timeSlots);
   const validationRequirements = buildDefaultValidationRequirements();
+  const timeSlotsByArea: TimeSlotsByArea = {
+    salon: cloneTimeSlots(timeSlots),
+    cocina: cloneTimeSlots(timeSlots)
+  };
+  const shiftRangesByArea: ShiftRangesByArea = {
+    salon: buildDefaultShiftRanges(timeSlotsByArea.salon),
+    cocina: buildDefaultShiftRanges(timeSlotsByArea.cocina)
+  };
+  const validationRequirementsByArea: ValidationRequirementsByArea = {
+    salon: buildDefaultValidationRequirements(),
+    cocina: buildDefaultValidationRequirements()
+  };
   const weeks = buildMockWeeks();
   const weekPlans: Record<string, WeekPlan> = {};
 
@@ -160,15 +246,33 @@ export function loadSeedState(): SeedState {
   const timeSlotIds = timeSlots.map((timeSlot) => timeSlot.id);
 
   for (const week of weeks) {
-    weekPlans[week.id] = buildEmptyWeekPlan(week, employeeIds, timeSlotIds);
+    for (const areaId of AREA_IDS) {
+      weekPlans[scopedWeekKey(areaId, week.id)] = buildEmptyWeekPlan(week, employeeIds, timeSlotIds);
+    }
   }
 
   const weekAuditById: Record<string, WeekAudit> = {};
   for (const week of weeks) {
-    weekAuditById[week.id] = { createdByName: null, validatedByName: null };
+    for (const areaId of AREA_IDS) {
+      weekAuditById[scopedWeekKey(areaId, week.id)] = { createdByName: null, validatedByName: null };
+    }
   }
 
-  return { employees, roles, timeSlots, shiftRanges, validationRequirements, weeks, weekPlans, validatedWeekIds: [], weekAuditById };
+  return {
+    employees,
+    roles,
+    currentAreaId: DEFAULT_AREA_ID,
+    timeSlots,
+    shiftRanges,
+    validationRequirements,
+    timeSlotsByArea,
+    shiftRangesByArea,
+    validationRequirementsByArea,
+    weeks,
+    weekPlans,
+    validatedWeekIds: [],
+    weekAuditById
+  };
 }
 
 function normalizeEmployeeContract(employee: SeedState['employees'][number]): SeedState['employees'][number] {

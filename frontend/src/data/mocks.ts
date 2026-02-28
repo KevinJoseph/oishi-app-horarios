@@ -3,18 +3,19 @@ import type { Employee, Role, TimeSlot, Week, WeekPlan } from '../types';
 import { buildWeekLabel, formatDayNameEs, getCurrentMonday } from '../utils/dates';
 
 export const mockRoles: Role[] = [
-  { id: 'role-corredor', name: 'Corredor', colorHex: '#c70a0a', validCodes: ['CO01'] },
-  { id: 'role-despacho', name: 'Despacho', colorHex: '#68D391', validCodes: ['DE01'] },
-  { id: 'role-bienvenida', name: 'Bienvenida', colorHex: '#63B3ED', validCodes: ['BIE01'] },
-  { id: 'role-salon01', name: 'Salon Zona 1', colorHex: '#F6AD55', validCodes: ['SA01'] },
-  { id: 'role-salon02', name: 'Salon Zona 2', colorHex: '#68D391', validCodes: ['SA02'] },
-  { id: 'role-caja', name: 'Caja', colorHex: '#63B3ED', validCodes: ['CAJ01'] }
+  { id: 'role-corredor', name: 'Corredor', colorHex: '#c70a0a', validCodes: ['CO01'], areaId: 'salon' },
+  { id: 'role-despacho', name: 'Despacho', colorHex: '#68D391', validCodes: ['DE01'], areaId: 'salon' },
+  { id: 'role-bienvenida', name: 'Bienvenida', colorHex: '#63B3ED', validCodes: ['BIE01'], areaId: 'salon' },
+  { id: 'role-salon01', name: 'Salon Zona 1', colorHex: '#F6AD55', validCodes: ['SA01'], areaId: 'salon' },
+  { id: 'role-salon02', name: 'Salon Zona 2', colorHex: '#68D391', validCodes: ['SA02'], areaId: 'salon' },
+  { id: 'role-caja', name: 'Caja', colorHex: '#63B3ED', validCodes: ['CAJ01'], areaId: 'salon' }
 ];
 
 export const mockEmployees: Employee[] = [
   {
     id: 'emp-1',
     name: 'Ana Pérez',
+    areaId: 'salon',
     active: true,
     weeklyHours: 56,
     contractType: 'full-time',
@@ -26,6 +27,7 @@ export const mockEmployees: Employee[] = [
   {
     id: 'emp-2',
     name: 'Luis Gómez',
+    areaId: 'salon',
     active: true,
     weeklyHours: 56,
     contractType: 'full-time',
@@ -37,6 +39,7 @@ export const mockEmployees: Employee[] = [
   {
     id: 'emp-3',
     name: 'Marta Ruiz',
+    areaId: 'salon',
     active: true,
     weeklyHours: 56,
     contractType: 'full-time',
@@ -48,6 +51,7 @@ export const mockEmployees: Employee[] = [
   {
     id: 'emp-4',
     name: 'Diego León',
+    areaId: 'salon',
     active: true,
     weeklyHours: 56,
     contractType: 'full-time',
@@ -59,6 +63,7 @@ export const mockEmployees: Employee[] = [
   {
     id: 'emp-5',
     name: 'Carla Díaz',
+    areaId: 'salon',
     active: true,
     weeklyHours: 56,
     contractType: 'full-time',

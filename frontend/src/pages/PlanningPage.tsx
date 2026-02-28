@@ -31,7 +31,7 @@ import { LegendDrawer } from '../components/LegendDrawer';
 import { WeekSelector } from '../components/WeekSelector';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
-import type { Assignment } from '../types';
+import type { AreaId, Assignment } from '../types';
 import { downloadDaySchedulePdf } from '../utils/pdf';
 import { getOpeningClosingSummary } from '../utils/summary';
 import { normalizeRestDay } from '../utils/weekdays';
@@ -49,8 +49,9 @@ export function PlanningPage(): JSX.Element {
   const { isOpen: isEditorOpen, onOpen: openEditor, onClose: closeEditor } = useDisclosure();
   const { isOpen: isValidateModalOpen, onOpen: openValidateModal, onClose: closeValidateModal } = useDisclosure();
 
-  const employees = useAppStore((state) => state.employees);
-  const roles = useAppStore((state) => state.roles);
+  const allEmployees = useAppStore((state) => state.employees);
+  const allRoles = useAppStore((state) => state.roles);
+  const currentAreaId = useAppStore((state) => state.currentAreaId);
   const timeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
@@ -73,14 +74,24 @@ export function PlanningPage(): JSX.Element {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
+  const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
+  const employees = useMemo(
+    () => allEmployees.filter((employee) => (employee.areaId ?? 'salon') === currentAreaId),
+    [allEmployees, currentAreaId]
+  );
+  const roles = useMemo(
+    () => allRoles.filter((role) => (role.areaId ?? 'salon') === currentAreaId),
+    [allRoles, currentAreaId]
+  );
   const currentWeek = weeks.find((week) => week.id === currentWeekId);
-  const currentWeekAudit = currentWeek ? weekAuditById[currentWeek.id] : undefined;
-  const isCurrentWeekValidated = currentWeek ? validatedWeekIds.includes(currentWeek.id) : false;
+  const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
+  const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
+  const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
   useEffect(() => {
     if (currentWeek) ensureWeekPlan(currentWeek);
-  }, [currentWeek, ensureWeekPlan]);
+  }, [currentWeek, currentAreaId, ensureWeekPlan]);
 
-  const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
+  const currentWeekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
   const days = currentWeekPlan?.days ?? [];
   const activeDay = days[activeDayIndex];
   const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId);
@@ -228,7 +239,7 @@ export function PlanningPage(): JSX.Element {
                         roles,
                         timeSlots,
                         week: currentWeek,
-                        isValidated: validatedWeekIds.includes(currentWeek.id),
+                        isValidated: currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false,
                         validatedByName: currentWeekAudit?.validatedByName ?? null
                       });
                       toast({ status: 'success', title: `PDF generado para ${activeDay.dayName}.` });
@@ -439,7 +450,7 @@ export function PlanningPage(): JSX.Element {
           let result;
           if (applyToEmployeeDay && dayHours !== undefined) {
             result = updateEmployeeDayByHours({
-              weekId: currentWeek.id,
+              weekId: currentScopedWeekId ?? currentWeek.id,
               dateISO: activeDay.dateISO,
               employeeId: selectedCell.employeeId,
               assignment,
@@ -448,7 +459,7 @@ export function PlanningPage(): JSX.Element {
             });
           } else if (applyToEmployeeDay) {
             result = updateEmployeeDayAssignments({
-              weekId: currentWeek.id,
+              weekId: currentScopedWeekId ?? currentWeek.id,
               dateISO: activeDay.dateISO,
               employeeId: selectedCell.employeeId,
               assignment,
@@ -457,7 +468,7 @@ export function PlanningPage(): JSX.Element {
             });
           } else {
             result = updateAssignment({
-              weekId: currentWeek.id,
+              weekId: currentScopedWeekId ?? currentWeek.id,
               dateISO: activeDay.dateISO,
               timeSlotId: selectedCell.timeSlotId,
               employeeId: selectedCell.employeeId,
@@ -492,8 +503,8 @@ export function PlanningPage(): JSX.Element {
                 onClick={() => {
                   if (!currentWeek) return;
                   const result = isCurrentWeekValidated
-                    ? desvalidateWeekPlan(currentWeek.id)
-                    : validateWeekPlan(currentWeek.id, currentUser?.name);
+                    ? desvalidateWeekPlan(currentScopedWeekId ?? currentWeek.id)
+                    : validateWeekPlan(currentScopedWeekId ?? currentWeek.id, currentUser?.name);
                   if (!result.ok) {
                     toast({
                       status: 'error',

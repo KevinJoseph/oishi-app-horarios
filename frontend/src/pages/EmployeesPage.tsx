@@ -1,4 +1,10 @@
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Badge,
   Box,
   Button,
@@ -19,12 +25,12 @@ import {
   useDisclosure,
   useToast
 } from '@chakra-ui/react';
-import { useMemo, useState } from 'react';
-import { FiEdit2, FiFileText, FiPower, FiSearch, FiUserCheck } from 'react-icons/fi';
+import { useMemo, useRef, useState } from 'react';
+import { FiEdit2, FiFileText, FiPower, FiSearch, FiTrash2, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
-import type { Employee } from '../types';
+import type { AreaId, Employee } from '../types';
 import { downloadEmployeeWeekPdf } from '../utils/pdf';
 import { getRestDayLabel } from '../utils/weekdays';
 
@@ -51,28 +57,43 @@ function getWeeklyHoursLabel(value: Employee['weeklyHours']): string {
   return value === undefined ? '-' : `${value.toFixed(1)} h`;
 }
 
+function getAreaLabel(value: Employee['areaId']): string {
+  return value === 'cocina' ? 'Cocina' : 'Salón';
+}
+
 export function EmployeesPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isDeleteModalOpen,
+    onOpen: openDeleteModal,
+    onClose: closeDeleteModal
+  } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const timeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
+  const currentAreaId = useAppStore((state) => state.currentAreaId);
   const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
   const weekAuditById = useAppStore((state) => state.weekAuditById);
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
+  const deleteEmployee = useAppStore((state) => state.deleteEmployee);
   const currentUser = useAuthStore((state) => state.currentUser);
   const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
 
   const [editing, setEditing] = useState<Employee | undefined>(undefined);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [exportingEmployeeId, setExportingEmployeeId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+  const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
   const currentWeek = useMemo(() => weeks.find((week) => week.id === currentWeekId), [weeks, currentWeekId]);
-  const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
-  const currentWeekAudit = currentWeek ? weekAuditById[currentWeek.id] : undefined;
+  const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
+  const currentWeekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
+  const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return employees;
@@ -100,7 +121,7 @@ export function EmployeesPage(): JSX.Element {
         timeSlots,
         week: currentWeek,
         weekPlan: currentWeekPlan,
-        isValidated: validatedWeekIds.includes(currentWeek.id),
+        isValidated: currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false,
         validatedByName: currentWeekAudit?.validatedByName ?? null
       });
       toast({
@@ -124,6 +145,17 @@ export function EmployeesPage(): JSX.Element {
       status: 'success',
       title: employee.active ? `${employee.name} fue desactivado.` : `${employee.name} fue activado.`
     });
+  };
+
+  const handleDeleteEmployee = (): void => {
+    if (!employeeToDelete) return;
+    deleteEmployee(employeeToDelete.id);
+    toast({
+      status: 'success',
+      title: `${employeeToDelete.name} fue eliminado permanentemente.`
+    });
+    setEmployeeToDelete(null);
+    closeDeleteModal();
   };
 
   return (
@@ -175,6 +207,7 @@ export function EmployeesPage(): JSX.Element {
                   <Th>Código</Th>
                   <Th>Nombre</Th>
                   <Th>Activo</Th>
+                  <Th>Área</Th>
                   <Th>Horas semanales</Th>
                   <Th>Tipo jornada</Th>
                   <Th>Turno</Th>
@@ -191,6 +224,7 @@ export function EmployeesPage(): JSX.Element {
                     <Td>
                       <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                     </Td>
+                    <Td>{getAreaLabel(employee.areaId)}</Td>
                     <Td>{employee.contractType ? getWeeklyHoursLabel(employee.weeklyHours) : ''}</Td>
                     <Td>{getContractTypeLabel(employee.contractType)}</Td>
                     <Td>{getShiftTypeLabel(employee.shiftType, employee.contractType)}</Td>
@@ -223,6 +257,21 @@ export function EmployeesPage(): JSX.Element {
                             isDisabled={!canEdit}
                           />
                         </Tooltip>
+                        <Tooltip label="Eliminar permanentemente" hasArrow>
+                          <IconButton
+                            aria-label="Eliminar colaborador"
+                            size="xs"
+                            variant="outline"
+                            colorScheme="red"
+                            icon={<FiTrash2 />}
+                            onClick={() => {
+                              if (!canEdit) return;
+                              setEmployeeToDelete(employee);
+                              openDeleteModal();
+                            }}
+                            isDisabled={!canEdit}
+                          />
+                        </Tooltip>
                         <Tooltip label="Exportar PDF" hasArrow>
                           <IconButton
                             aria-label="Exportar PDF"
@@ -249,11 +298,49 @@ export function EmployeesPage(): JSX.Element {
         onClose={onClose}
         editing={editing}
         roles={roles}
+        currentAreaId={currentAreaId}
         onSave={(employee) => {
           if (!canEdit) return;
-          upsertEmployee(employee);
+          upsertEmployee({
+            ...employee,
+            areaId: editing ? employee.areaId : currentAreaId
+          });
         }}
       />
+
+      <AlertDialog
+        isOpen={isDeleteModalOpen}
+        leastDestructiveRef={cancelDeleteRef}
+        onClose={() => {
+          setEmployeeToDelete(null);
+          closeDeleteModal();
+        }}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader>Eliminar colaborador</AlertDialogHeader>
+            <AlertDialogBody>
+              ¿Está seguro de eliminar permanentemente a {employeeToDelete?.name ?? 'este colaborador'}?
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                ref={cancelDeleteRef}
+                variant="ghost"
+                onClick={() => {
+                  setEmployeeToDelete(null);
+                  closeDeleteModal();
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button colorScheme="red" ml={3} onClick={handleDeleteEmployee}>
+                Eliminar
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 }

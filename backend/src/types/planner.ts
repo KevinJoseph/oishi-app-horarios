@@ -1,3 +1,5 @@
+export type AreaId = 'salon' | 'cocina';
+
 export type Employee = {
   id: string;
   name: string;
@@ -27,6 +29,9 @@ export type ValidationRequirement = {
 };
 
 export type ValidationRequirements = Record<number, ValidationRequirement>;
+export type TimeSlotsByArea = Record<AreaId, TimeSlot[]>;
+export type ShiftRangesByArea = Record<AreaId, ShiftRanges>;
+export type ValidationRequirementsByArea = Record<AreaId, ValidationRequirements>;
 
 export type Role = {
   id: string;
@@ -73,9 +78,13 @@ export type WeekAudit = {
 export type PlannerStatePayload = {
   employees: Employee[];
   roles: Role[];
+  currentAreaId: AreaId;
   timeSlots: TimeSlot[];
   shiftRanges: ShiftRanges;
   validationRequirements: ValidationRequirements;
+  timeSlotsByArea: TimeSlotsByArea;
+  shiftRangesByArea: ShiftRangesByArea;
+  validationRequirementsByArea: ValidationRequirementsByArea;
   weeks: Week[];
   weekPlans: Record<string, WeekPlan>;
   validatedWeekIds: string[];

@@ -9,8 +9,9 @@ import { downloadWeeklyGridPdf, downloadWeeklyOverviewPdf } from '../utils/pdf';
 
 export function WeeklyOverviewPage(): JSX.Element {
   const toast = useToast();
-  const employees = useAppStore((state) => state.employees);
-  const roles = useAppStore((state) => state.roles);
+  const allEmployees = useAppStore((state) => state.employees);
+  const allRoles = useAppStore((state) => state.roles);
+  const currentAreaId = useAppStore((state) => state.currentAreaId);
   const timeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
@@ -19,15 +20,25 @@ export function WeeklyOverviewPage(): JSX.Element {
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
 
+  const scopedWeekKey = (areaId: 'salon' | 'cocina', weekId: string): string => `${areaId}::${weekId}`;
+  const employees = useMemo(
+    () => allEmployees.filter((employee) => (employee.areaId ?? 'salon') === currentAreaId),
+    [allEmployees, currentAreaId]
+  );
+  const roles = useMemo(
+    () => allRoles.filter((role) => (role.areaId ?? 'salon') === currentAreaId),
+    [allRoles, currentAreaId]
+  );
   const currentWeek = weeks.find((week) => week.id === currentWeekId);
   useEffect(() => {
     if (currentWeek) ensureWeekPlan(currentWeek);
-  }, [currentWeek, ensureWeekPlan]);
+  }, [currentWeek, currentAreaId, ensureWeekPlan]);
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [viewMode, setViewMode] = useState<'personal' | 'weeks' | 'grid'>('grid');
-  const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
-  const currentWeekAudit = currentWeek ? weekAuditById[currentWeek.id] : undefined;
+  const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
+  const currentWeekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
+  const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
   const days = currentWeekPlan?.days ?? [];
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);
   const assignedHoursByEmployee = useMemo(() => {
@@ -97,7 +108,7 @@ export function WeeklyOverviewPage(): JSX.Element {
                             timeSlots,
                             week: currentWeek,
                             weekPlan: currentWeekPlan,
-                            isValidated: validatedWeekIds.includes(currentWeek.id),
+                            isValidated: currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false,
                             validatedByName: currentWeekAudit?.validatedByName ?? null
                           };
                           if (viewMode === 'grid') {

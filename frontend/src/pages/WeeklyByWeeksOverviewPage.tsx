@@ -1,7 +1,7 @@
 import { Badge, Box, Card, CardBody, Flex, Heading, Table, Tbody, Td, Text, Th, Thead, Tr, VStack } from '@chakra-ui/react';
 import { useEffect, useMemo } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import type { WeekPlan } from '../types';
+import type { AreaId, WeekPlan } from '../types';
 
 type EmployeeDailyHours = {
   employeeId: string;
@@ -27,18 +27,24 @@ export function WeeklyByWeeksOverviewPage(): JSX.Element {
 }
 
 export function WeeklyByWeeksOverviewContent(): JSX.Element {
-  const employees = useAppStore((state) => state.employees);
+  const allEmployees = useAppStore((state) => state.employees);
   const timeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
+  const currentAreaId = useAppStore((state) => state.currentAreaId);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
+  const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
 
   useEffect(() => {
     for (const week of weeks) {
       ensureWeekPlan(week);
     }
-  }, [weeks, ensureWeekPlan]);
+  }, [weeks, currentAreaId, ensureWeekPlan]);
 
+  const employees = useMemo(
+    () => allEmployees.filter((employee) => (employee.areaId ?? 'salon') === currentAreaId),
+    [allEmployees, currentAreaId]
+  );
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);
   const slotDurationById = useMemo(() => {
     const map = new Map<string, number>();
@@ -51,7 +57,7 @@ export function WeeklyByWeeksOverviewContent(): JSX.Element {
   return (
     <VStack spacing={4} align="stretch">
       {weeks.map((week) => {
-        const weekPlan = weekPlans[week.id];
+        const weekPlan = weekPlans[scopedWeekKey(currentAreaId, week.id)];
         if (!weekPlan) return null;
         const byEmployee = buildEmployeeDailyHours(weekPlan, activeEmployees.map((employee) => employee.id), slotDurationById);
         const dayHeaders = weekPlan.days.map((day) => day.dayName);

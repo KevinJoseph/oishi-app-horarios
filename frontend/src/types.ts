@@ -1,7 +1,10 @@
+export type AreaId = 'salon' | 'cocina';
+
 export type Employee = {
   id: string;
   code?: string;
   name: string;
+  areaId?: AreaId;
   active: boolean;
   weeklyHours?: number;
   restDay?: number;
@@ -28,12 +31,16 @@ export type ValidationRequirement = {
 };
 
 export type ValidationRequirements = Record<number, ValidationRequirement>;
+export type TimeSlotsByArea = Record<AreaId, TimeSlot[]>;
+export type ShiftRangesByArea = Record<AreaId, ShiftRanges>;
+export type ValidationRequirementsByArea = Record<AreaId, ValidationRequirements>;
 
 export type Role = {
   id: string;
   name: string;
   colorHex: string;
   validCodes: string[];
+  areaId?: AreaId;
 };
 
 export type TimeSlot = {

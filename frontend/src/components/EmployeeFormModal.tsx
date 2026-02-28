@@ -16,8 +16,8 @@ import {
   Textarea,
   useToast
 } from '@chakra-ui/react';
-import { useEffect, useState } from 'react';
-import type { Employee, Role } from '../types';
+import { useEffect, useMemo, useState } from 'react';
+import type { AreaId, Employee, Role } from '../types';
 import { createId } from '../store/useAppStore';
 import { normalizeRestDay, WEEKDAY_OPTIONS } from '../utils/weekdays';
 
@@ -26,11 +26,13 @@ type Props = {
   onClose: () => void;
   editing?: Employee;
   roles: Role[];
+  currentAreaId: AreaId;
   onSave: (employee: Employee) => void;
 };
 
-export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: Props): JSX.Element {
+export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentAreaId, onSave }: Props): JSX.Element {
   const toast = useToast();
+  const [areaId, setAreaId] = useState<AreaId>('salon');
   const [name, setName] = useState('');
   const [active, setActive] = useState(true);
   const [weeklyHours, setWeeklyHours] = useState('');
@@ -40,8 +42,18 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
   const [notes, setNotes] = useState('');
   const [phone, setPhone] = useState('');
   const [mainRoleId, setMainRoleId] = useState('');
+  const filteredRoles = useMemo(
+    () => roles.filter((role) => (role.areaId ?? 'salon') === areaId),
+    [roles, areaId]
+  );
 
   useEffect(() => {
+    const initialArea = (editing
+      ? editing?.areaId ?? roles.find((role) => role.id === editing?.mainRoleId)?.areaId ?? 'salon'
+      : currentAreaId ??
+      roles.find((role) => role.id === editing?.mainRoleId)?.areaId ??
+      'salon') as AreaId;
+    setAreaId(initialArea);
     setName(editing?.name ?? '');
     setActive(editing?.active ?? true);
     setContractType(editing?.contractType ?? '');
@@ -51,7 +63,16 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
     setNotes(editing?.notes ?? '');
     setPhone(editing?.phone ?? '');
     setMainRoleId(editing?.mainRoleId ?? '');
-  }, [editing, isOpen]);
+  }, [editing, isOpen, roles, currentAreaId]);
+
+  useEffect(() => {
+    if (!mainRoleId) return;
+    const selectedRole = roles.find((role) => role.id === mainRoleId);
+    if (!selectedRole) return;
+    if ((selectedRole.areaId ?? 'salon') !== areaId) {
+      setMainRoleId('');
+    }
+  }, [areaId, mainRoleId, roles]);
 
   useEffect(() => {
     if (contractType === '') {
@@ -73,10 +94,21 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
             <Input value={name} onChange={(event) => setName(event.target.value)} />
           </FormControl>
           <FormControl mb={3}>
+            <FormLabel>Área</FormLabel>
+            <Select
+              value={areaId}
+              onChange={(event) => setAreaId(event.target.value as AreaId)}
+              isDisabled={!editing}
+            >
+              <option value="salon">Salón</option>
+              <option value="cocina">Cocina</option>
+            </Select>
+          </FormControl>
+          <FormControl mb={3}>
             <FormLabel>Zona asignada</FormLabel>
             <Select value={mainRoleId} onChange={(event) => setMainRoleId(event.target.value)}>
               <option value="">Sin zona asignada</option>
-              {roles.map((role) => (
+              {filteredRoles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name}
                 </option>
@@ -175,6 +207,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, onSave }: P
                 onSave({
                   id: editing?.id ?? createId('emp'),
                   name: name.trim(),
+                  areaId,
                   active,
                   weeklyHours: isWithoutContract ? 0 : parsedWeeklyHours,
                   contractType: contractType || undefined,

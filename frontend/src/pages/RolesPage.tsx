@@ -26,11 +26,13 @@ import type { Role } from '../types';
 export function RolesPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const roles = useAppStore((state) => state.roles);
+  const allRoles = useAppStore((state) => state.roles);
+  const currentAreaId = useAppStore((state) => state.currentAreaId);
   const upsertRole = useAppStore((state) => state.upsertRole);
   const deleteRole = useAppStore((state) => state.deleteRole);
   const currentUser = useAuthStore((state) => state.currentUser);
   const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
+  const roles = allRoles.filter((role) => (role.areaId ?? 'salon') === currentAreaId);
 
   const [editing, setEditing] = useState<Role | undefined>(undefined);
 

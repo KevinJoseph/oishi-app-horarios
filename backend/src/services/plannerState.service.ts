@@ -1,8 +1,12 @@
 import { PlannerStateModel } from '../models/PlannerState.js';
 import { buildSeedState } from './seedState.js';
-import type { PlannerStatePayload } from '../types/planner.js';
+import { AREA_IDS, type AreaId, type PlannerStatePayload } from '../types/planner.js';
 
 const STATE_KEY = 'default';
+
+function isAreaId(value: unknown): value is AreaId {
+  return typeof value === 'string' && AREA_IDS.includes(value as AreaId);
+}
 
 function sanitizePayload(payload: PlannerStatePayload): PlannerStatePayload {
   return {
@@ -54,31 +58,76 @@ function mapUnknownState(raw: {
   return {
     employees: raw.employees as PlannerStatePayload['employees'],
     roles: raw.roles as PlannerStatePayload['roles'],
-    currentAreaId: raw.currentAreaId === 'cocina' ? 'cocina' : 'salon',
+    currentAreaId: isAreaId(raw.currentAreaId) ? raw.currentAreaId : 'salon',
     timeSlots: raw.timeSlots as PlannerStatePayload['timeSlots'],
     shiftRanges: (raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges,
     validationRequirements:
       (raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements,
     timeSlotsByArea:
       raw.timeSlotsByArea && typeof raw.timeSlotsByArea === 'object'
-        ? (raw.timeSlotsByArea as PlannerStatePayload['timeSlotsByArea'])
+        ? ({
+            salon:
+              (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).salon ??
+              (raw.timeSlots as PlannerStatePayload['timeSlots']),
+            cocina:
+              (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).cocina ??
+              (raw.timeSlots as PlannerStatePayload['timeSlots']),
+            oficina:
+              (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).oficina ??
+              (raw.timeSlots as PlannerStatePayload['timeSlots']),
+            produccion:
+              (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).produccion ??
+              (raw.timeSlots as PlannerStatePayload['timeSlots'])
+          } satisfies PlannerStatePayload['timeSlotsByArea'])
         : {
             salon: raw.timeSlots as PlannerStatePayload['timeSlots'],
-            cocina: raw.timeSlots as PlannerStatePayload['timeSlots']
+            cocina: raw.timeSlots as PlannerStatePayload['timeSlots'],
+            oficina: raw.timeSlots as PlannerStatePayload['timeSlots'],
+            produccion: raw.timeSlots as PlannerStatePayload['timeSlots']
           },
     shiftRangesByArea:
       raw.shiftRangesByArea && typeof raw.shiftRangesByArea === 'object'
-        ? (raw.shiftRangesByArea as PlannerStatePayload['shiftRangesByArea'])
+        ? ({
+            salon:
+              (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).salon ??
+              ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+            cocina:
+              (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).cocina ??
+              ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+            oficina:
+              (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).oficina ??
+              ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+            produccion:
+              (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).produccion ??
+              ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges)
+          } satisfies PlannerStatePayload['shiftRangesByArea'])
         : {
             salon: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
-            cocina: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges)
+            cocina: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+            oficina: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+            produccion: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges)
           },
     validationRequirementsByArea:
       raw.validationRequirementsByArea && typeof raw.validationRequirementsByArea === 'object'
-        ? (raw.validationRequirementsByArea as PlannerStatePayload['validationRequirementsByArea'])
+        ? ({
+            salon:
+              (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).salon ??
+              ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+            cocina:
+              (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).cocina ??
+              ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+            oficina:
+              (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).oficina ??
+              ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+            produccion:
+              (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).produccion ??
+              ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements)
+          } satisfies PlannerStatePayload['validationRequirementsByArea'])
         : {
             salon: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
-            cocina: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements)
+            cocina: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+            oficina: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+            produccion: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements)
           },
     weeks: raw.weeks as PlannerStatePayload['weeks'],
     weekPlans: raw.weekPlans as PlannerStatePayload['weekPlans'],

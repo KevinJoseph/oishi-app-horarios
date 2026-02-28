@@ -1,4 +1,5 @@
-export type AreaId = 'salon' | 'cocina';
+export const AREA_IDS = ['salon', 'cocina', 'oficina', 'produccion'] as const;
+export type AreaId = (typeof AREA_IDS)[number];
 
 export type Employee = {
   id: string;

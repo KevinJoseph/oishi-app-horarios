@@ -242,15 +242,21 @@ export function buildSeedState(): PlannerStatePayload {
     validationRequirements,
     timeSlotsByArea: {
       salon: [...timeSlots],
-      cocina: [...timeSlots]
+      cocina: [...timeSlots],
+      oficina: [...timeSlots],
+      produccion: [...timeSlots]
     },
     shiftRangesByArea: {
       salon: shiftRanges,
-      cocina: shiftRanges
+      cocina: shiftRanges,
+      oficina: shiftRanges,
+      produccion: shiftRanges
     },
     validationRequirementsByArea: {
       salon: validationRequirements,
-      cocina: validationRequirements
+      cocina: validationRequirements,
+      oficina: validationRequirements,
+      produccion: validationRequirements
     },
     weeks,
     weekPlans,

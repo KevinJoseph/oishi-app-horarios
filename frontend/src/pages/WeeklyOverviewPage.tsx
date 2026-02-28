@@ -14,6 +14,8 @@ export function WeeklyOverviewPage(): JSX.Element {
   const timeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
+  const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
+  const weekAuditById = useAppStore((state) => state.weekAuditById);
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
 
@@ -25,6 +27,7 @@ export function WeeklyOverviewPage(): JSX.Element {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [viewMode, setViewMode] = useState<'personal' | 'weeks' | 'grid'>('grid');
   const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
+  const currentWeekAudit = currentWeek ? weekAuditById[currentWeek.id] : undefined;
   const days = currentWeekPlan?.days ?? [];
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);
   const assignedHoursByEmployee = useMemo(() => {
@@ -93,7 +96,9 @@ export function WeeklyOverviewPage(): JSX.Element {
                             roles,
                             timeSlots,
                             week: currentWeek,
-                            weekPlan: currentWeekPlan
+                            weekPlan: currentWeekPlan,
+                            isValidated: validatedWeekIds.includes(currentWeek.id),
+                            validatedByName: currentWeekAudit?.validatedByName ?? null
                           });
                           toast({ status: 'success', title: 'PDF de vista general generado.' });
                         } catch {

@@ -65,3 +65,8 @@ export type WeekPlan = {
   weekId: string;
   days: DayPlan[];
 };
+
+export type WeekAudit = {
+  createdByName: string | null;
+  validatedByName: string | null;
+};

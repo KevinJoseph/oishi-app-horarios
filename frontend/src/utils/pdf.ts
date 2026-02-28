@@ -7,6 +7,8 @@ type DownloadEmployeeWeekPdfInput = {
   timeSlots: TimeSlot[];
   week: Week;
   weekPlan: WeekPlan;
+  isValidated: boolean;
+  validatedByName: string | null;
 };
 
 type DownloadWeeklyOverviewPdfInput = {
@@ -15,6 +17,8 @@ type DownloadWeeklyOverviewPdfInput = {
   timeSlots: TimeSlot[];
   week: Week;
   weekPlan: WeekPlan;
+  isValidated: boolean;
+  validatedByName: string | null;
 };
 
 type DownloadDaySchedulePdfInput = {
@@ -23,6 +27,8 @@ type DownloadDaySchedulePdfInput = {
   roles: Role[];
   timeSlots: TimeSlot[];
   week: Week;
+  isValidated: boolean;
+  validatedByName: string | null;
 };
 
 export function downloadEmployeeWeekPdf({
@@ -30,10 +36,21 @@ export function downloadEmployeeWeekPdf({
   roles,
   timeSlots,
   week,
-  weekPlan
+  weekPlan,
+  isValidated,
+  validatedByName
 }: DownloadEmployeeWeekPdfInput): void {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
-  drawEmployeeSchedulePage(doc, { employee, roles, timeSlots, week, weekPlan, includeSummary: false });
+  drawEmployeeSchedulePage(doc, {
+    employee,
+    roles,
+    timeSlots,
+    week,
+    weekPlan,
+    includeSummary: false,
+    isValidated,
+    validatedByName
+  });
 
   const safeWeek = week.label.replace(/[^\w-]+/g, '-');
   const safeEmployee = employee.name.replace(/[^\w-]+/g, '-').toLowerCase();
@@ -45,21 +62,40 @@ export function downloadWeeklyOverviewPdf({
   roles,
   timeSlots,
   week,
-  weekPlan
+  weekPlan,
+  isValidated,
+  validatedByName
 }: DownloadWeeklyOverviewPdfInput): void {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
   const activeEmployees = employees.filter((employee) => employee.active);
 
   activeEmployees.forEach((employee, index) => {
     if (index > 0) doc.addPage();
-    drawEmployeeSchedulePage(doc, { employee, roles, timeSlots, week, weekPlan, includeSummary: true });
+    drawEmployeeSchedulePage(doc, {
+      employee,
+      roles,
+      timeSlots,
+      week,
+      weekPlan,
+      includeSummary: true,
+      isValidated,
+      validatedByName
+    });
   });
 
   const safeWeek = week.label.replace(/[^\w-]+/g, '-');
   doc.save(`vista-general-${safeWeek}.pdf`);
 }
 
-export function downloadDaySchedulePdf({ dayPlan, employees, roles, timeSlots, week }: DownloadDaySchedulePdfInput): void {
+export function downloadDaySchedulePdf({
+  dayPlan,
+  employees,
+  roles,
+  timeSlots,
+  week,
+  isValidated,
+  validatedByName
+}: DownloadDaySchedulePdfInput): void {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
   const roleColorById = new Map(roles.map((role) => [role.id, role.colorHex]));
   const activeEmployees = employees.filter((employee) => employee.active);
@@ -84,7 +120,9 @@ export function downloadDaySchedulePdf({ dayPlan, employees, roles, timeSlots, w
   doc.text(`Semana: ${week.label}`, marginX, y);
   y += 5;
   doc.text(`Dia: ${dayPlan.dayName} (${dayPlan.dateISO})`, marginX, y);
-  y += 6;
+  y += 5;
+  y = drawValidationInfo(doc, marginX, y, isValidated, validatedByName);
+  y += 2;
 
   const headerCells = ['Horario', ...activeEmployees.map((employee) => employee.name)];
   drawRow(doc, marginX, y, headerCells, columnWidths, rowHeight, true);
@@ -105,6 +143,7 @@ export function downloadDaySchedulePdf({ dayPlan, employees, roles, timeSlots, w
     drawRow(doc, marginX, y, rowValues, columnWidths, rowHeight, false, fillColors);
     y += rowHeight;
   }
+  drawLegendBottom(doc, roles, marginX, y + 6, pageWidth - marginX * 2);
 
   const safeDay = `${dayPlan.dayName}-${dayPlan.dateISO}`.replace(/[^\w-]+/g, '-').toLowerCase();
   doc.save(`horario-dia-${safeDay}.pdf`);
@@ -119,9 +158,11 @@ function drawEmployeeSchedulePage(
     week: Week;
     weekPlan: WeekPlan;
     includeSummary: boolean;
+    isValidated: boolean;
+    validatedByName: string | null;
   }
 ): void {
-  const { employee, roles, timeSlots, week, weekPlan, includeSummary } = input;
+  const { employee, roles, timeSlots, week, weekPlan, includeSummary, isValidated, validatedByName } = input;
   const roleById = new Map(roles.map((role) => [role.id, role.name]));
   const roleColorById = new Map(roles.map((role) => [role.id, role.colorHex]));
   const visibleTimeSlots = getVisibleTimeSlots(timeSlots);
@@ -155,7 +196,9 @@ function drawEmployeeSchedulePage(
     const targetHours = employee.weeklyHours ?? 0;
     doc.text(`Horas: ${assignedHours.toFixed(1)}h / ${targetHours.toFixed(1)}h`, marginX + 95, y);
   }
-  y += 6;
+  y += 5;
+  y = drawValidationInfo(doc, marginX, y, isValidated, validatedByName);
+  y += 2;
 
   const headerCells = ['Horario', ...days.map((day) => day.dayName)];
   drawRow(doc, marginX, y, headerCells, columnWidths, rowHeight, true);
@@ -176,6 +219,7 @@ function drawEmployeeSchedulePage(
     drawRow(doc, marginX, y, rowValues, columnWidths, rowHeight, false, fillColors);
     y += rowHeight;
   }
+  drawLegendBottom(doc, roles, marginX, y + 6, pageWidth - marginX * 2);
 }
 
 function drawRow(
@@ -226,6 +270,49 @@ function tintRoleCellColor(roleHex?: string): [number, number, number] {
 
 function getVisibleTimeSlots(timeSlots: TimeSlot[]): TimeSlot[] {
   return [...timeSlots].sort((a, b) => a.order - b.order);
+}
+
+function drawValidationInfo(
+  doc: jsPDF,
+  startX: number,
+  y: number,
+  isValidated: boolean,
+  validatedByName: string | null
+): number {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(`Estado: ${isValidated ? 'VALIDADO' : 'NO VALIDADO'}`, startX, y);
+  y += 4;
+  const validatorName = isValidated && validatedByName ? validatedByName : 'Ninguno';
+  doc.text(`Validador Por: ${validatorName}`, startX, y, { maxWidth: 180 });
+  return y;
+}
+
+function drawLegendBottom(doc: jsPDF, roles: Role[], startX: number, startY: number, maxWidth: number): void {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('Leyenda de zonas:', startX, startY);
+
+  let x = startX;
+  let y = startY + 5;
+  const endX = startX + maxWidth;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+
+  for (const role of roles) {
+    const color = hexToRgb(role.colorHex) ?? [237, 242, 247];
+    const labelWidth = doc.getTextWidth(role.name);
+    const itemWidth = 5 + labelWidth + 6;
+    if (x + itemWidth > endX) {
+      x = startX;
+      y += 5;
+    }
+    doc.setFillColor(color[0], color[1], color[2]);
+    doc.rect(x, y - 2.8, 3.5, 3.5, 'F');
+    doc.rect(x, y - 2.8, 3.5, 3.5);
+    doc.text(role.name, x + 5, y);
+    x += itemWidth;
+  }
 }
 
 function computeAssignedHours(employeeId: string, days: WeekPlan['days'], slots: TimeSlot[]): number {

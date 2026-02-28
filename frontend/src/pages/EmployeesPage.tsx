@@ -59,6 +59,8 @@ export function EmployeesPage(): JSX.Element {
   const timeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
+  const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
+  const weekAuditById = useAppStore((state) => state.weekAuditById);
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
   const currentUser = useAuthStore((state) => state.currentUser);
@@ -70,6 +72,7 @@ export function EmployeesPage(): JSX.Element {
   const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
   const currentWeek = useMemo(() => weeks.find((week) => week.id === currentWeekId), [weeks, currentWeekId]);
   const currentWeekPlan = currentWeek ? weekPlans[currentWeek.id] : undefined;
+  const currentWeekAudit = currentWeek ? weekAuditById[currentWeek.id] : undefined;
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return employees;
@@ -96,7 +99,9 @@ export function EmployeesPage(): JSX.Element {
         roles,
         timeSlots,
         week: currentWeek,
-        weekPlan: currentWeekPlan
+        weekPlan: currentWeekPlan,
+        isValidated: validatedWeekIds.includes(currentWeek.id),
+        validatedByName: currentWeekAudit?.validatedByName ?? null
       });
       toast({
         status: 'success',

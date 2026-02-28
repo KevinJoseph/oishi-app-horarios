@@ -1,6 +1,6 @@
 import { addDays, formatISO, parseISO } from 'date-fns';
 import { buildEmptyWeekPlan, buildMockWeeks, mockEmployees, mockRoles, mockTimeSlots } from './mocks';
-import type { ShiftRanges, ValidationRequirements, WeekPlan } from '../types';
+import type { ShiftRanges, ValidationRequirements, WeekAudit, WeekPlan } from '../types';
 import { buildWeekLabel, formatDayNameEs } from '../utils/dates';
 
 export type SeedState = {
@@ -12,7 +12,16 @@ export type SeedState = {
   weeks: ReturnType<typeof buildMockWeeks>;
   weekPlans: Record<string, WeekPlan>;
   validatedWeekIds: string[];
+  weekAuditById: Record<string, WeekAudit>;
 };
+
+function sanitizeWeekAudit(value: unknown): WeekAudit {
+  const source = value as Partial<WeekAudit> | null | undefined;
+  return {
+    createdByName: typeof source?.createdByName === 'string' ? source.createdByName : null,
+    validatedByName: typeof source?.validatedByName === 'string' ? source.validatedByName : null
+  };
+}
 
 function buildDefaultShiftRanges(timeSlots: SeedState['timeSlots']): ShiftRanges {
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
@@ -119,6 +128,11 @@ export function normalizePlannerState(input: SeedState): SeedState {
   const normalizedEmployees = normalizeEmployeeCodes(input.employees).map((employee) => normalizeEmployeeContract(employee));
   const knownWeekIds = new Set(normalizedWeeks.map((week) => week.id));
   const validatedWeekIds = (input.validatedWeekIds ?? []).filter((weekId) => knownWeekIds.has(weekId));
+  const weekAuditById: Record<string, WeekAudit> = {};
+  const inputWeekAuditById = (input.weekAuditById ?? {}) as Record<string, unknown>;
+  for (const week of normalizedWeeks) {
+    weekAuditById[week.id] = sanitizeWeekAudit(inputWeekAuditById[week.id]);
+  }
 
   return {
     employees: normalizedEmployees,
@@ -128,7 +142,8 @@ export function normalizePlannerState(input: SeedState): SeedState {
     validationRequirements: normalizeValidationRequirements(input.validationRequirements),
     weeks: normalizedWeeks,
     weekPlans,
-    validatedWeekIds
+    validatedWeekIds,
+    weekAuditById
   };
 }
 
@@ -148,7 +163,12 @@ export function loadSeedState(): SeedState {
     weekPlans[week.id] = buildEmptyWeekPlan(week, employeeIds, timeSlotIds);
   }
 
-  return { employees, roles, timeSlots, shiftRanges, validationRequirements, weeks, weekPlans, validatedWeekIds: [] };
+  const weekAuditById: Record<string, WeekAudit> = {};
+  for (const week of weeks) {
+    weekAuditById[week.id] = { createdByName: null, validatedByName: null };
+  }
+
+  return { employees, roles, timeSlots, shiftRanges, validationRequirements, weeks, weekPlans, validatedWeekIds: [], weekAuditById };
 }
 
 function normalizeEmployeeContract(employee: SeedState['employees'][number]): SeedState['employees'][number] {

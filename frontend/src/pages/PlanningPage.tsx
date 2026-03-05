@@ -156,7 +156,6 @@ export function PlanningPage(): JSX.Element {
       label: dayLabels[restDay] ?? 'N/D'
     };
   }, [employees]);
-
   useEffect(() => {
     setActiveDayIndex(0);
   }, [currentWeekId]);
@@ -192,6 +191,25 @@ export function PlanningPage(): JSX.Element {
     }
     return summary;
   }, [employees, timeSlots, currentWeekPlan]);
+  const overtimeEmployees = useMemo(() => {
+    return employees
+      .filter((employee) => employee.active)
+      .map((employee) => {
+        const summary = employeeHoursById[employee.id];
+        const assignedHours = summary?.assignedHours ?? 0;
+        const targetHours = summary?.targetHours ?? (employee.weeklyHours ?? 0);
+        const extraHours = assignedHours - targetHours;
+        return {
+          id: employee.id,
+          name: employee.name,
+          assignedHours,
+          targetHours,
+          extraHours
+        };
+      })
+      .filter((employee) => employee.targetHours > 0 && employee.extraHours > 0)
+      .sort((a, b) => b.extraHours - a.extraHours);
+  }, [employees, employeeHoursById]);
 
   return (
     <Box>
@@ -416,6 +434,26 @@ export function PlanningPage(): JSX.Element {
                         <Text fontSize="sm" fontWeight="700" color="yellow.700">
                           Alerta: Existen {repeatedRestDayInfo.count} colaboradores con descanso el mismo día ({repeatedRestDayInfo.label}).
                         </Text>
+                      </HStack>
+                    </Box>
+                  ) : null}
+
+                  {overtimeEmployees.length ? (
+                    <Box bg="yellow.50" borderWidth="1px" borderColor="yellow.300" rounded="md" px={4} py={3}>
+                      <HStack align="start" spacing={2}>
+                        <Box color="yellow.600" mt={0.5}>
+                          <FiAlertTriangle />
+                        </Box>
+                        <Stack spacing={0} flex="1">
+                          <Text fontSize="sm" fontWeight="700" color="yellow.700">
+                            Alerta: {overtimeEmployees.length} colaborador(es) con horas extras sobre su objetivo semanal.
+                          </Text>
+                          {overtimeEmployees.map((employee) => (
+                            <Text key={employee.id} fontSize="sm" color="yellow.700">
+                              {employee.name}: {employee.assignedHours.toFixed(1)}h/{employee.targetHours.toFixed(1)}h (+{employee.extraHours.toFixed(1)}h)
+                            </Text>
+                          ))}
+                        </Stack>
                       </HStack>
                     </Box>
                   ) : null}

@@ -43,7 +43,7 @@ type AppState = PersistableState & {
   setCurrentWeek: (weekId: string) => void;
   setCurrentArea: (areaId: AreaId) => void;
   resetAll: () => void;
-  upsertEmployee: (employee: Employee) => void;
+  upsertEmployee: (employee: Employee) => { ok: boolean; error?: string };
   deleteEmployee: (employeeId: string) => void;
   upsertRole: (role: Role) => { ok: boolean; error?: string };
   deleteRole: (roleId: string) => void;
@@ -94,6 +94,10 @@ function getNextEmployeeCode(employees: Employee[]): string {
     }
   }
   return `CO-${String(maxCode + 1).padStart(2, '0')}`;
+}
+
+function normalizeIdentityDocument(value: string | undefined): string {
+  return (value ?? '').trim().replace(/\s+/g, '').toLowerCase();
 }
 
 function buildAutoWeekPlanForEmployee(
@@ -526,8 +530,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   upsertEmployee: (employee) => {
+    let result: { ok: boolean; error?: string } = { ok: true };
     set((state) => {
       const previous = state.employees.find((item) => item.id === employee.id);
+      const incomingDocument = normalizeIdentityDocument(employee.identityDocument);
+      const previousDocument = normalizeIdentityDocument(previous?.identityDocument);
+      const shouldValidateIdentityDocument = !previous || incomingDocument !== previousDocument;
+      if (shouldValidateIdentityDocument && incomingDocument) {
+        const duplicated = state.employees.some(
+          (item) => item.id !== employee.id && normalizeIdentityDocument(item.identityDocument) === incomingDocument
+        );
+        if (duplicated) {
+          result = { ok: false, error: 'Ya existe un colaborador con el mismo Documento de Identidad (DNI).' };
+          return {};
+        }
+      }
       const normalizedEmployee: Employee = {
         ...employee,
         restDay: normalizeRestDay(employee.restDay),
@@ -592,7 +609,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekAuditById: clearWeekValidator(state.weekAuditById, scopedWeekId)
       };
     });
+    if (!result.ok) return result;
     persistSnapshot(get, set);
+    return result;
   },
 
   deleteEmployee: (employeeId) => {

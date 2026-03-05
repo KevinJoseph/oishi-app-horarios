@@ -5,6 +5,7 @@ export type Employee = {
   id: string;
   code?: string;
   name: string;
+  identityDocument?: string;
   areaId?: AreaId;
   active: boolean;
   weeklyHours?: number;

@@ -27,13 +27,14 @@ type Props = {
   editing?: Employee;
   roles: Role[];
   currentAreaId: AreaId;
-  onSave: (employee: Employee) => void;
+  onSave: (employee: Employee) => { ok: boolean; error?: string };
 };
 
 export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentAreaId, onSave }: Props): JSX.Element {
   const toast = useToast();
   const [areaId, setAreaId] = useState<AreaId>('salon');
   const [name, setName] = useState('');
+  const [identityDocument, setIdentityDocument] = useState('');
   const [active, setActive] = useState(true);
   const [weeklyHours, setWeeklyHours] = useState('');
   const [contractType, setContractType] = useState<'full-time' | 'part-time' | ''>('');
@@ -55,6 +56,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
       'salon') as AreaId;
     setAreaId(initialArea);
     setName(editing?.name ?? '');
+    setIdentityDocument(editing?.identityDocument ?? '');
     setActive(editing?.active ?? true);
     setContractType(editing?.contractType ?? '');
     setWeeklyHours(editing?.weeklyHours !== undefined ? String(editing.weeklyHours) : '0');
@@ -92,6 +94,10 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
           <FormControl mb={3} isRequired>
             <FormLabel>Nombre</FormLabel>
             <Input value={name} onChange={(event) => setName(event.target.value)} />
+          </FormControl>
+          <FormControl mb={3}>
+            <FormLabel>Documento de Identidad</FormLabel>
+            <Input value={identityDocument} onChange={(event) => setIdentityDocument(event.target.value)} />
           </FormControl>
           <FormControl mb={3}>
             <FormLabel>Área</FormLabel>
@@ -206,9 +212,10 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
                   });
                   return;
                 }
-                onSave({
+                const result = onSave({
                   id: editing?.id ?? createId('emp'),
                   name: name.trim(),
+                  identityDocument: identityDocument.trim() || undefined,
                   areaId,
                   active,
                   weeklyHours: isWithoutContract ? 0 : parsedWeeklyHours,
@@ -219,6 +226,13 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
                   phone: phone.trim() || undefined,
                   mainRoleId: mainRoleId || undefined
                 });
+                if (!result.ok) {
+                  toast({
+                    status: 'error',
+                    title: result.error ?? 'No se pudo guardar el colaborador.'
+                  });
+                  return;
+                }
                 onClose();
               }}
             >

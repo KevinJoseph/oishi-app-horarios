@@ -102,6 +102,9 @@ export function EmployeeProfileDrawer({ isOpen, onClose, employee, roles, timeSl
                 Teléfono: {employee.phone || '-'}
               </Text>
               <Text fontSize="sm" color="gray.600">
+                Documento de identidad: {employee.identityDocument || '-'}
+              </Text>
+              <Text fontSize="sm" color="gray.600">
                 Estado: {employee.active ? 'Activo' : 'Inactivo'}
               </Text>
               <Text fontSize="sm" color="gray.600">

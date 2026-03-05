@@ -103,7 +103,8 @@ export function EmployeesPage(): JSX.Element {
     return employees.filter(
       (employee) =>
         employee.name.toLowerCase().includes(term) ||
-        (employee.code ?? '').toLowerCase().includes(term)
+        (employee.code ?? '').toLowerCase().includes(term) ||
+        (employee.identityDocument ?? '').toLowerCase().includes(term)
     );
   }, [employees, search]);
 
@@ -143,7 +144,14 @@ export function EmployeesPage(): JSX.Element {
 
   const handleToggleActive = (employee: Employee): void => {
     if (!canEdit) return;
-    upsertEmployee({ ...employee, active: !employee.active });
+    const result = upsertEmployee({ ...employee, active: !employee.active });
+    if (!result.ok) {
+      toast({
+        status: 'error',
+        title: result.error ?? 'No se pudo actualizar el colaborador.'
+      });
+      return;
+    }
     toast({
       status: 'success',
       title: employee.active ? `${employee.name} fue desactivado.` : `${employee.name} fue activado.`
@@ -209,6 +217,7 @@ export function EmployeesPage(): JSX.Element {
                 <Tr>
                   <Th>Código</Th>
                   <Th>Nombre</Th>
+                  <Th>Documento</Th>
                   <Th>Activo</Th>
                   <Th>Área</Th>
                   <Th>Horas semanales</Th>
@@ -224,6 +233,7 @@ export function EmployeesPage(): JSX.Element {
                   <Tr key={employee.id}>
                     <Td>{employee.code ?? '-'}</Td>
                     <Td>{employee.name}</Td>
+                    <Td>{employee.identityDocument ?? '-'}</Td>
                     <Td>
                       <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                     </Td>
@@ -303,8 +313,8 @@ export function EmployeesPage(): JSX.Element {
         roles={roles}
         currentAreaId={currentAreaId}
         onSave={(employee) => {
-          if (!canEdit) return;
-          upsertEmployee({
+          if (!canEdit) return { ok: false, error: 'No tienes permisos para guardar colaboradores.' };
+          return upsertEmployee({
             ...employee,
             areaId: editing ? employee.areaId : currentAreaId
           });

@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { FiCalendar, FiLogOut, FiUser } from 'react-icons/fi';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { AreaSelector } from './AreaSelector';
 
@@ -24,9 +25,11 @@ function getRoleLabel(role: string | undefined): string {
 }
 
 export function Topbar(): JSX.Element {
+  const location = useLocation();
   const currentUser = useAuthStore((state) => state.currentUser);
   const logout = useAuthStore((state) => state.logout);
   const loading = useAuthStore((state) => state.loading);
+  const hideAreaSelector = location.pathname.startsWith('/employees');
 
   return (
     <Box bg="white" borderBottomWidth="1px" borderBottomColor="#d8e0ea" px={{ base: 4, md: 8 }} py={4}>
@@ -54,12 +57,14 @@ export function Topbar(): JSX.Element {
               {format(new Date(), "EEEE, dd 'de' MMMM, yyyy", { locale: es })}
             </Text>
           </HStack>
-          <HStack spacing={2}>
-            <Text fontSize="xs" fontWeight="700" color="gray.600" textTransform="uppercase">
-              Área
-            </Text>
-            <AreaSelector maxW={{ base: '140px', md: '170px' }} size="sm" />
-          </HStack>
+          {hideAreaSelector ? null : (
+            <HStack spacing={2}>
+              <Text fontSize="xs" fontWeight="700" color="gray.600" textTransform="uppercase">
+                Área
+              </Text>
+              <AreaSelector maxW={{ base: '140px', md: '170px' }} size="sm" />
+            </HStack>
+          )}
           <Menu placement="bottom-end">
             <MenuButton>
               <Avatar

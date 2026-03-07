@@ -32,6 +32,7 @@ import { WeekSelector } from '../components/WeekSelector';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Assignment } from '../types';
+import { isTimeSlotInBreak } from '../utils/breaks';
 import { downloadDaySchedulePdf } from '../utils/pdf';
 import { getOpeningClosingSummary } from '../utils/summary';
 import { normalizeRestDay } from '../utils/weekdays';
@@ -59,6 +60,7 @@ export function PlanningPage(): JSX.Element {
   const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
   const weekAuditById = useAppStore((state) => state.weekAuditById);
   const validationRequirements = useAppStore((state) => state.validationRequirements);
+  const breakConfig = useAppStore((state) => state.breakConfig);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
   const updateAssignment = useAppStore((state) => state.updateAssignment);
   const updateEmployeeDayAssignments = useAppStore((state) => state.updateEmployeeDayAssignments);
@@ -167,6 +169,7 @@ export function PlanningPage(): JSX.Element {
     const slotDurationById = new Map<string, number>();
 
     for (const slot of timeSlots) {
+      if (isTimeSlotInBreak(slot, breakConfig)) continue;
       slotDurationById.set(slot.id, getDurationHours(slot.start, slot.end));
     }
 
@@ -174,6 +177,7 @@ export function PlanningPage(): JSX.Element {
       for (const day of currentWeekPlan.days) {
         for (const [slotId, byEmployee] of Object.entries(day.assignments)) {
           const slotHours = slotDurationById.get(slotId) ?? 0;
+          if (slotHours <= 0) continue;
           for (const [employeeId, assignment] of Object.entries(byEmployee)) {
             if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') continue;
             assignedByEmployeeId.set(employeeId, (assignedByEmployeeId.get(employeeId) ?? 0) + slotHours);
@@ -190,7 +194,7 @@ export function PlanningPage(): JSX.Element {
       };
     }
     return summary;
-  }, [employees, timeSlots, currentWeekPlan]);
+  }, [employees, timeSlots, currentWeekPlan, breakConfig]);
   const overtimeEmployees = useMemo(() => {
     return employees
       .filter((employee) => employee.active)
@@ -342,6 +346,11 @@ export function PlanningPage(): JSX.Element {
                     <Badge colorScheme="purple" px={3} py={1} rounded="full" variant="subtle">
                       Cierre: {summary.closing}
                     </Badge>
+                    {breakConfig.enabled ? (
+                      <Badge colorScheme="yellow" px={3} py={1} rounded="full" variant="subtle">
+                        Refrigerio: {String(breakConfig.startHour).padStart(2, '0')}:00 - {String(breakConfig.endHour).padStart(2, '0')}:00
+                      </Badge>
+                    ) : null}
                   </HStack>
                 </Stack>
               </CardBody>
@@ -471,6 +480,7 @@ export function PlanningPage(): JSX.Element {
         employee={selectedEmployee}
         roles={roles}
         timeSlots={timeSlots}
+        breakConfig={breakConfig}
         weekPlan={currentWeekPlan}
       />
       <CellEditorModal

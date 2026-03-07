@@ -2,6 +2,8 @@ import { addDays, formatISO, parseISO } from 'date-fns';
 import { buildEmptyWeekPlan, buildMockWeeks, mockEmployees, mockRoles, mockTimeSlots } from './mocks';
 import type {
   AreaId,
+  BreakConfig,
+  BreakConfigByArea,
   Role,
   ShiftRanges,
   ShiftRangesByArea,
@@ -24,9 +26,11 @@ export type SeedState = {
   timeSlots: TimeSlot[];
   shiftRanges: ShiftRanges;
   validationRequirements: ValidationRequirements;
+  breakConfig: BreakConfig;
   timeSlotsByArea: TimeSlotsByArea;
   shiftRangesByArea: ShiftRangesByArea;
   validationRequirementsByArea: ValidationRequirementsByArea;
+  breakConfigByArea: BreakConfigByArea;
   weeks: ReturnType<typeof buildMockWeeks>;
   weekPlans: Record<string, WeekPlan>;
   validatedWeekIds: string[];
@@ -120,6 +124,38 @@ function normalizeValidationRequirements(input: ValidationRequirements | undefin
   return sanitized;
 }
 
+function buildDefaultBreakConfig(timeSlots: SeedState['timeSlots']): BreakConfig {
+  const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
+  const startHour = Number.parseInt(ordered[0]?.start.slice(0, 2) ?? '12', 10);
+  const endHour = Number.parseInt(ordered[ordered.length - 1]?.end.slice(0, 2) ?? '22', 10);
+  const clampedStart = Math.min(startHour + 4, endHour - 1);
+  const fallbackStart = Number.isInteger(clampedStart) ? clampedStart : Math.max(startHour, endHour - 1);
+  const fallbackEnd = Math.min(fallbackStart + 1, endHour);
+  return {
+    enabled: false,
+    startHour: fallbackStart,
+    endHour: fallbackEnd
+  };
+}
+
+function normalizeBreakConfig(input: BreakConfig | undefined, timeSlots: SeedState['timeSlots']): BreakConfig {
+  const defaults = buildDefaultBreakConfig(timeSlots);
+  if (!input) return defaults;
+  const enabled = Boolean(input.enabled);
+  const startHour = Number.isInteger(input.startHour) ? input.startHour : defaults.startHour;
+  const endHour = Number.isInteger(input.endHour) ? input.endHour : defaults.endHour;
+  const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
+  const planningStartHour = Number.parseInt(ordered[0]?.start.slice(0, 2) ?? '12', 10);
+  const planningEndHour = Number.parseInt(ordered[ordered.length - 1]?.end.slice(0, 2) ?? '22', 10);
+  const valid = startHour >= planningStartHour && endHour <= planningEndHour && endHour > startHour;
+  if (!valid) return defaults;
+  return {
+    enabled,
+    startHour,
+    endHour
+  };
+}
+
 function normalizeWeekPlan(weekStartDateISO: string, sourcePlan: WeekPlan | undefined): WeekPlan {
   const start = parseISO(weekStartDateISO);
   const days = Array.from({ length: 7 }).map((_, idx) => {
@@ -171,9 +207,11 @@ export function normalizePlannerState(input: SeedState): SeedState {
   const rawTimeSlotsByArea = (input.timeSlotsByArea ?? {}) as Partial<TimeSlotsByArea>;
   const rawShiftRangesByArea = (input.shiftRangesByArea ?? {}) as Partial<ShiftRangesByArea>;
   const rawValidationByArea = (input.validationRequirementsByArea ?? {}) as Partial<ValidationRequirementsByArea>;
+  const rawBreakConfigByArea = (input.breakConfigByArea ?? {}) as Partial<BreakConfigByArea>;
   const fallbackTimeSlots = cloneTimeSlots(input.timeSlots);
   const fallbackShiftRanges = normalizeShiftRanges(input.shiftRanges, fallbackTimeSlots);
   const fallbackValidation = normalizeValidationRequirements(input.validationRequirements);
+  const fallbackBreakConfig = normalizeBreakConfig(input.breakConfig, fallbackTimeSlots);
   const timeSlotsByArea = {
     salon: cloneTimeSlots(rawTimeSlotsByArea.salon ?? fallbackTimeSlots),
     cocina: cloneTimeSlots(rawTimeSlotsByArea.cocina ?? fallbackTimeSlots),
@@ -192,6 +230,12 @@ export function normalizePlannerState(input: SeedState): SeedState {
     oficina: normalizeValidationRequirements(rawValidationByArea.oficina ?? fallbackValidation),
     produccion: normalizeValidationRequirements(rawValidationByArea.produccion ?? fallbackValidation)
   } satisfies ValidationRequirementsByArea;
+  const breakConfigByArea = {
+    salon: normalizeBreakConfig(rawBreakConfigByArea.salon ?? fallbackBreakConfig, timeSlotsByArea.salon),
+    cocina: normalizeBreakConfig(rawBreakConfigByArea.cocina ?? fallbackBreakConfig, timeSlotsByArea.cocina),
+    oficina: normalizeBreakConfig(rawBreakConfigByArea.oficina ?? fallbackBreakConfig, timeSlotsByArea.oficina),
+    produccion: normalizeBreakConfig(rawBreakConfigByArea.produccion ?? fallbackBreakConfig, timeSlotsByArea.produccion)
+  } satisfies BreakConfigByArea;
   const knownWeekIds = new Set(normalizedWeeks.map((week) => week.id));
   const validatedWeekIds = (input.validatedWeekIds ?? [])
     .map((key) => {
@@ -219,9 +263,11 @@ export function normalizePlannerState(input: SeedState): SeedState {
     timeSlots: timeSlotsByArea[currentAreaId] ?? timeSlotsByArea.salon,
     shiftRanges: shiftRangesByArea[currentAreaId] ?? shiftRangesByArea.salon,
     validationRequirements: validationRequirementsByArea[currentAreaId] ?? validationRequirementsByArea.salon,
+    breakConfig: breakConfigByArea[currentAreaId] ?? breakConfigByArea.salon,
     timeSlotsByArea,
     shiftRangesByArea,
     validationRequirementsByArea,
+    breakConfigByArea,
     weeks: normalizedWeeks,
     weekPlans,
     validatedWeekIds,
@@ -235,6 +281,7 @@ export function loadSeedState(): SeedState {
   const timeSlots = [...mockTimeSlots];
   const shiftRanges = buildDefaultShiftRanges(timeSlots);
   const validationRequirements = buildDefaultValidationRequirements();
+  const breakConfig = buildDefaultBreakConfig(timeSlots);
   const timeSlotsByArea: TimeSlotsByArea = {
     salon: cloneTimeSlots(timeSlots),
     cocina: cloneTimeSlots(timeSlots),
@@ -252,6 +299,12 @@ export function loadSeedState(): SeedState {
     cocina: buildDefaultValidationRequirements(),
     oficina: buildDefaultValidationRequirements(),
     produccion: buildDefaultValidationRequirements()
+  };
+  const breakConfigByArea: BreakConfigByArea = {
+    salon: buildDefaultBreakConfig(timeSlotsByArea.salon),
+    cocina: buildDefaultBreakConfig(timeSlotsByArea.cocina),
+    oficina: buildDefaultBreakConfig(timeSlotsByArea.oficina),
+    produccion: buildDefaultBreakConfig(timeSlotsByArea.produccion)
   };
   const weeks = buildMockWeeks();
   const weekPlans: Record<string, WeekPlan> = {};
@@ -279,9 +332,11 @@ export function loadSeedState(): SeedState {
     timeSlots,
     shiftRanges,
     validationRequirements,
+    breakConfig,
     timeSlotsByArea,
     shiftRangesByArea,
     validationRequirementsByArea,
+    breakConfigByArea,
     weeks,
     weekPlans,
     validatedWeekIds: [],

@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   CardBody,
+  Checkbox,
   FormControl,
   FormLabel,
   HStack,
@@ -28,9 +29,11 @@ export function TimeSlotsPage(): JSX.Element {
   const timeSlots = useAppStore((state) => state.timeSlots);
   const shiftRanges = useAppStore((state) => state.shiftRanges);
   const validationRequirements = useAppStore((state) => state.validationRequirements);
+  const breakConfig = useAppStore((state) => state.breakConfig);
   const setPlanningHoursRange = useAppStore((state) => state.setPlanningHoursRange);
   const setShiftRanges = useAppStore((state) => state.setShiftRanges);
   const setValidationRequirements = useAppStore((state) => state.setValidationRequirements);
+  const setBreakConfig = useAppStore((state) => state.setBreakConfig);
   const currentUser = useAuthStore((state) => state.currentUser);
   const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
@@ -61,6 +64,9 @@ export function TimeSlotsPage(): JSX.Element {
   const [nightStartHour, setNightStartHour] = useState(String(shiftRanges.night.startHour));
   const [nightEndHour, setNightEndHour] = useState(String(shiftRanges.night.endHour));
   const [localValidation, setLocalValidation] = useState<ValidationRequirements>(validationRequirements);
+  const [breakEnabled, setBreakEnabled] = useState(breakConfig.enabled);
+  const [breakStartHour, setBreakStartHour] = useState(String(breakConfig.startHour));
+  const [breakEndHour, setBreakEndHour] = useState(String(breakConfig.endHour));
 
   useEffect(() => {
     setStartHour(String(initialStartHour));
@@ -77,6 +83,12 @@ export function TimeSlotsPage(): JSX.Element {
   useEffect(() => {
     setLocalValidation(validationRequirements);
   }, [validationRequirements]);
+
+  useEffect(() => {
+    setBreakEnabled(breakConfig.enabled);
+    setBreakStartHour(String(breakConfig.startHour));
+    setBreakEndHour(String(breakConfig.endHour));
+  }, [breakConfig.enabled, breakConfig.startHour, breakConfig.endHour]);
 
   const hourOptions = useMemo(() => Array.from({ length: 24 }, (_, hour) => hour), []);
   const currentRangeLabel = ordered.length ? `${ordered[0].start} - ${ordered[ordered.length - 1].end}` : '-';
@@ -109,6 +121,23 @@ export function TimeSlotsPage(): JSX.Element {
     dayRange.end === nightRange.start &&
     dayRange.end > dayRange.start &&
     nightRange.end > nightRange.start;
+  const breakStartOptions = useMemo(
+    () => hourOptions.filter((hour) => hour >= initialStartHour && hour < initialEndHour),
+    [hourOptions, initialStartHour, initialEndHour]
+  );
+  const breakEndOptions = useMemo(() => {
+    const selectedStart = Number.parseInt(breakStartHour, 10);
+    return hourOptions.filter((hour) => hour > selectedStart && hour <= initialEndHour);
+  }, [hourOptions, breakStartHour, initialEndHour]);
+
+  useEffect(() => {
+    const selectedEnd = Number.parseInt(breakEndHour, 10);
+    if (breakEndOptions.some((hour) => hour === selectedEnd)) return;
+    const nextEnd = breakEndOptions[0];
+    if (nextEnd !== undefined) {
+      setBreakEndHour(String(nextEnd));
+    }
+  }, [breakEndHour, breakEndOptions]);
 
   const setBoundary = (boundary: number): void => {
     if (boundary <= initialStartHour || boundary >= initialEndHour) {
@@ -201,6 +230,68 @@ export function TimeSlotsPage(): JSX.Element {
               </Badge>
             ))}
           </Box>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody>
+          <Text fontWeight="600" mb={3}>
+            Configuración de Refrigerio
+          </Text>
+          <Text fontSize="sm" color="gray.600" mb={4}>
+            Define si el área actual usa refrigerio y en qué horario debe mostrarse en Planificación.
+          </Text>
+          <Box mb={4}>
+            <Checkbox isChecked={breakEnabled} onChange={(event) => setBreakEnabled(event.target.checked)} isDisabled={!canEdit}>
+              Considerar refrigerio en esta área
+            </Checkbox>
+          </Box>
+          <HStack mb={4} align="end" spacing={3} flexWrap="wrap">
+            <FormControl maxW="220px" isDisabled={!breakEnabled}>
+              <FormLabel>Inicio refrigerio</FormLabel>
+              <Select value={breakStartHour} onChange={(event) => setBreakStartHour(event.target.value)} isDisabled={!canEdit || !breakEnabled}>
+                {breakStartOptions.map((hour) => (
+                  <option key={`break-start-${hour}`} value={hour}>
+                    {String(hour).padStart(2, '0')}:00
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl maxW="220px" isDisabled={!breakEnabled}>
+              <FormLabel>Fin refrigerio</FormLabel>
+              <Select value={breakEndHour} onChange={(event) => setBreakEndHour(event.target.value)} isDisabled={!canEdit || !breakEnabled}>
+                {breakEndOptions.map((hour) => (
+                  <option key={`break-end-${hour}`} value={hour}>
+                    {String(hour).padStart(2, '0')}:00
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+            <Button
+              colorScheme="blue"
+              isDisabled={!canEdit}
+              onClick={() => {
+                const result = setBreakConfig({
+                  enabled: breakEnabled,
+                  startHour: Number.parseInt(breakStartHour, 10),
+                  endHour: Number.parseInt(breakEndHour, 10)
+                });
+                if (!result.ok) {
+                  toast({ status: 'error', title: result.error ?? 'No se pudo actualizar el refrigerio.' });
+                  return;
+                }
+                toast({ status: 'success', title: 'Refrigerio actualizado.' });
+              }}
+            >
+              Guardar refrigerio
+            </Button>
+          </HStack>
+          <Text fontSize="sm" color="gray.600">
+            Estado actual:{' '}
+            {breakConfig.enabled
+              ? `Con refrigerio (${String(breakConfig.startHour).padStart(2, '0')}:00 - ${String(breakConfig.endHour).padStart(2, '0')}:00)`
+              : 'Sin refrigerio'}
+          </Text>
         </CardBody>
       </Card>
 

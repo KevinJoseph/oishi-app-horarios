@@ -13,7 +13,8 @@ import {
   Text
 } from '@chakra-ui/react';
 import { useMemo } from 'react';
-import type { Employee, Role, TimeSlot, WeekPlan } from '../types';
+import type { BreakConfig, Employee, Role, TimeSlot, WeekPlan } from '../types';
+import { isTimeSlotInBreak } from '../utils/breaks';
 import { getRestDayLabel } from '../utils/weekdays';
 
 type Props = {
@@ -22,6 +23,7 @@ type Props = {
   employee?: Employee;
   roles: Role[];
   timeSlots: TimeSlot[];
+  breakConfig: BreakConfig;
   weekPlan?: WeekPlan;
 };
 
@@ -33,16 +35,26 @@ type RoleSummary = {
   hours: number;
 };
 
-export function EmployeeProfileDrawer({ isOpen, onClose, employee, roles, timeSlots, weekPlan }: Props): JSX.Element {
+export function EmployeeProfileDrawer({
+  isOpen,
+  onClose,
+  employee,
+  roles,
+  timeSlots,
+  breakConfig,
+  weekPlan
+}: Props): JSX.Element {
   const role = roles.find((item) => item.id === employee?.mainRoleId);
   const roleById = useMemo(() => new Map(roles.map((item) => [item.id, item])), [roles]);
+  const slotById = useMemo(() => new Map(timeSlots.map((slot) => [slot.id, slot])), [timeSlots]);
   const slotDurationById = useMemo(() => {
     const map = new Map<string, number>();
     for (const slot of timeSlots) {
+      if (isTimeSlotInBreak(slot, breakConfig)) continue;
       map.set(slot.id, getDurationHours(slot.start, slot.end));
     }
     return map;
-  }, [timeSlots]);
+  }, [timeSlots, breakConfig]);
 
   const weeklyStats = useMemo(() => {
     if (!employee || !weekPlan) {
@@ -55,6 +67,8 @@ export function EmployeeProfileDrawer({ isOpen, onClose, employee, roles, timeSl
 
     for (const day of weekPlan.days) {
       for (const [slotId, assignmentsByEmployee] of Object.entries(day.assignments)) {
+        const slot = slotById.get(slotId);
+        if (!slot || isTimeSlotInBreak(slot, breakConfig)) continue;
         const assignment = assignmentsByEmployee[employee.id];
         if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') continue;
 
@@ -84,7 +98,7 @@ export function EmployeeProfileDrawer({ isOpen, onClose, employee, roles, timeSl
       .sort((a, b) => b.hours - a.hours);
 
     return { assignedHours, assignedSlots, roleSummaries };
-  }, [employee, roleById, slotDurationById, weekPlan]);
+  }, [employee, roleById, slotById, slotDurationById, breakConfig, weekPlan]);
 
   return (
     <Drawer isOpen={isOpen} placement="right" onClose={onClose}>

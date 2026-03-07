@@ -3,7 +3,20 @@ import { fetchPlannerState, resetPlannerState as resetPlannerStateApi, savePlann
 import { loadSeedState, normalizePlannerState } from '../data/seed';
 import { buildEmptyWeekPlan } from '../data/mocks';
 import { AREA_IDS } from '../types';
-import type { AreaId, Assignment, Employee, Role, ShiftRanges, TimeSlot, ValidationRequirements, Week, WeekAudit, WeekPlan } from '../types';
+import { getBreakTimeSlotIds, getWorkableTimeSlots, isTimeSlotInBreak } from '../utils/breaks';
+import type {
+  AreaId,
+  Assignment,
+  BreakConfig,
+  Employee,
+  Role,
+  ShiftRanges,
+  TimeSlot,
+  ValidationRequirements,
+  Week,
+  WeekAudit,
+  WeekPlan
+} from '../types';
 import { normalizeRestDay } from '../utils/weekdays';
 
 type UpdateAssignmentInput = {
@@ -56,6 +69,7 @@ type AppState = PersistableState & {
   setPlanningHoursRange: (startHour: number, endHour: number) => { ok: boolean; error?: string };
   setShiftRanges: (input: ShiftRanges) => { ok: boolean; error?: string };
   setValidationRequirements: (input: ValidationRequirements) => { ok: boolean; error?: string };
+  setBreakConfig: (input: BreakConfig) => { ok: boolean; error?: string };
 };
 
 const seeded = loadSeedState();
@@ -108,6 +122,7 @@ function buildAutoWeekPlanForEmployee(
   restDay: number,
   shiftType: Employee['shiftType'],
   shiftRanges: ShiftRanges,
+  breakConfig: BreakConfig,
   timeSlots: TimeSlot[],
   roles: Role[]
 ): WeekPlan {
@@ -116,16 +131,12 @@ function buildAutoWeekPlanForEmployee(
   if (!code) return clearEmployeeFromWeekPlan(plan, employeeId, timeSlots);
 
   const assignableSlots = getAssignableTimeSlots(timeSlots);
-  const preferredPlanningSlots = getAutoPlanningTimeSlots(timeSlots, shiftType, shiftRanges);
-  const workingDays = plan.days.filter((day) => parseISODateToDay(day.dateISO) !== restDay).length;
-  const preferredDailyHours = preferredPlanningSlots.reduce(
-    (sum, slot) => sum + getSlotDurationHours(slot.start, slot.end),
-    0
-  );
+  const workableSlots = getWorkableTimeSlots(assignableSlots, breakConfig);
+  const preferredPlanningSlots = getAutoPlanningTimeSlots(workableSlots, shiftType, shiftRanges);
   // Si el colaborador tiene turno (day/night), respetamos estrictamente ese rango aunque no alcance las horas semanales.
   // Solo usamos todos los bloques cuando no hay turno definido.
   const effectivePlanningSlots =
-    shiftType && preferredPlanningSlots.length > 0 ? preferredPlanningSlots : assignableSlots;
+    shiftType && preferredPlanningSlots.length > 0 ? preferredPlanningSlots : workableSlots;
   const planningSlotIds = new Set(effectivePlanningSlots.map((slot) => slot.id));
   const slotHoursById = new Map(effectivePlanningSlots.map((slot) => [slot.id, getSlotDurationHours(slot.start, slot.end)]));
   let remainingHours = Math.max(0, weeklyHours);
@@ -158,7 +169,8 @@ function rebuildWeekPlansFromEmployees(
   employees: Employee[],
   roles: Role[],
   timeSlots: TimeSlot[],
-  shiftRanges: ShiftRanges
+  shiftRanges: ShiftRanges,
+  breakConfig: BreakConfig
 ): Record<string, WeekPlan> {
   const next: Record<string, WeekPlan> = {};
 
@@ -186,6 +198,7 @@ function rebuildWeekPlansFromEmployees(
         normalizeRestDay(employee.restDay),
         employee.shiftType,
         shiftRanges,
+        breakConfig,
         timeSlots,
         scopedRoles
       );
@@ -339,6 +352,17 @@ function buildDefaultShiftRanges(startHour: number, endHour: number): ShiftRange
   };
 }
 
+function buildDefaultBreakConfig(startHour: number, endHour: number): BreakConfig {
+  const clampedStart = Math.min(startHour + 4, endHour - 1);
+  const fallbackStart = Number.isInteger(clampedStart) ? clampedStart : Math.max(startHour, endHour - 1);
+  const fallbackEnd = Math.min(fallbackStart + 1, endHour);
+  return {
+    enabled: false,
+    startHour: fallbackStart,
+    endHour: fallbackEnd
+  };
+}
+
 function getPlanningHoursBounds(timeSlots: TimeSlot[]): { startHour: number; endHour: number } {
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
   const startHour = Number.parseInt(ordered[0]?.start.slice(0, 2) ?? '12', 10);
@@ -362,6 +386,27 @@ function normalizeShiftRangesToPlanningBounds(
     return ranges;
   }
   return buildDefaultShiftRanges(planningStartHour, planningEndHour);
+}
+
+function normalizeBreakConfigToPlanningBounds(
+  input: BreakConfig,
+  planningStartHour: number,
+  planningEndHour: number
+): BreakConfig {
+  const defaults = buildDefaultBreakConfig(planningStartHour, planningEndHour);
+  const startHour = Number.isInteger(input.startHour) ? input.startHour : defaults.startHour;
+  const endHour = Number.isInteger(input.endHour) ? input.endHour : defaults.endHour;
+  const valid =
+    startHour >= planningStartHour &&
+    startHour < planningEndHour &&
+    endHour > planningStartHour &&
+    endHour <= planningEndHour &&
+    endHour > startHour;
+  return {
+    enabled: Boolean(input.enabled),
+    startHour: valid ? startHour : defaults.startHour,
+    endHour: valid ? endHour : defaults.endHour
+  };
 }
 
 function remapWeekPlansToTimeSlots(
@@ -418,12 +463,13 @@ function rebuildWeekPlansForArea(
   roles: Role[],
   timeSlots: TimeSlot[],
   shiftRanges: ShiftRanges,
+  breakConfig: BreakConfig,
   areaId: AreaId
 ): Record<string, WeekPlan> {
   const next = { ...weekPlans };
   for (const [weekId, plan] of Object.entries(weekPlans)) {
     if (areaFromWeekId(weekId) !== areaId) continue;
-    const rebuilt = rebuildWeekPlansFromEmployees({ [weekId]: plan }, employees, roles, timeSlots, shiftRanges);
+    const rebuilt = rebuildWeekPlansFromEmployees({ [weekId]: plan }, employees, roles, timeSlots, shiftRanges, breakConfig);
     next[weekId] = rebuilt[weekId];
   }
   return next;
@@ -437,9 +483,11 @@ function toPersistableState(state: AppState): PersistableState {
     timeSlots: state.timeSlots,
     shiftRanges: state.shiftRanges,
     validationRequirements: state.validationRequirements,
+    breakConfig: state.breakConfig,
     timeSlotsByArea: state.timeSlotsByArea,
     shiftRangesByArea: state.shiftRangesByArea,
     validationRequirementsByArea: state.validationRequirementsByArea,
+    breakConfigByArea: state.breakConfigByArea,
     weeks: state.weeks,
     weekPlans: state.weekPlans,
     validatedWeekIds: state.validatedWeekIds,
@@ -510,7 +558,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentAreaId: areaId,
       timeSlots: state.timeSlotsByArea[areaId] ?? state.timeSlots,
       shiftRanges: state.shiftRangesByArea[areaId] ?? state.shiftRanges,
-      validationRequirements: state.validationRequirementsByArea[areaId] ?? state.validationRequirements
+      validationRequirements: state.validationRequirementsByArea[areaId] ?? state.validationRequirements,
+      breakConfig: state.breakConfigByArea[areaId] ?? state.breakConfig
     })),
 
   resetAll: () => {
@@ -593,6 +642,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               restDay,
               normalizedEmployee.shiftType,
               state.shiftRanges,
+              state.breakConfig,
               state.timeSlots,
               currentAreaRoles
             );
@@ -718,6 +768,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const stateSnapshot = get();
     const scopedWeekId = resolveScopedWeekId(stateSnapshot.currentAreaId, weekId);
     const scopedRoles = rolesForArea(stateSnapshot.roles, areaFromWeekId(scopedWeekId));
+    const selectedSlot = stateSnapshot.timeSlots.find((slot) => slot.id === timeSlotId);
+    if (selectedSlot && assignment.roleId !== null && assignment.code !== 'LIBRE' && isTimeSlotInBreak(selectedSlot, stateSnapshot.breakConfig)) {
+      return { ok: false, error: 'No se puede asignar una zona dentro del refrigerio.' };
+    }
     if (assignment.roleId === null && assignment.code !== 'LIBRE') {
       return { ok: false, error: 'LIBRE debe usar código LIBRE.' };
     }
@@ -764,12 +818,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => {
       const plan = state.weekPlans[scopedWeekId];
       if (!plan) return {};
+      const breakSlotIds = getBreakTimeSlotIds(state.timeSlots, state.breakConfig);
       const days = plan.days.map((day) => {
         if (day.dateISO !== dateISO) return day;
         const assignmentsBySlot = { ...day.assignments };
         for (const timeSlotId of timeSlotIds) {
           const byEmployee = { ...(assignmentsBySlot[timeSlotId] ?? {}) };
-          byEmployee[employeeId] = assignment;
+          byEmployee[employeeId] =
+            breakSlotIds.has(timeSlotId) && assignment.roleId !== null && assignment.code !== 'LIBRE'
+              ? { roleId: null, code: 'LIBRE' }
+              : assignment;
           assignmentsBySlot[timeSlotId] = byEmployee;
         }
         return { ...day, assignments: assignmentsBySlot };
@@ -805,17 +863,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => {
       const plan = state.weekPlans[scopedWeekId];
       if (!plan) return {};
-      const orderedSlotIds = getAssignableTimeSlots(timeSlots).map((slot) => slot.id);
+      const orderedSlots = getAssignableTimeSlots(timeSlots);
+      const breakSlotIds = getBreakTimeSlotIds(orderedSlots, state.breakConfig);
 
       const days = plan.days.map((day) => {
         if (day.dateISO !== dateISO) return day;
         let remaining = hours;
         const assignmentsBySlot = { ...day.assignments };
 
-        for (const timeSlotId of orderedSlotIds) {
+        for (const slot of orderedSlots) {
+          const timeSlotId = slot.id;
           const byEmployee = { ...(assignmentsBySlot[timeSlotId] ?? {}) };
-          const slot = timeSlots.find((item) => item.id === timeSlotId);
-          const slotHours = slot ? getSlotDurationHours(slot.start, slot.end) : 0;
+          if (breakSlotIds.has(timeSlotId)) {
+            byEmployee[employeeId] = { roleId: null, code: 'LIBRE' };
+            assignmentsBySlot[timeSlotId] = byEmployee;
+            continue;
+          }
+          const slotHours = getSlotDurationHours(slot.start, slot.end);
           const shouldApplyInSlot = remaining > 0 && slotHours > 0;
 
           if (assignment.roleId === null) {
@@ -873,12 +937,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       const employeeIds = state.employees.map((employee) => employee.id);
       const remappedWeekPlans = remapWeekPlansToTimeSlotsForArea(state.weekPlans, nextTimeSlots, employeeIds, areaId);
       const normalizedShiftRanges = normalizeShiftRangesToPlanningBounds(state.shiftRanges, startHour, endHour);
+      const normalizedBreakConfig = normalizeBreakConfigToPlanningBounds(state.breakConfig, startHour, endHour);
       const rebuiltWeekPlans = rebuildWeekPlansForArea(
         remappedWeekPlans,
         state.employees,
         state.roles,
         nextTimeSlots,
         normalizedShiftRanges,
+        normalizedBreakConfig,
         areaId
       );
       const timeSlotsByArea = {
@@ -889,11 +955,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         ...state.shiftRangesByArea,
         [areaId]: normalizedShiftRanges
       };
+      const breakConfigByArea = {
+        ...state.breakConfigByArea,
+        [areaId]: normalizedBreakConfig
+      };
       return {
         timeSlots: nextTimeSlots,
         shiftRanges: normalizedShiftRanges,
+        breakConfig: normalizedBreakConfig,
         timeSlotsByArea,
         shiftRangesByArea,
+        breakConfigByArea,
         weekPlans: rebuiltWeekPlans,
         validatedWeekIds: [],
         weekAuditById: clearAllWeekValidators(state.weekAuditById)
@@ -925,6 +997,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         state.roles,
         state.timeSlots,
         normalized,
+        state.breakConfig,
         areaId
       );
       return {
@@ -983,6 +1056,43 @@ export const useAppStore = create<AppState>((set, get) => ({
       validatedWeekIds: [],
       weekAuditById: clearAllWeekValidators(state.weekAuditById)
     }));
+    persistSnapshot(get, set);
+    return { ok: true };
+  },
+
+  setBreakConfig: (input) => {
+    const { timeSlots } = get();
+    const { startHour, endHour } = getPlanningHoursBounds(timeSlots);
+    const normalized = normalizeBreakConfigToPlanningBounds(input, startHour, endHour);
+    const inputChanged =
+      normalized.startHour !== input.startHour ||
+      normalized.endHour !== input.endHour;
+    if (inputChanged) {
+      return { ok: false, error: 'El horario de refrigerio debe estar dentro del rango de planificación y ser válido.' };
+    }
+
+    set((state) => {
+      const areaId = state.currentAreaId;
+      const weekPlans = rebuildWeekPlansForArea(
+        state.weekPlans,
+        state.employees,
+        state.roles,
+        state.timeSlots,
+        state.shiftRanges,
+        normalized,
+        areaId
+      );
+      return {
+        breakConfig: normalized,
+        breakConfigByArea: {
+          ...state.breakConfigByArea,
+          [areaId]: normalized
+        },
+        weekPlans,
+        validatedWeekIds: [],
+        weekAuditById: clearAllWeekValidators(state.weekAuditById)
+      };
+    });
     persistSnapshot(get, set);
     return { ok: true };
   },

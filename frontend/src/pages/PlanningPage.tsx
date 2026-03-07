@@ -202,17 +202,40 @@ export function PlanningPage(): JSX.Element {
         const summary = employeeHoursById[employee.id];
         const assignedHours = summary?.assignedHours ?? 0;
         const targetHours = summary?.targetHours ?? (employee.weeklyHours ?? 0);
-        const extraHours = assignedHours - targetHours;
+        const assignedHoursRounded = Math.round(assignedHours);
+        const targetHoursRounded = Math.round(targetHours);
+        const extraHours = assignedHoursRounded - targetHoursRounded;
         return {
           id: employee.id,
           name: employee.name,
-          assignedHours,
-          targetHours,
+          assignedHours: assignedHoursRounded,
+          targetHours: targetHoursRounded,
           extraHours
         };
       })
       .filter((employee) => employee.targetHours > 0 && employee.extraHours > 0)
       .sort((a, b) => b.extraHours - a.extraHours);
+  }, [employees, employeeHoursById]);
+  const underAssignedEmployees = useMemo(() => {
+    return employees
+      .filter((employee) => employee.active)
+      .map((employee) => {
+        const summary = employeeHoursById[employee.id];
+        const assignedHours = summary?.assignedHours ?? 0;
+        const targetHours = summary?.targetHours ?? (employee.weeklyHours ?? 0);
+        const assignedHoursRounded = Math.round(assignedHours);
+        const targetHoursRounded = Math.round(targetHours);
+        const missingHours = targetHoursRounded - assignedHoursRounded;
+        return {
+          id: employee.id,
+          name: employee.name,
+          assignedHours: assignedHoursRounded,
+          targetHours: targetHoursRounded,
+          missingHours
+        };
+      })
+      .filter((employee) => employee.targetHours > 0 && employee.missingHours > 0)
+      .sort((a, b) => b.missingHours - a.missingHours);
   }, [employees, employeeHoursById]);
 
   return (
@@ -459,7 +482,27 @@ export function PlanningPage(): JSX.Element {
                           </Text>
                           {overtimeEmployees.map((employee) => (
                             <Text key={employee.id} fontSize="sm" color="yellow.700">
-                              {employee.name}: {employee.assignedHours.toFixed(1)}h/{employee.targetHours.toFixed(1)}h (+{employee.extraHours.toFixed(1)}h)
+                              {employee.name}: {employee.assignedHours}h/{employee.targetHours}h (+{employee.extraHours}h)
+                            </Text>
+                          ))}
+                        </Stack>
+                      </HStack>
+                    </Box>
+                  ) : null}
+
+                  {underAssignedEmployees.length ? (
+                    <Box bg="red.50" borderWidth="1px" borderColor="red.300" rounded="md" px={4} py={3}>
+                      <HStack align="start" spacing={2}>
+                        <Box color="red.600" mt={0.5}>
+                          <FiAlertTriangle />
+                        </Box>
+                        <Stack spacing={0} flex="1">
+                          <Text fontSize="sm" fontWeight="700" color="red.700">
+                            Alerta: {underAssignedEmployees.length} colaborador(es) por debajo de su objetivo semanal.
+                          </Text>
+                          {underAssignedEmployees.map((employee) => (
+                            <Text key={employee.id} fontSize="sm" color="red.700">
+                              {employee.name}: {employee.assignedHours}h/{employee.targetHours}h (-{employee.missingHours}h)
                             </Text>
                           ))}
                         </Stack>

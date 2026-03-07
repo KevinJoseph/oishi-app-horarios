@@ -10,6 +10,8 @@ type PlannerStateDocument = {
   timeSlotsByArea: unknown;
   shiftRangesByArea: unknown;
   validationRequirementsByArea: unknown;
+  breakConfig: unknown;
+  breakConfigByArea: unknown;
   weeks: unknown[];
   weekPlans: Record<string, unknown>;
   validatedWeekIds: string[];
@@ -30,6 +32,8 @@ const PlannerStateSchema = new Schema<PlannerStateDocument>(
     timeSlotsByArea: { type: Schema.Types.Mixed, required: true, default: {} },
     shiftRangesByArea: { type: Schema.Types.Mixed, required: true, default: {} },
     validationRequirementsByArea: { type: Schema.Types.Mixed, required: true, default: {} },
+    breakConfig: { type: Schema.Types.Mixed, required: true, default: {} },
+    breakConfigByArea: { type: Schema.Types.Mixed, required: true, default: {} },
     weeks: { type: [Schema.Types.Mixed], required: true },
     weekPlans: { type: Schema.Types.Mixed, required: true },
     validatedWeekIds: { type: [String], required: true, default: [] },

@@ -29,10 +29,17 @@ export type ValidationRequirement = {
   closing: number;
 };
 
+export type BreakConfig = {
+  enabled: boolean;
+  startHour: number;
+  endHour: number;
+};
+
 export type ValidationRequirements = Record<number, ValidationRequirement>;
 export type TimeSlotsByArea = Record<AreaId, TimeSlot[]>;
 export type ShiftRangesByArea = Record<AreaId, ShiftRanges>;
 export type ValidationRequirementsByArea = Record<AreaId, ValidationRequirements>;
+export type BreakConfigByArea = Record<AreaId, BreakConfig>;
 
 export type Role = {
   id: string;
@@ -83,9 +90,11 @@ export type PlannerStatePayload = {
   timeSlots: TimeSlot[];
   shiftRanges: ShiftRanges;
   validationRequirements: ValidationRequirements;
+  breakConfig: BreakConfig;
   timeSlotsByArea: TimeSlotsByArea;
   shiftRangesByArea: ShiftRangesByArea;
   validationRequirementsByArea: ValidationRequirementsByArea;
+  breakConfigByArea: BreakConfigByArea;
   weeks: Week[];
   weekPlans: Record<string, WeekPlan>;
   validatedWeekIds: string[];

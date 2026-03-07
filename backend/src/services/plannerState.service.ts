@@ -16,9 +16,11 @@ function sanitizePayload(payload: PlannerStatePayload): PlannerStatePayload {
     timeSlots: payload.timeSlots,
     shiftRanges: payload.shiftRanges,
     validationRequirements: payload.validationRequirements,
+    breakConfig: payload.breakConfig,
     timeSlotsByArea: payload.timeSlotsByArea,
     shiftRangesByArea: payload.shiftRangesByArea,
     validationRequirementsByArea: payload.validationRequirementsByArea,
+    breakConfigByArea: payload.breakConfigByArea,
     weeks: payload.weeks,
     weekPlans: payload.weekPlans,
     validatedWeekIds: payload.validatedWeekIds,
@@ -33,9 +35,11 @@ function mapUnknownState(raw: {
   timeSlots: unknown[];
   shiftRanges?: unknown;
   validationRequirements?: unknown;
+  breakConfig?: unknown;
   timeSlotsByArea?: unknown;
   shiftRangesByArea?: unknown;
   validationRequirementsByArea?: unknown;
+  breakConfigByArea?: unknown;
   weeks: unknown[];
   weekPlans: Record<string, unknown>;
   validatedWeekIds?: unknown;
@@ -54,6 +58,11 @@ function mapUnknownState(raw: {
     5: { opening: 0, closing: 0 },
     6: { opening: 0, closing: 0 }
   };
+  const defaultBreakConfig = {
+    enabled: false,
+    startHour: 16,
+    endHour: 17
+  };
 
   return {
     employees: raw.employees as PlannerStatePayload['employees'],
@@ -63,6 +72,7 @@ function mapUnknownState(raw: {
     shiftRanges: (raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges,
     validationRequirements:
       (raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements,
+    breakConfig: (raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig,
     timeSlotsByArea:
       raw.timeSlotsByArea && typeof raw.timeSlotsByArea === 'object'
         ? ({
@@ -128,6 +138,28 @@ function mapUnknownState(raw: {
             cocina: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
             oficina: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
             produccion: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements)
+          },
+    breakConfigByArea:
+      raw.breakConfigByArea && typeof raw.breakConfigByArea === 'object'
+        ? ({
+            salon:
+              (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).salon ??
+              ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+            cocina:
+              (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).cocina ??
+              ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+            oficina:
+              (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).oficina ??
+              ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+            produccion:
+              (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).produccion ??
+              ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig)
+          } satisfies PlannerStatePayload['breakConfigByArea'])
+        : {
+            salon: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+            cocina: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+            oficina: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+            produccion: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig)
           },
     weeks: raw.weeks as PlannerStatePayload['weeks'],
     weekPlans: raw.weekPlans as PlannerStatePayload['weekPlans'],

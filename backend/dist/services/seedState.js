@@ -105,6 +105,19 @@ function buildDefaultValidationRequirements() {
         6: { opening: 0, closing: 0 }
     };
 }
+function buildDefaultBreakConfig(timeSlots) {
+    const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
+    const startHour = Number.parseInt(ordered[0]?.start.slice(0, 2) ?? '12', 10);
+    const endHour = Number.parseInt(ordered[ordered.length - 1]?.end.slice(0, 2) ?? '22', 10);
+    const clampedStart = Math.min(startHour + 4, endHour - 1);
+    const fallbackStart = Number.isInteger(clampedStart) ? clampedStart : Math.max(startHour, endHour - 1);
+    const fallbackEnd = Math.min(fallbackStart + 1, endHour);
+    return {
+        enabled: false,
+        startHour: fallbackStart,
+        endHour: fallbackEnd
+    };
+}
 function getCurrentMonday() {
     const now = new Date();
     const day = now.getDay();
@@ -189,20 +202,54 @@ export function buildSeedState() {
     const timeSlots = [...mockTimeSlots];
     const shiftRanges = buildDefaultShiftRanges(timeSlots);
     const validationRequirements = buildDefaultValidationRequirements();
+    const breakConfig = buildDefaultBreakConfig(timeSlots);
     const weeks = buildWeeks();
     const weekPlans = {};
+    const weekAuditById = {};
     const employeeIds = employees.map((employee) => employee.id);
     const timeSlotIds = timeSlots.map((slot) => slot.id);
     for (const week of weeks) {
         weekPlans[week.id] = buildEmptyWeekPlan(week, employeeIds, timeSlotIds);
+        weekAuditById[week.id] = {
+            createdByName: null,
+            validatedByName: null
+        };
     }
     return {
         employees,
         roles,
+        currentAreaId: 'salon',
         timeSlots,
         shiftRanges,
         validationRequirements,
+        breakConfig,
+        timeSlotsByArea: {
+            salon: [...timeSlots],
+            cocina: [...timeSlots],
+            oficina: [...timeSlots],
+            produccion: [...timeSlots]
+        },
+        shiftRangesByArea: {
+            salon: shiftRanges,
+            cocina: shiftRanges,
+            oficina: shiftRanges,
+            produccion: shiftRanges
+        },
+        validationRequirementsByArea: {
+            salon: validationRequirements,
+            cocina: validationRequirements,
+            oficina: validationRequirements,
+            produccion: validationRequirements
+        },
+        breakConfigByArea: {
+            salon: breakConfig,
+            cocina: breakConfig,
+            oficina: breakConfig,
+            produccion: breakConfig
+        },
         weeks,
-        weekPlans
+        weekPlans,
+        validatedWeekIds: [],
+        weekAuditById
     };
 }

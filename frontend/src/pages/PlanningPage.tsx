@@ -364,10 +364,10 @@ export function PlanningPage(): JSX.Element {
                   <Divider />
                   <HStack spacing={3} flexWrap="wrap">
                     <Badge colorScheme="orange" px={3} py={1} rounded="full" variant="subtle">
-                      Apertura: {summary.opening}
+                      Apertura: {openingTarget}
                     </Badge>
                     <Badge colorScheme="purple" px={3} py={1} rounded="full" variant="subtle">
-                      Cierre: {summary.closing}
+                      Cierre: {closingTarget}
                     </Badge>
                     {breakConfig.enabled ? (
                       <Badge colorScheme="yellow" px={3} py={1} rounded="full" variant="subtle">

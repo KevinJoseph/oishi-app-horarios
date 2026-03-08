@@ -52,6 +52,7 @@ type AppState = PersistableState & {
   currentWeekId: string;
   hydrated: boolean;
   syncError: string | null;
+  flushPersistence: () => Promise<{ ok: boolean; error?: string }>;
   initialize: () => Promise<void>;
   setCurrentWeek: (weekId: string) => void;
   setCurrentArea: (areaId: AreaId) => void;
@@ -497,9 +498,15 @@ function toPersistableState(state: AppState): PersistableState {
 
 let persistInFlight = false;
 let persistQueued = false;
+let persistWaiters: Array<() => void> = [];
 
 async function flushPersistQueue(get: () => AppState, set: (partial: Partial<AppState>) => void): Promise<void> {
-  if (persistInFlight) return;
+  if (persistInFlight) {
+    await new Promise<void>((resolve) => {
+      persistWaiters.push(resolve);
+    });
+    return;
+  }
   persistInFlight = true;
   try {
     while (persistQueued) {
@@ -518,6 +525,9 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
     }
   } finally {
     persistInFlight = false;
+    const waiters = [...persistWaiters];
+    persistWaiters = [];
+    waiters.forEach((resolve) => resolve());
   }
 }
 
@@ -531,6 +541,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentWeekId: seeded.weeks[0]?.id ?? '',
   hydrated: false,
   syncError: null,
+
+  flushPersistence: async () => {
+    if (persistQueued || persistInFlight) {
+      await flushPersistQueue(get, set);
+    }
+
+    const error = get().syncError;
+    if (error) {
+      return { ok: false, error };
+    }
+
+    return { ok: true };
+  },
 
   initialize: async () => {
     if (get().hydrated) return;

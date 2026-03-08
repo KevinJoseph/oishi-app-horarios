@@ -34,6 +34,7 @@ export function TimeSlotsPage(): JSX.Element {
   const setShiftRanges = useAppStore((state) => state.setShiftRanges);
   const setValidationRequirements = useAppStore((state) => state.setValidationRequirements);
   const setBreakConfig = useAppStore((state) => state.setBreakConfig);
+  const flushPersistence = useAppStore((state) => state.flushPersistence);
   const currentUser = useAuthStore((state) => state.currentUser);
   const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
@@ -67,6 +68,7 @@ export function TimeSlotsPage(): JSX.Element {
   const [breakEnabled, setBreakEnabled] = useState(breakConfig.enabled);
   const [breakStartHour, setBreakStartHour] = useState(String(breakConfig.startHour));
   const [breakEndHour, setBreakEndHour] = useState(String(breakConfig.endHour));
+  const [isSavingValidation, setIsSavingValidation] = useState(false);
 
   useEffect(() => {
     setStartHour(String(initialStartHour));
@@ -208,10 +210,15 @@ export function TimeSlotsPage(): JSX.Element {
             <Button
               colorScheme="blue"
               isDisabled={!canEdit}
-              onClick={() => {
+              onClick={async () => {
                 const result = setPlanningHoursRange(Number.parseInt(startHour, 10), Number.parseInt(endHour, 10));
                 if (!result.ok) {
                   toast({ status: 'error', title: result.error ?? 'No se pudo actualizar el rango horario.' });
+                  return;
+                }
+                const persisted = await flushPersistence();
+                if (!persisted.ok) {
+                  toast({ status: 'error', title: persisted.error ?? 'No se pudo guardar el rango horario en el backend.' });
                   return;
                 }
                 toast({ status: 'success', title: 'Rango horario actualizado.' });
@@ -270,7 +277,7 @@ export function TimeSlotsPage(): JSX.Element {
             <Button
               colorScheme="blue"
               isDisabled={!canEdit}
-              onClick={() => {
+              onClick={async () => {
                 const result = setBreakConfig({
                   enabled: breakEnabled,
                   startHour: Number.parseInt(breakStartHour, 10),
@@ -278,6 +285,11 @@ export function TimeSlotsPage(): JSX.Element {
                 });
                 if (!result.ok) {
                   toast({ status: 'error', title: result.error ?? 'No se pudo actualizar el refrigerio.' });
+                  return;
+                }
+                const persisted = await flushPersistence();
+                if (!persisted.ok) {
+                  toast({ status: 'error', title: persisted.error ?? 'No se pudo guardar el refrigerio en el backend.' });
                   return;
                 }
                 toast({ status: 'success', title: 'Refrigerio actualizado.' });
@@ -354,7 +366,7 @@ export function TimeSlotsPage(): JSX.Element {
             <Button
               colorScheme="blue"
               isDisabled={!canEdit}
-              onClick={() => {
+              onClick={async () => {
                 if (rangesOverlap) {
                   toast({ status: 'error', title: 'Los turnos Día y Noche no deben solaparse.' });
                   return;
@@ -375,6 +387,11 @@ export function TimeSlotsPage(): JSX.Element {
                 });
                 if (!result.ok) {
                   toast({ status: 'error', title: result.error ?? 'No se pudo actualizar la configuración de turnos.' });
+                  return;
+                }
+                const persisted = await flushPersistence();
+                if (!persisted.ok) {
+                  toast({ status: 'error', title: persisted.error ?? 'No se pudo guardar la configuración de turnos en el backend.' });
                   return;
                 }
                 toast({ status: 'success', title: 'Turnos actualizados.' });
@@ -453,10 +470,20 @@ export function TimeSlotsPage(): JSX.Element {
             <Button
               colorScheme="blue"
               isDisabled={!canEdit}
-              onClick={() => {
+              isLoading={isSavingValidation}
+              loadingText="Guardando"
+              onClick={async () => {
+                setIsSavingValidation(true);
                 const result = setValidationRequirements(localValidation);
                 if (!result.ok) {
+                  setIsSavingValidation(false);
                   toast({ status: 'error', title: result.error ?? 'No se pudo guardar la configuración de validaciones.' });
+                  return;
+                }
+                const persisted = await flushPersistence();
+                setIsSavingValidation(false);
+                if (!persisted.ok) {
+                  toast({ status: 'error', title: persisted.error ?? 'No se pudo guardar la configuración de validaciones en el backend.' });
                   return;
                 }
                 toast({ status: 'success', title: 'Validaciones actualizadas.' });

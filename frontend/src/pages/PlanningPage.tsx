@@ -35,7 +35,6 @@ import type { AreaId, Assignment } from '../types';
 import { isTimeSlotInBreak } from '../utils/breaks';
 import { downloadDaySchedulePdf } from '../utils/pdf';
 import { getOpeningClosingSummary } from '../utils/summary';
-import { normalizeRestDay } from '../utils/weekdays';
 
 type SelectedCell = {
   timeSlotId: string;
@@ -140,24 +139,23 @@ export function PlanningPage(): JSX.Element {
   const hasValidationMismatch = openingDelta !== 0 || closingDelta !== 0;
   const hasMissingCoverage = openingStatus === 'missing' || closingStatus === 'missing';
   const repeatedRestDayInfo = useMemo(() => {
-    const counts = new Map<number, number>();
-    for (const employee of employees) {
-      if (!employee.active) continue;
-      const restDay = normalizeRestDay(employee.restDay);
-      counts.set(restDay, (counts.get(restDay) ?? 0) + 1);
-    }
+    if (!activeDay) return null;
 
-    const repeatedDays = [...counts.entries()].filter(([, count]) => count >= 2);
-    if (!repeatedDays.length) return null;
+    const count = employees.filter((employee) => {
+      if (!employee.active) return false;
+      return timeSlots.every((slot) => {
+        const assignment = activeDay.assignments[slot.id]?.[employee.id];
+        return !assignment || assignment.code === 'LIBRE' || assignment.roleId === null;
+      });
+    }).length;
 
-    const dayLabels = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    const [restDay, count] = repeatedDays.sort((a, b) => b[1] - a[1])[0];
+    if (count < 2) return null;
 
     return {
       count,
-      label: dayLabels[restDay] ?? 'N/D'
+      label: activeDay.dayName
     };
-  }, [employees]);
+  }, [activeDay, employees, timeSlots]);
   useEffect(() => {
     setActiveDayIndex(0);
   }, [currentWeekId]);

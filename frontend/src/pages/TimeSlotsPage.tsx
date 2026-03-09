@@ -28,7 +28,9 @@ export function TimeSlotsPage(): JSX.Element {
   const toast = useToast();
   const timeSlots = useAppStore((state) => state.timeSlots);
   const shiftRanges = useAppStore((state) => state.shiftRanges);
-  const validationRequirements = useAppStore((state) => state.validationRequirements);
+  const validationRequirements = useAppStore(
+    (state) => state.validationRequirementsByArea[state.currentAreaId] ?? state.validationRequirements
+  );
   const breakConfig = useAppStore((state) => state.breakConfig);
   const setPlanningHoursRange = useAppStore((state) => state.setPlanningHoursRange);
   const setShiftRanges = useAppStore((state) => state.setShiftRanges);

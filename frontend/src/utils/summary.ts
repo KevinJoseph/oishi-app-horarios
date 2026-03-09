@@ -1,23 +1,29 @@
-import type { DayPlan, TimeSlot } from '../types';
+import type { DayPlan, Employee, TimeSlot } from '../types';
 
-function countAssigned(dayPlan: DayPlan, slotIds: string[]): number {
+function countAssigned(dayPlan: DayPlan, slotIds: string[], employeeIds: Set<string>): number {
   let count = 0;
   for (const slotId of slotIds) {
     const row = dayPlan.assignments[slotId];
     if (!row) continue;
-    for (const assignment of Object.values(row)) {
-      if (assignment.code !== 'LIBRE') count += 1;
+    for (const [employeeId, assignment] of Object.entries(row)) {
+      if (!employeeIds.has(employeeId)) continue;
+      if (assignment.roleId !== null && assignment.code !== 'LIBRE') count += 1;
     }
   }
   return count;
 }
 
-export function getOpeningClosingSummary(dayPlan: DayPlan, timeSlots: TimeSlot[]): { opening: number; closing: number } {
+export function getOpeningClosingSummary(
+  dayPlan: DayPlan,
+  timeSlots: TimeSlot[],
+  employees: Employee[]
+): { opening: number; closing: number } {
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
+  const visibleEmployeeIds = new Set(employees.filter((employee) => employee.active).map((employee) => employee.id));
   const openingSlots = ordered.length ? [ordered[0].id] : [];
   const closingSlots = ordered.length ? [ordered[ordered.length - 1].id] : [];
   return {
-    opening: countAssigned(dayPlan, openingSlots),
-    closing: countAssigned(dayPlan, closingSlots)
+    opening: countAssigned(dayPlan, openingSlots, visibleEmployeeIds),
+    closing: countAssigned(dayPlan, closingSlots, visibleEmployeeIds)
   };
 }

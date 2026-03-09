@@ -58,7 +58,9 @@ export function PlanningPage(): JSX.Element {
   const currentWeekId = useAppStore((state) => state.currentWeekId);
   const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
   const weekAuditById = useAppStore((state) => state.weekAuditById);
-  const validationRequirements = useAppStore((state) => state.validationRequirements);
+  const validationRequirements = useAppStore(
+    (state) => state.validationRequirementsByArea[state.currentAreaId] ?? state.validationRequirements
+  );
   const breakConfig = useAppStore((state) => state.breakConfig);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
   const updateAssignment = useAppStore((state) => state.updateAssignment);
@@ -96,7 +98,7 @@ export function PlanningPage(): JSX.Element {
   const days = currentWeekPlan?.days ?? [];
   const activeDay = days[activeDayIndex];
   const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId);
-  const summary = activeDay ? getOpeningClosingSummary(activeDay, timeSlots) : { opening: 0, closing: 0 };
+  const summary = activeDay ? getOpeningClosingSummary(activeDay, timeSlots, employees) : { opening: 0, closing: 0 };
   const activeDayOfWeek = activeDay ? new Date(`${activeDay.dateISO}T00:00:00`).getDay() : null;
   const dayValidation = activeDayOfWeek === null ? { opening: 0, closing: 0 } : validationRequirements[activeDayOfWeek];
   const openingTarget = dayValidation?.opening ?? 0;

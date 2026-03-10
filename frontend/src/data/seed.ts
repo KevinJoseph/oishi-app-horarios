@@ -177,13 +177,12 @@ function normalizeWeekPlan(weekStartDateISO: string, sourcePlan: WeekPlan | unde
 
 export function normalizePlannerState(input: SeedState): SeedState {
   const baseWeeks = input.weeks.length >= 4 ? input.weeks : buildMockWeeks();
-  const normalizedWeeks = baseWeeks.map((week, index) => {
-    const weekPrefix = index === 0 ? 'Semana actual' : index === 1 ? 'Semana siguiente' : `En ${index} semanas`;
-    return {
+  const normalizedWeeks = [...baseWeeks]
+    .sort((a, b) => a.startDateISO.localeCompare(b.startDateISO))
+    .map((week) => ({
       ...week,
-      label: `${weekPrefix} (${buildWeekLabel(parseISO(week.startDateISO))})`
-    };
-  });
+      label: buildWeekLabel(parseISO(week.startDateISO))
+    }));
   const weekPlans: Record<string, WeekPlan> = {};
 
   for (const week of normalizedWeeks) {

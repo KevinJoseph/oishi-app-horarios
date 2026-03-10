@@ -18,7 +18,7 @@ export function WeeklyOverviewPage(): JSX.Element {
   const weekPlans = useAppStore((state) => state.weekPlans);
   const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
   const weekAuditById = useAppStore((state) => state.weekAuditById);
-  const currentWeekId = useAppStore((state) => state.currentWeekId);
+  const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
 
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
@@ -30,7 +30,7 @@ export function WeeklyOverviewPage(): JSX.Element {
     () => allRoles.filter((role) => (role.areaId ?? 'salon') === currentAreaId),
     [allRoles, currentAreaId]
   );
-  const currentWeek = weeks.find((week) => week.id === currentWeekId);
+  const currentWeek = weeks.find((week) => week.startDateISO === currentWeekStartDateISO);
   useEffect(() => {
     if (currentWeek) ensureWeekPlan(currentWeek);
   }, [currentWeek, currentAreaId, ensureWeekPlan]);

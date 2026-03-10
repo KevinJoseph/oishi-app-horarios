@@ -1,7 +1,8 @@
 import { create } from 'zustand';
+import { addMonths, addWeeks, formatISO, parseISO } from 'date-fns';
 import { fetchPlannerState, resetPlannerState as resetPlannerStateApi, savePlannerState } from '../api/plannerApi';
 import { loadSeedState, normalizePlannerState } from '../data/seed';
-import { buildEmptyWeekPlan } from '../data/mocks';
+import { buildEmptyWeekPlan, buildWeekFromStartDate } from '../data/mocks';
 import { AREA_IDS } from '../types';
 import { getBreakTimeSlotIds, getWorkableTimeSlots, isTimeSlotInBreak } from '../utils/breaks';
 import type {
@@ -49,12 +50,15 @@ type UpdateEmployeeDayByHoursInput = {
 type PersistableState = ReturnType<typeof loadSeedState>;
 
 type AppState = PersistableState & {
-  currentWeekId: string;
+  currentWeekStartDateISO: string;
+  currentMonthStartDateISO: string;
   hydrated: boolean;
   syncError: string | null;
   flushPersistence: () => Promise<{ ok: boolean; error?: string }>;
   initialize: () => Promise<void>;
-  setCurrentWeek: (weekId: string) => void;
+  setCurrentWeekStartDate: (startDateISO: string) => void;
+  goToAdjacentWeek: (direction: -1 | 1) => void;
+  goToAdjacentMonth: (direction: -1 | 1) => void;
   setCurrentArea: (areaId: AreaId) => void;
   resetAll: () => void;
   upsertEmployee: (employee: Employee) => { ok: boolean; error?: string };
@@ -476,6 +480,44 @@ function rebuildWeekPlansForArea(
   return next;
 }
 
+function sortWeeksByStartDate(weeks: Week[]): Week[] {
+  return [...weeks].sort((a, b) => a.startDateISO.localeCompare(b.startDateISO));
+}
+
+function mergeWeeks(preferred: Week[], fallback: Week[]): Week[] {
+  const byStartDate = new Map<string, Week>();
+  for (const week of fallback) {
+    byStartDate.set(week.startDateISO, week);
+  }
+  for (const week of preferred) {
+    byStartDate.set(week.startDateISO, week);
+  }
+  return sortWeeksByStartDate(Array.from(byStartDate.values()));
+}
+
+function monthStartDateISO(date: Date): string {
+  return formatISO(new Date(date.getFullYear(), date.getMonth(), 1), { representation: 'date' });
+}
+
+function resolveCurrentWeekStartDateISO(weeks: Week[], preferredStartDateISO: string): string {
+  if (!weeks.length) return preferredStartDateISO;
+  const match = weeks.find((week) => week.startDateISO === preferredStartDateISO);
+  return match?.startDateISO ?? preferredStartDateISO ?? weeks[0].startDateISO;
+}
+
+function ensureWeekExists(weeks: Week[], startDateISO: string): { weeks: Week[]; week: Week; created: boolean } {
+  const existing = weeks.find((week) => week.startDateISO === startDateISO);
+  if (existing) {
+    return { weeks: sortWeeksByStartDate(weeks), week: existing, created: false };
+  }
+  const week = buildWeekFromStartDate(parseISO(startDateISO));
+  return {
+    weeks: sortWeeksByStartDate([...weeks, week]),
+    week,
+    created: true
+  };
+}
+
 function toPersistableState(state: AppState): PersistableState {
   return {
     employees: state.employees,
@@ -511,12 +553,35 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
   try {
     while (persistQueued) {
       persistQueued = false;
-      const snapshot = toPersistableState(get());
+      const stateSnapshot = get();
+      const snapshot = toPersistableState(stateSnapshot);
       try {
         const serverState = await savePlannerState(snapshot);
         const normalized = normalizePlannerState(serverState);
+        const latestState = get();
+        const preferredWeekStartDateISO =
+          latestState.currentWeekStartDateISO || stateSnapshot.currentWeekStartDateISO || normalized.weeks[0]?.startDateISO || '';
+        const mergedWeeks = mergeWeeks(mergeWeeks(snapshot.weeks, latestState.weeks), normalized.weeks);
         set({
           ...normalized,
+          weeks: mergedWeeks,
+          weekPlans: {
+            ...latestState.weekPlans,
+            ...normalized.weekPlans
+          },
+          weekAuditById: {
+            ...latestState.weekAuditById,
+            ...normalized.weekAuditById
+          },
+          currentWeekStartDateISO: resolveCurrentWeekStartDateISO(
+            mergedWeeks,
+            preferredWeekStartDateISO
+          ),
+          currentMonthStartDateISO: monthStartDateISO(
+            parseISO(
+              preferredWeekStartDateISO || mergedWeeks[0]?.startDateISO || formatISO(new Date(), { representation: 'date' })
+            )
+          ),
           syncError: null
         });
       } catch (error) {
@@ -538,7 +603,8 @@ function persistSnapshot(get: () => AppState, set: (partial: Partial<AppState>) 
 
 export const useAppStore = create<AppState>((set, get) => ({
   ...seeded,
-  currentWeekId: seeded.weeks[0]?.id ?? '',
+  currentWeekStartDateISO: seeded.weeks[0]?.startDateISO ?? '',
+  currentMonthStartDateISO: monthStartDateISO(parseISO(seeded.weeks[0]?.startDateISO ?? formatISO(new Date(), { representation: 'date' }))),
   hydrated: false,
   syncError: null,
 
@@ -563,7 +629,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       const normalized = normalizePlannerState(remote);
       set({
         ...normalized,
-        currentWeekId: normalized.weeks[0]?.id ?? '',
+        currentWeekStartDateISO: resolveCurrentWeekStartDateISO(
+          normalized.weeks,
+          get().currentWeekStartDateISO || normalized.weeks[0]?.startDateISO || ''
+        ),
+        currentMonthStartDateISO: monthStartDateISO(
+          parseISO(
+            resolveCurrentWeekStartDateISO(normalized.weeks, get().currentWeekStartDateISO || normalized.weeks[0]?.startDateISO || '')
+          )
+        ),
         hydrated: true,
         syncError: null
       });
@@ -575,7 +649,49 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  setCurrentWeek: (weekId) => set({ currentWeekId: weekId }),
+  setCurrentWeekStartDate: (startDateISO) => {
+    let changed = false;
+    set((state) => {
+      const result = ensureWeekExists(state.weeks, startDateISO);
+      changed = result.created || state.currentWeekStartDateISO !== result.week.startDateISO;
+      const nextState: Partial<AppState> = {
+        weeks: result.weeks,
+        currentWeekStartDateISO: result.week.startDateISO
+      };
+      if (result.created) {
+        const scopedWeekId = resolveScopedWeekId(state.currentAreaId, result.week.id);
+        nextState.weekPlans = {
+          ...state.weekPlans,
+          [scopedWeekId]: buildEmptyWeekPlan(
+            result.week,
+            state.employees.map((employee) => employee.id),
+            state.timeSlots.map((slot) => slot.id)
+          )
+        };
+        nextState.weekAuditById = {
+          ...state.weekAuditById,
+          [scopedWeekId]: { createdByName: null, validatedByName: null }
+        };
+      }
+      return nextState;
+    });
+    if (changed) {
+      persistSnapshot(get, set);
+    }
+  },
+  goToAdjacentWeek: (direction) => {
+    const current = get().currentWeekStartDateISO || get().weeks[0]?.startDateISO;
+    if (!current) return;
+    const nextStartDateISO = formatISO(addWeeks(parseISO(current), direction), { representation: 'date' });
+    get().setCurrentWeekStartDate(nextStartDateISO);
+    set({
+      currentMonthStartDateISO: monthStartDateISO(parseISO(nextStartDateISO))
+    });
+  },
+  goToAdjacentMonth: (direction) =>
+    set((state) => ({
+      currentMonthStartDateISO: monthStartDateISO(addMonths(parseISO(state.currentMonthStartDateISO), direction))
+    })),
   setCurrentArea: (areaId) =>
     set((state) => ({
       currentAreaId: areaId,
@@ -586,13 +702,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   resetAll: () => {
-    set({ ...seeded, currentWeekId: seeded.weeks[0]?.id ?? '' });
+    set({
+      ...seeded,
+      currentWeekStartDateISO: seeded.weeks[0]?.startDateISO ?? '',
+      currentMonthStartDateISO: monthStartDateISO(parseISO(seeded.weeks[0]?.startDateISO ?? formatISO(new Date(), { representation: 'date' })))
+    });
     void resetPlannerStateApi()
       .then((fresh) => {
         const normalized = normalizePlannerState(fresh);
         set({
           ...normalized,
-          currentWeekId: normalized.weeks[0]?.id ?? '',
+          currentWeekStartDateISO: resolveCurrentWeekStartDateISO(
+            normalized.weeks,
+            seeded.weeks[0]?.startDateISO ?? normalized.weeks[0]?.startDateISO ?? ''
+          ),
+          currentMonthStartDateISO: monthStartDateISO(
+            parseISO(seeded.weeks[0]?.startDateISO ?? normalized.weeks[0]?.startDateISO ?? formatISO(new Date(), { representation: 'date' }))
+          ),
           syncError: null
         });
       })
@@ -640,8 +766,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         return { employees };
       }
 
-      const currentWeekId = state.currentWeekId;
-      const scopedWeekId = resolveScopedWeekId(state.currentAreaId, currentWeekId);
+      const currentWeek = state.weeks.find((week) => week.startDateISO === state.currentWeekStartDateISO);
+      const scopedWeekId = currentWeek ? resolveScopedWeekId(state.currentAreaId, currentWeek.id) : null;
+      if (!scopedWeekId) {
+        return { employees };
+      }
       const currentWeekPlan = state.weekPlans[scopedWeekId];
       if (!currentWeekPlan) {
         return { employees };

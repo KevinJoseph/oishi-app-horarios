@@ -55,7 +55,7 @@ export function PlanningPage(): JSX.Element {
   const timeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
-  const currentWeekId = useAppStore((state) => state.currentWeekId);
+  const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
   const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
   const weekAuditById = useAppStore((state) => state.weekAuditById);
   const validationRequirements = useAppStore(
@@ -86,7 +86,7 @@ export function PlanningPage(): JSX.Element {
     () => allRoles.filter((role) => (role.areaId ?? 'salon') === currentAreaId),
     [allRoles, currentAreaId]
   );
-  const currentWeek = weeks.find((week) => week.id === currentWeekId);
+  const currentWeek = weeks.find((week) => week.startDateISO === currentWeekStartDateISO);
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
   const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
   const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
@@ -160,7 +160,7 @@ export function PlanningPage(): JSX.Element {
   }, [activeDay, employees, timeSlots]);
   useEffect(() => {
     setActiveDayIndex(0);
-  }, [currentWeekId]);
+  }, [currentWeekStartDateISO]);
 
   const activeEmployeesCount = useMemo(() => employees.filter((employee) => employee.active).length, [employees]);
   const employeeHoursById = useMemo(() => {
@@ -253,11 +253,11 @@ export function PlanningPage(): JSX.Element {
         <Card>
           <CardBody>
             <Flex direction={{ base: 'column', lg: 'row' }} gap={4} align={{ base: 'stretch', lg: 'center' }}>
-              <Flex gap={3} wrap="wrap" align="center">
-                <Box w={{ base: '100%', lg: '300px' }} minW={{ base: '100%', sm: '260px' }}>
+              <Flex gap={3} wrap={{ base: 'wrap', lg: 'nowrap' }} align="center" flexShrink={0}>
+                <Box w={{ base: '100%', sm: '300px' }} minW={{ base: '100%', sm: '300px' }}>
                   <WeekSelector />
                 </Box>
-                <Button colorScheme="brand" leftIcon={<FiEye />} onClick={openLegend}>
+                <Button colorScheme="brand" leftIcon={<FiEye />} onClick={openLegend} flexShrink={0}>
                   Ver Zonas
                 </Button>
               </Flex>

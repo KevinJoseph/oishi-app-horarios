@@ -88,32 +88,18 @@ export const mockTimeSlots: TimeSlot[] = [
   { id: 'ts-11', label: '21:00 - 22:00', start: '21:00', end: '22:00', order: 11 }
 ];
 
+export function buildWeekFromStartDate(startDate: Date): Week {
+  const startDateISO = formatISO(startDate, { representation: 'date' });
+  return {
+    id: `week-${startDateISO}`,
+    label: buildWeekLabel(startDate),
+    startDateISO
+  };
+}
+
 export function buildMockWeeks(): Week[] {
   const monday = getCurrentMonday();
-  const weekStarts = Array.from({ length: 4 }).map((_, index) => addWeeks(monday, index));
-  const weekLabels = ['Semana actual', 'Semana siguiente', 'En 2 semanas', 'En 3 semanas'];
-  return [
-    {
-      id: 'week-current',
-      label: `${weekLabels[0]} (${buildWeekLabel(weekStarts[0])})`,
-      startDateISO: formatISO(weekStarts[0], { representation: 'date' })
-    },
-    {
-      id: 'week-next',
-      label: `${weekLabels[1]} (${buildWeekLabel(weekStarts[1])})`,
-      startDateISO: formatISO(weekStarts[1], { representation: 'date' })
-    },
-    {
-      id: 'week-plus-2',
-      label: `${weekLabels[2]} (${buildWeekLabel(weekStarts[2])})`,
-      startDateISO: formatISO(weekStarts[2], { representation: 'date' })
-    },
-    {
-      id: 'week-plus-3',
-      label: `${weekLabels[3]} (${buildWeekLabel(weekStarts[3])})`,
-      startDateISO: formatISO(weekStarts[3], { representation: 'date' })
-    }
-  ];
+  return Array.from({ length: 4 }).map((_, index) => buildWeekFromStartDate(addWeeks(monday, index)));
 }
 
 export function buildEmptyWeekPlan(week: Week, employeeIds: string[], timeSlotIds: string[]): WeekPlan {

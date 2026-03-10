@@ -1,4 +1,4 @@
-import { addDays, format, parseISO, startOfWeek } from 'date-fns';
+import { addDays, addWeeks, endOfMonth, format, parseISO, startOfMonth, startOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export function getCurrentMonday(): Date {
@@ -12,6 +12,35 @@ export function formatDayNameEs(dateISO: string): string {
 export function buildWeekLabel(startDate: Date): string {
   const endDate = addDays(startDate, 6);
   return `${format(startDate, 'dd/MM')} - ${format(endDate, 'dd/MM')}`;
+}
+
+export function buildMonthLabel(date: Date): string {
+  return capitalize(format(date, 'LLLL yyyy', { locale: es }));
+}
+
+export function getMonthStartDate(date: Date): Date {
+  return startOfMonth(date);
+}
+
+export function getMonthWeeks(date: Date): Date[] {
+  const monthStart = startOfMonth(date);
+  const monthEnd = endOfMonth(date);
+  const firstWeekStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const weeks: Date[] = [];
+
+  for (let cursor = firstWeekStart; cursor <= monthEnd; cursor = addWeeks(cursor, 1)) {
+    if (cursor < monthStart) continue;
+    weeks.push(cursor);
+  }
+
+  return weeks;
+}
+
+export function getWeekNumberInMonth(weekStartDate: Date): number {
+  const weeks = getMonthWeeks(weekStartDate);
+  const target = format(weekStartDate, 'yyyy-MM-dd');
+  const index = weeks.findIndex((week) => format(week, 'yyyy-MM-dd') === target);
+  return index >= 0 ? index + 1 : 1;
 }
 
 function capitalize(value: string): string {

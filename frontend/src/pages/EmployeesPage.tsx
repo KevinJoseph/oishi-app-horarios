@@ -80,7 +80,7 @@ export function EmployeesPage(): JSX.Element {
   const currentAreaId = useAppStore((state) => state.currentAreaId);
   const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
   const weekAuditById = useAppStore((state) => state.weekAuditById);
-  const currentWeekId = useAppStore((state) => state.currentWeekId);
+  const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
   const deleteEmployee = useAppStore((state) => state.deleteEmployee);
   const currentUser = useAuthStore((state) => state.currentUser);
@@ -93,7 +93,10 @@ export function EmployeesPage(): JSX.Element {
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
-  const currentWeek = useMemo(() => weeks.find((week) => week.id === currentWeekId), [weeks, currentWeekId]);
+  const currentWeek = useMemo(
+    () => weeks.find((week) => week.startDateISO === currentWeekStartDateISO),
+    [weeks, currentWeekStartDateISO]
+  );
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
   const currentWeekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
   const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;

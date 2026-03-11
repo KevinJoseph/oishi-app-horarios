@@ -20,6 +20,7 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
+import { saveValidationRequirements } from '../api/plannerApi';
 import type { ValidationRequirements } from '../types';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -28,6 +29,7 @@ export function TimeSlotsPage(): JSX.Element {
   const toast = useToast();
   const timeSlots = useAppStore((state) => state.timeSlots);
   const shiftRanges = useAppStore((state) => state.shiftRanges);
+  const currentAreaId = useAppStore((state) => state.currentAreaId);
   const validationRequirements = useAppStore(
     (state) => state.validationRequirementsByArea[state.currentAreaId] ?? state.validationRequirements
   );
@@ -36,7 +38,6 @@ export function TimeSlotsPage(): JSX.Element {
   const setShiftRanges = useAppStore((state) => state.setShiftRanges);
   const setValidationRequirements = useAppStore((state) => state.setValidationRequirements);
   const setBreakConfig = useAppStore((state) => state.setBreakConfig);
-  const flushPersistence = useAppStore((state) => state.flushPersistence);
   const currentUser = useAuthStore((state) => state.currentUser);
   const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
@@ -482,12 +483,23 @@ export function TimeSlotsPage(): JSX.Element {
                   toast({ status: 'error', title: result.error ?? 'No se pudo guardar la configuración de validaciones.' });
                   return;
                 }
-                const persisted = await flushPersistence();
-                setIsSavingValidation(false);
-                if (!persisted.ok) {
-                  toast({ status: 'error', title: persisted.error ?? 'No se pudo guardar la configuración de validaciones en el backend.' });
+                try {
+                  await saveValidationRequirements({
+                    areaId: currentAreaId,
+                    validationRequirements: localValidation
+                  });
+                } catch (error) {
+                  setIsSavingValidation(false);
+                  toast({
+                    status: 'error',
+                    title:
+                      error instanceof Error
+                        ? error.message
+                        : 'No se pudo guardar la configuración de validaciones en el backend.'
+                  });
                   return;
                 }
+                setIsSavingValidation(false);
                 toast({ status: 'success', title: 'Validaciones actualizadas.' });
               }}
             >

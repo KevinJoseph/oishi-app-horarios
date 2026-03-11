@@ -1208,7 +1208,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       validatedWeekIds: [],
       weekAuditById: clearAllWeekValidators(state.weekAuditById)
     }));
-    persistSnapshot(get, set);
     return { ok: true };
   },
 

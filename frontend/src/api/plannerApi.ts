@@ -1,4 +1,5 @@
 import type { SeedState } from '../data/seed';
+import type { AreaId, ValidationRequirements } from '../types';
 import { request } from './http';
 
 export function fetchPlannerState(): Promise<SeedState> {
@@ -7,6 +8,16 @@ export function fetchPlannerState(): Promise<SeedState> {
 
 export function savePlannerState(payload: SeedState): Promise<SeedState> {
   return request<SeedState>('/state', {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function saveValidationRequirements(payload: {
+  areaId: AreaId;
+  validationRequirements: ValidationRequirements;
+}): Promise<SeedState> {
+  return request<SeedState>('/state/validation-requirements', {
     method: 'PUT',
     body: JSON.stringify(payload)
   });

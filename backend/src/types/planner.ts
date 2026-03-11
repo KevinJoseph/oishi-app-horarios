@@ -100,3 +100,8 @@ export type PlannerStatePayload = {
   validatedWeekIds: string[];
   weekAuditById: Record<string, WeekAudit>;
 };
+
+export type ValidationRequirementsUpdatePayload = {
+  areaId: AreaId;
+  validationRequirements: ValidationRequirements;
+};

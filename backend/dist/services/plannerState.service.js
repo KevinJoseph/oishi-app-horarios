@@ -5,6 +5,49 @@ const STATE_KEY = 'default';
 function isAreaId(value) {
     return typeof value === 'string' && AREA_IDS.includes(value);
 }
+function sanitizeValidationRequirements(input) {
+    const source = (input ?? {});
+    return {
+        0: {
+            opening: Number.isFinite(source[0]?.opening) ? Math.max(0, Math.trunc(source[0].opening)) : 0,
+            closing: Number.isFinite(source[0]?.closing) ? Math.max(0, Math.trunc(source[0].closing)) : 0
+        },
+        1: {
+            opening: Number.isFinite(source[1]?.opening) ? Math.max(0, Math.trunc(source[1].opening)) : 0,
+            closing: Number.isFinite(source[1]?.closing) ? Math.max(0, Math.trunc(source[1].closing)) : 0
+        },
+        2: {
+            opening: Number.isFinite(source[2]?.opening) ? Math.max(0, Math.trunc(source[2].opening)) : 0,
+            closing: Number.isFinite(source[2]?.closing) ? Math.max(0, Math.trunc(source[2].closing)) : 0
+        },
+        3: {
+            opening: Number.isFinite(source[3]?.opening) ? Math.max(0, Math.trunc(source[3].opening)) : 0,
+            closing: Number.isFinite(source[3]?.closing) ? Math.max(0, Math.trunc(source[3].closing)) : 0
+        },
+        4: {
+            opening: Number.isFinite(source[4]?.opening) ? Math.max(0, Math.trunc(source[4].opening)) : 0,
+            closing: Number.isFinite(source[4]?.closing) ? Math.max(0, Math.trunc(source[4].closing)) : 0
+        },
+        5: {
+            opening: Number.isFinite(source[5]?.opening) ? Math.max(0, Math.trunc(source[5].opening)) : 0,
+            closing: Number.isFinite(source[5]?.closing) ? Math.max(0, Math.trunc(source[5].closing)) : 0
+        },
+        6: {
+            opening: Number.isFinite(source[6]?.opening) ? Math.max(0, Math.trunc(source[6].opening)) : 0,
+            closing: Number.isFinite(source[6]?.closing) ? Math.max(0, Math.trunc(source[6].closing)) : 0
+        }
+    };
+}
+function clearAllWeekValidators(weekAuditById) {
+    const next = {};
+    for (const [weekId, audit] of Object.entries(weekAuditById)) {
+        next[weekId] = {
+            ...audit,
+            validatedByName: null
+        };
+    }
+    return next;
+}
 function sanitizePayload(payload) {
     return {
         employees: payload.employees,
@@ -143,6 +186,32 @@ export async function replacePlannerState(payload) {
     const updated = await PlannerStateModel.findOneAndUpdate({ key: STATE_KEY }, { $set: sanitized }, { upsert: true, new: true, setDefaultsOnInsert: true, lean: true });
     if (!updated) {
         throw new Error('Failed to persist planner state');
+    }
+    return mapUnknownState(updated);
+}
+export async function updateValidationRequirements(payload) {
+    const current = await getOrCreatePlannerState();
+    const sanitized = sanitizeValidationRequirements(payload.validationRequirements);
+    const nextState = {
+        ...current,
+        validationRequirements: sanitized,
+        validationRequirementsByArea: {
+            ...current.validationRequirementsByArea,
+            [payload.areaId]: sanitized
+        },
+        validatedWeekIds: [],
+        weekAuditById: clearAllWeekValidators(current.weekAuditById)
+    };
+    const updated = await PlannerStateModel.findOneAndUpdate({ key: STATE_KEY }, {
+        $set: {
+            validationRequirements: nextState.validationRequirements,
+            validationRequirementsByArea: nextState.validationRequirementsByArea,
+            validatedWeekIds: nextState.validatedWeekIds,
+            weekAuditById: nextState.weekAuditById
+        }
+    }, { upsert: true, new: true, setDefaultsOnInsert: true, lean: true });
+    if (!updated) {
+        throw new Error('Failed to persist validation requirements');
     }
     return mapUnknownState(updated);
 }

@@ -48,6 +48,49 @@ function clearAllWeekValidators(weekAuditById) {
     }
     return next;
 }
+function cloneTimeSlots(input) {
+    return input.map((slot) => ({ ...slot }));
+}
+function cloneShiftRanges(input) {
+    return {
+        day: { ...input.day },
+        night: { ...input.night }
+    };
+}
+function cloneValidationRequirements(input) {
+    return sanitizeValidationRequirements(input);
+}
+function cloneBreakConfig(input) {
+    return {
+        enabled: Boolean(input.enabled),
+        startHour: input.startHour,
+        endHour: input.endHour
+    };
+}
+function buildWeekConfigurationSnapshot(areaId, timeSlotsByArea, shiftRangesByArea, validationRequirementsByArea, breakConfigByArea) {
+    return {
+        areaId,
+        timeSlots: cloneTimeSlots(timeSlotsByArea[areaId]),
+        shiftRanges: cloneShiftRanges(shiftRangesByArea[areaId]),
+        validationRequirements: cloneValidationRequirements(validationRequirementsByArea[areaId]),
+        breakConfig: cloneBreakConfig(breakConfigByArea[areaId])
+    };
+}
+function sanitizeWeekConfigurationSnapshot(input, fallbackAreaId, fallback) {
+    const source = (input ?? {});
+    const areaId = isAreaId(source.areaId) ? source.areaId : fallbackAreaId;
+    return {
+        areaId,
+        timeSlots: Array.isArray(source.timeSlots) ? cloneTimeSlots(source.timeSlots) : cloneTimeSlots(fallback.timeSlots),
+        shiftRanges: source.shiftRanges && typeof source.shiftRanges === 'object'
+            ? cloneShiftRanges(source.shiftRanges)
+            : cloneShiftRanges(fallback.shiftRanges),
+        validationRequirements: cloneValidationRequirements(source.validationRequirements ?? fallback.validationRequirements),
+        breakConfig: source.breakConfig && typeof source.breakConfig === 'object'
+            ? cloneBreakConfig(source.breakConfig)
+            : cloneBreakConfig(fallback.breakConfig)
+    };
+}
 function sanitizePayload(payload) {
     return {
         employees: payload.employees,
@@ -64,7 +107,8 @@ function sanitizePayload(payload) {
         weeks: payload.weeks,
         weekPlans: payload.weekPlans,
         validatedWeekIds: payload.validatedWeekIds,
-        weekAuditById: payload.weekAuditById
+        weekAuditById: payload.weekAuditById,
+        weekConfigById: payload.weekConfigById
     };
 }
 function mapUnknownState(raw) {
@@ -86,6 +130,86 @@ function mapUnknownState(raw) {
         startHour: 16,
         endHour: 17
     };
+    const timeSlotsByArea = raw.timeSlotsByArea && typeof raw.timeSlotsByArea === 'object'
+        ? {
+            salon: raw.timeSlotsByArea.salon ??
+                raw.timeSlots,
+            cocina: raw.timeSlotsByArea.cocina ??
+                raw.timeSlots,
+            oficina: raw.timeSlotsByArea.oficina ??
+                raw.timeSlots,
+            produccion: raw.timeSlotsByArea.produccion ??
+                raw.timeSlots
+        }
+        : {
+            salon: raw.timeSlots,
+            cocina: raw.timeSlots,
+            oficina: raw.timeSlots,
+            produccion: raw.timeSlots
+        };
+    const shiftRangesByArea = raw.shiftRangesByArea && typeof raw.shiftRangesByArea === 'object'
+        ? {
+            salon: raw.shiftRangesByArea.salon ??
+                (raw.shiftRanges ?? defaultShiftRanges),
+            cocina: raw.shiftRangesByArea.cocina ??
+                (raw.shiftRanges ?? defaultShiftRanges),
+            oficina: raw.shiftRangesByArea.oficina ??
+                (raw.shiftRanges ?? defaultShiftRanges),
+            produccion: raw.shiftRangesByArea.produccion ??
+                (raw.shiftRanges ?? defaultShiftRanges)
+        }
+        : {
+            salon: (raw.shiftRanges ?? defaultShiftRanges),
+            cocina: (raw.shiftRanges ?? defaultShiftRanges),
+            oficina: (raw.shiftRanges ?? defaultShiftRanges),
+            produccion: (raw.shiftRanges ?? defaultShiftRanges)
+        };
+    const validationRequirementsByArea = raw.validationRequirementsByArea && typeof raw.validationRequirementsByArea === 'object'
+        ? {
+            salon: raw.validationRequirementsByArea.salon ??
+                (raw.validationRequirements ?? defaultValidationRequirements),
+            cocina: raw.validationRequirementsByArea.cocina ??
+                (raw.validationRequirements ?? defaultValidationRequirements),
+            oficina: raw.validationRequirementsByArea.oficina ??
+                (raw.validationRequirements ?? defaultValidationRequirements),
+            produccion: raw.validationRequirementsByArea.produccion ??
+                (raw.validationRequirements ?? defaultValidationRequirements)
+        }
+        : {
+            salon: (raw.validationRequirements ?? defaultValidationRequirements),
+            cocina: (raw.validationRequirements ?? defaultValidationRequirements),
+            oficina: (raw.validationRequirements ?? defaultValidationRequirements),
+            produccion: (raw.validationRequirements ?? defaultValidationRequirements)
+        };
+    const breakConfigByArea = raw.breakConfigByArea && typeof raw.breakConfigByArea === 'object'
+        ? {
+            salon: raw.breakConfigByArea.salon ??
+                (raw.breakConfig ?? defaultBreakConfig),
+            cocina: raw.breakConfigByArea.cocina ??
+                (raw.breakConfig ?? defaultBreakConfig),
+            oficina: raw.breakConfigByArea.oficina ??
+                (raw.breakConfig ?? defaultBreakConfig),
+            produccion: raw.breakConfigByArea.produccion ??
+                (raw.breakConfig ?? defaultBreakConfig)
+        }
+        : {
+            salon: (raw.breakConfig ?? defaultBreakConfig),
+            cocina: (raw.breakConfig ?? defaultBreakConfig),
+            oficina: (raw.breakConfig ?? defaultBreakConfig),
+            produccion: (raw.breakConfig ?? defaultBreakConfig)
+        };
+    const validatedWeekIds = Array.isArray(raw.validatedWeekIds)
+        ? raw.validatedWeekIds.filter((value) => typeof value === 'string')
+        : [];
+    const rawWeekConfigById = raw.weekConfigById && typeof raw.weekConfigById === 'object'
+        ? raw.weekConfigById
+        : {};
+    const weekConfigById = {};
+    for (const weekId of validatedWeekIds) {
+        const fallbackAreaId = isAreaId(weekId.split('::')[0]) ? weekId.split('::')[0] : 'salon';
+        const fallbackSnapshot = buildWeekConfigurationSnapshot(fallbackAreaId, timeSlotsByArea, shiftRangesByArea, validationRequirementsByArea, breakConfigByArea);
+        weekConfigById[weekId] = sanitizeWeekConfigurationSnapshot(rawWeekConfigById[weekId], fallbackAreaId, fallbackSnapshot);
+    }
     return {
         employees: raw.employees,
         roles: raw.roles,
@@ -94,82 +218,17 @@ function mapUnknownState(raw) {
         shiftRanges: raw.shiftRanges ?? defaultShiftRanges,
         validationRequirements: raw.validationRequirements ?? defaultValidationRequirements,
         breakConfig: raw.breakConfig ?? defaultBreakConfig,
-        timeSlotsByArea: raw.timeSlotsByArea && typeof raw.timeSlotsByArea === 'object'
-            ? {
-                salon: raw.timeSlotsByArea.salon ??
-                    raw.timeSlots,
-                cocina: raw.timeSlotsByArea.cocina ??
-                    raw.timeSlots,
-                oficina: raw.timeSlotsByArea.oficina ??
-                    raw.timeSlots,
-                produccion: raw.timeSlotsByArea.produccion ??
-                    raw.timeSlots
-            }
-            : {
-                salon: raw.timeSlots,
-                cocina: raw.timeSlots,
-                oficina: raw.timeSlots,
-                produccion: raw.timeSlots
-            },
-        shiftRangesByArea: raw.shiftRangesByArea && typeof raw.shiftRangesByArea === 'object'
-            ? {
-                salon: raw.shiftRangesByArea.salon ??
-                    (raw.shiftRanges ?? defaultShiftRanges),
-                cocina: raw.shiftRangesByArea.cocina ??
-                    (raw.shiftRanges ?? defaultShiftRanges),
-                oficina: raw.shiftRangesByArea.oficina ??
-                    (raw.shiftRanges ?? defaultShiftRanges),
-                produccion: raw.shiftRangesByArea.produccion ??
-                    (raw.shiftRanges ?? defaultShiftRanges)
-            }
-            : {
-                salon: (raw.shiftRanges ?? defaultShiftRanges),
-                cocina: (raw.shiftRanges ?? defaultShiftRanges),
-                oficina: (raw.shiftRanges ?? defaultShiftRanges),
-                produccion: (raw.shiftRanges ?? defaultShiftRanges)
-            },
-        validationRequirementsByArea: raw.validationRequirementsByArea && typeof raw.validationRequirementsByArea === 'object'
-            ? {
-                salon: raw.validationRequirementsByArea.salon ??
-                    (raw.validationRequirements ?? defaultValidationRequirements),
-                cocina: raw.validationRequirementsByArea.cocina ??
-                    (raw.validationRequirements ?? defaultValidationRequirements),
-                oficina: raw.validationRequirementsByArea.oficina ??
-                    (raw.validationRequirements ?? defaultValidationRequirements),
-                produccion: raw.validationRequirementsByArea.produccion ??
-                    (raw.validationRequirements ?? defaultValidationRequirements)
-            }
-            : {
-                salon: (raw.validationRequirements ?? defaultValidationRequirements),
-                cocina: (raw.validationRequirements ?? defaultValidationRequirements),
-                oficina: (raw.validationRequirements ?? defaultValidationRequirements),
-                produccion: (raw.validationRequirements ?? defaultValidationRequirements)
-            },
-        breakConfigByArea: raw.breakConfigByArea && typeof raw.breakConfigByArea === 'object'
-            ? {
-                salon: raw.breakConfigByArea.salon ??
-                    (raw.breakConfig ?? defaultBreakConfig),
-                cocina: raw.breakConfigByArea.cocina ??
-                    (raw.breakConfig ?? defaultBreakConfig),
-                oficina: raw.breakConfigByArea.oficina ??
-                    (raw.breakConfig ?? defaultBreakConfig),
-                produccion: raw.breakConfigByArea.produccion ??
-                    (raw.breakConfig ?? defaultBreakConfig)
-            }
-            : {
-                salon: (raw.breakConfig ?? defaultBreakConfig),
-                cocina: (raw.breakConfig ?? defaultBreakConfig),
-                oficina: (raw.breakConfig ?? defaultBreakConfig),
-                produccion: (raw.breakConfig ?? defaultBreakConfig)
-            },
+        timeSlotsByArea,
+        shiftRangesByArea,
+        validationRequirementsByArea,
+        breakConfigByArea,
         weeks: raw.weeks,
         weekPlans: raw.weekPlans,
-        validatedWeekIds: Array.isArray(raw.validatedWeekIds)
-            ? raw.validatedWeekIds.filter((value) => typeof value === 'string')
-            : [],
+        validatedWeekIds,
         weekAuditById: raw.weekAuditById && typeof raw.weekAuditById === 'object'
             ? raw.weekAuditById
-            : {}
+            : {},
+        weekConfigById
     };
 }
 export async function getOrCreatePlannerState() {
@@ -199,15 +258,13 @@ export async function updateValidationRequirements(payload) {
             ...current.validationRequirementsByArea,
             [payload.areaId]: sanitized
         },
-        validatedWeekIds: [],
-        weekAuditById: clearAllWeekValidators(current.weekAuditById)
+        weekConfigById: current.weekConfigById
     };
     const updated = await PlannerStateModel.findOneAndUpdate({ key: STATE_KEY }, {
         $set: {
             validationRequirements: nextState.validationRequirements,
             validationRequirementsByArea: nextState.validationRequirementsByArea,
-            validatedWeekIds: nextState.validatedWeekIds,
-            weekAuditById: nextState.weekAuditById
+            weekConfigById: nextState.weekConfigById
         }
     }, { upsert: true, new: true, setDefaultsOnInsert: true, lean: true });
     if (!updated) {

@@ -43,6 +43,14 @@ export type TimeSlotsByArea = Record<AreaId, TimeSlot[]>;
 export type ShiftRangesByArea = Record<AreaId, ShiftRanges>;
 export type ValidationRequirementsByArea = Record<AreaId, ValidationRequirements>;
 export type BreakConfigByArea = Record<AreaId, BreakConfig>;
+export type WeekConfigurationSnapshot = {
+  areaId: AreaId;
+  timeSlots: TimeSlot[];
+  shiftRanges: ShiftRanges;
+  validationRequirements: ValidationRequirements;
+  breakConfig: BreakConfig;
+};
+export type WeekConfigurationById = Record<string, WeekConfigurationSnapshot>;
 
 export type Role = {
   id: string;

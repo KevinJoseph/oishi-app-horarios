@@ -250,6 +250,7 @@ export function buildSeedState() {
         weeks,
         weekPlans,
         validatedWeekIds: [],
-        weekAuditById
+        weekAuditById,
+        weekConfigById: {}
     };
 }

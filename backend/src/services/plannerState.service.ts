@@ -5,7 +5,9 @@ import {
   type AreaId,
   type PlannerStatePayload,
   type ValidationRequirements,
-  type ValidationRequirementsUpdatePayload
+  type ValidationRequirementsUpdatePayload,
+  type WeekConfigurationById,
+  type WeekConfigurationSnapshot
 } from '../types/planner.js';
 
 const STATE_KEY = 'default';
@@ -59,6 +61,67 @@ function clearAllWeekValidators(weekAuditById: PlannerStatePayload['weekAuditByI
   return next;
 }
 
+function cloneTimeSlots(input: PlannerStatePayload['timeSlots']): PlannerStatePayload['timeSlots'] {
+  return input.map((slot) => ({ ...slot }));
+}
+
+function cloneShiftRanges(input: PlannerStatePayload['shiftRanges']): PlannerStatePayload['shiftRanges'] {
+  return {
+    day: { ...input.day },
+    night: { ...input.night }
+  };
+}
+
+function cloneValidationRequirements(input: PlannerStatePayload['validationRequirements']): PlannerStatePayload['validationRequirements'] {
+  return sanitizeValidationRequirements(input);
+}
+
+function cloneBreakConfig(input: PlannerStatePayload['breakConfig']): PlannerStatePayload['breakConfig'] {
+  return {
+    enabled: Boolean(input.enabled),
+    startHour: input.startHour,
+    endHour: input.endHour
+  };
+}
+
+function buildWeekConfigurationSnapshot(
+  areaId: AreaId,
+  timeSlotsByArea: PlannerStatePayload['timeSlotsByArea'],
+  shiftRangesByArea: PlannerStatePayload['shiftRangesByArea'],
+  validationRequirementsByArea: PlannerStatePayload['validationRequirementsByArea'],
+  breakConfigByArea: PlannerStatePayload['breakConfigByArea']
+): WeekConfigurationSnapshot {
+  return {
+    areaId,
+    timeSlots: cloneTimeSlots(timeSlotsByArea[areaId]),
+    shiftRanges: cloneShiftRanges(shiftRangesByArea[areaId]),
+    validationRequirements: cloneValidationRequirements(validationRequirementsByArea[areaId]),
+    breakConfig: cloneBreakConfig(breakConfigByArea[areaId])
+  };
+}
+
+function sanitizeWeekConfigurationSnapshot(
+  input: unknown,
+  fallbackAreaId: AreaId,
+  fallback: WeekConfigurationSnapshot
+): WeekConfigurationSnapshot {
+  const source = (input ?? {}) as Partial<WeekConfigurationSnapshot>;
+  const areaId = isAreaId(source.areaId) ? source.areaId : fallbackAreaId;
+  return {
+    areaId,
+    timeSlots: Array.isArray(source.timeSlots) ? cloneTimeSlots(source.timeSlots as PlannerStatePayload['timeSlots']) : cloneTimeSlots(fallback.timeSlots),
+    shiftRanges:
+      source.shiftRanges && typeof source.shiftRanges === 'object'
+        ? cloneShiftRanges(source.shiftRanges as PlannerStatePayload['shiftRanges'])
+        : cloneShiftRanges(fallback.shiftRanges),
+    validationRequirements: cloneValidationRequirements(source.validationRequirements ?? fallback.validationRequirements),
+    breakConfig:
+      source.breakConfig && typeof source.breakConfig === 'object'
+        ? cloneBreakConfig(source.breakConfig as PlannerStatePayload['breakConfig'])
+        : cloneBreakConfig(fallback.breakConfig)
+  };
+}
+
 function sanitizePayload(payload: PlannerStatePayload): PlannerStatePayload {
   return {
     employees: payload.employees,
@@ -75,7 +138,8 @@ function sanitizePayload(payload: PlannerStatePayload): PlannerStatePayload {
     weeks: payload.weeks,
     weekPlans: payload.weekPlans,
     validatedWeekIds: payload.validatedWeekIds,
-    weekAuditById: payload.weekAuditById
+    weekAuditById: payload.weekAuditById,
+    weekConfigById: payload.weekConfigById
   };
 }
 
@@ -95,6 +159,7 @@ function mapUnknownState(raw: {
   weekPlans: Record<string, unknown>;
   validatedWeekIds?: unknown;
   weekAuditById?: unknown;
+  weekConfigById?: unknown;
 }): PlannerStatePayload {
   const defaultShiftRanges = {
     day: { startHour: 12, endHour: 17 },
@@ -115,6 +180,114 @@ function mapUnknownState(raw: {
     endHour: 17
   };
 
+  const timeSlotsByArea =
+    raw.timeSlotsByArea && typeof raw.timeSlotsByArea === 'object'
+      ? ({
+          salon:
+            (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).salon ??
+            (raw.timeSlots as PlannerStatePayload['timeSlots']),
+          cocina:
+            (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).cocina ??
+            (raw.timeSlots as PlannerStatePayload['timeSlots']),
+          oficina:
+            (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).oficina ??
+            (raw.timeSlots as PlannerStatePayload['timeSlots']),
+          produccion:
+            (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).produccion ??
+            (raw.timeSlots as PlannerStatePayload['timeSlots'])
+        } satisfies PlannerStatePayload['timeSlotsByArea'])
+      : {
+          salon: raw.timeSlots as PlannerStatePayload['timeSlots'],
+          cocina: raw.timeSlots as PlannerStatePayload['timeSlots'],
+          oficina: raw.timeSlots as PlannerStatePayload['timeSlots'],
+          produccion: raw.timeSlots as PlannerStatePayload['timeSlots']
+        };
+  const shiftRangesByArea =
+    raw.shiftRangesByArea && typeof raw.shiftRangesByArea === 'object'
+      ? ({
+          salon:
+            (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).salon ??
+            ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+          cocina:
+            (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).cocina ??
+            ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+          oficina:
+            (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).oficina ??
+            ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+          produccion:
+            (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).produccion ??
+            ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges)
+        } satisfies PlannerStatePayload['shiftRangesByArea'])
+      : {
+          salon: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+          cocina: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+          oficina: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
+          produccion: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges)
+        };
+  const validationRequirementsByArea =
+    raw.validationRequirementsByArea && typeof raw.validationRequirementsByArea === 'object'
+      ? ({
+          salon:
+            (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).salon ??
+            ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+          cocina:
+            (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).cocina ??
+            ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+          oficina:
+            (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).oficina ??
+            ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+          produccion:
+            (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).produccion ??
+            ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements)
+        } satisfies PlannerStatePayload['validationRequirementsByArea'])
+      : {
+          salon: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+          cocina: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+          oficina: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
+          produccion: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements)
+        };
+  const breakConfigByArea =
+    raw.breakConfigByArea && typeof raw.breakConfigByArea === 'object'
+      ? ({
+          salon:
+            (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).salon ??
+            ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+          cocina:
+            (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).cocina ??
+            ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+          oficina:
+            (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).oficina ??
+            ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+          produccion:
+            (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).produccion ??
+            ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig)
+        } satisfies PlannerStatePayload['breakConfigByArea'])
+      : {
+          salon: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+          cocina: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+          oficina: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
+          produccion: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig)
+        };
+  const validatedWeekIds = Array.isArray(raw.validatedWeekIds)
+    ? raw.validatedWeekIds.filter((value): value is string => typeof value === 'string')
+    : [];
+  const rawWeekConfigById =
+    raw.weekConfigById && typeof raw.weekConfigById === 'object'
+      ? (raw.weekConfigById as Record<string, unknown>)
+      : {};
+  const weekConfigById: WeekConfigurationById = {};
+  for (const weekId of validatedWeekIds) {
+    const fallbackAreaId = isAreaId(weekId.split('::')[0]) ? (weekId.split('::')[0] as AreaId) : 'salon';
+    const fallbackSnapshot = buildWeekConfigurationSnapshot(
+      fallbackAreaId,
+      timeSlotsByArea,
+      shiftRangesByArea,
+      validationRequirementsByArea,
+      breakConfigByArea
+    );
+    weekConfigById[weekId] = sanitizeWeekConfigurationSnapshot(rawWeekConfigById[weekId], fallbackAreaId, fallbackSnapshot);
+  }
+
   return {
     employees: raw.employees as PlannerStatePayload['employees'],
     roles: raw.roles as PlannerStatePayload['roles'],
@@ -124,103 +297,18 @@ function mapUnknownState(raw: {
     validationRequirements:
       (raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements,
     breakConfig: (raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig,
-    timeSlotsByArea:
-      raw.timeSlotsByArea && typeof raw.timeSlotsByArea === 'object'
-        ? ({
-            salon:
-              (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).salon ??
-              (raw.timeSlots as PlannerStatePayload['timeSlots']),
-            cocina:
-              (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).cocina ??
-              (raw.timeSlots as PlannerStatePayload['timeSlots']),
-            oficina:
-              (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).oficina ??
-              (raw.timeSlots as PlannerStatePayload['timeSlots']),
-            produccion:
-              (raw.timeSlotsByArea as Partial<PlannerStatePayload['timeSlotsByArea']>).produccion ??
-              (raw.timeSlots as PlannerStatePayload['timeSlots'])
-          } satisfies PlannerStatePayload['timeSlotsByArea'])
-        : {
-            salon: raw.timeSlots as PlannerStatePayload['timeSlots'],
-            cocina: raw.timeSlots as PlannerStatePayload['timeSlots'],
-            oficina: raw.timeSlots as PlannerStatePayload['timeSlots'],
-            produccion: raw.timeSlots as PlannerStatePayload['timeSlots']
-          },
-    shiftRangesByArea:
-      raw.shiftRangesByArea && typeof raw.shiftRangesByArea === 'object'
-        ? ({
-            salon:
-              (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).salon ??
-              ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
-            cocina:
-              (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).cocina ??
-              ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
-            oficina:
-              (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).oficina ??
-              ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
-            produccion:
-              (raw.shiftRangesByArea as Partial<PlannerStatePayload['shiftRangesByArea']>).produccion ??
-              ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges)
-          } satisfies PlannerStatePayload['shiftRangesByArea'])
-        : {
-            salon: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
-            cocina: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
-            oficina: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges),
-            produccion: ((raw.shiftRanges as PlannerStatePayload['shiftRanges']) ?? defaultShiftRanges)
-          },
-    validationRequirementsByArea:
-      raw.validationRequirementsByArea && typeof raw.validationRequirementsByArea === 'object'
-        ? ({
-            salon:
-              (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).salon ??
-              ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
-            cocina:
-              (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).cocina ??
-              ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
-            oficina:
-              (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).oficina ??
-              ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
-            produccion:
-              (raw.validationRequirementsByArea as Partial<PlannerStatePayload['validationRequirementsByArea']>).produccion ??
-              ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements)
-          } satisfies PlannerStatePayload['validationRequirementsByArea'])
-        : {
-            salon: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
-            cocina: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
-            oficina: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements),
-            produccion: ((raw.validationRequirements as PlannerStatePayload['validationRequirements']) ?? defaultValidationRequirements)
-          },
-    breakConfigByArea:
-      raw.breakConfigByArea && typeof raw.breakConfigByArea === 'object'
-        ? ({
-            salon:
-              (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).salon ??
-              ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
-            cocina:
-              (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).cocina ??
-              ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
-            oficina:
-              (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).oficina ??
-              ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
-            produccion:
-              (raw.breakConfigByArea as Partial<PlannerStatePayload['breakConfigByArea']>).produccion ??
-              ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig)
-          } satisfies PlannerStatePayload['breakConfigByArea'])
-        : {
-            salon: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
-            cocina: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
-            oficina: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig),
-            produccion: ((raw.breakConfig as PlannerStatePayload['breakConfig']) ?? defaultBreakConfig)
-          },
+    timeSlotsByArea,
+    shiftRangesByArea,
+    validationRequirementsByArea,
+    breakConfigByArea,
     weeks: raw.weeks as PlannerStatePayload['weeks'],
     weekPlans: raw.weekPlans as PlannerStatePayload['weekPlans'],
-    validatedWeekIds: Array.isArray(raw.validatedWeekIds)
-      ? raw.validatedWeekIds.filter((value): value is string => typeof value === 'string')
-      : [],
+    validatedWeekIds,
     weekAuditById:
       raw.weekAuditById && typeof raw.weekAuditById === 'object'
         ? (raw.weekAuditById as PlannerStatePayload['weekAuditById'])
-        : {}
+        : {},
+    weekConfigById
   };
 }
 
@@ -262,8 +350,7 @@ export async function updateValidationRequirements(
       ...current.validationRequirementsByArea,
       [payload.areaId]: sanitized
     },
-    validatedWeekIds: [],
-    weekAuditById: clearAllWeekValidators(current.weekAuditById)
+    weekConfigById: current.weekConfigById
   };
 
   const updated = await PlannerStateModel.findOneAndUpdate(
@@ -272,8 +359,7 @@ export async function updateValidationRequirements(
       $set: {
         validationRequirements: nextState.validationRequirements,
         validationRequirementsByArea: nextState.validationRequirementsByArea,
-        validatedWeekIds: nextState.validatedWeekIds,
-        weekAuditById: nextState.weekAuditById
+        weekConfigById: nextState.weekConfigById
       }
     },
     { upsert: true, new: true, setDefaultsOnInsert: true, lean: true }

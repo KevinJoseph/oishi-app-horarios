@@ -74,12 +74,13 @@ export function EmployeesPage(): JSX.Element {
   } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
-  const timeSlots = useAppStore((state) => state.timeSlots);
+  const areaTimeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
   const currentAreaId = useAppStore((state) => state.currentAreaId);
   const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
   const weekAuditById = useAppStore((state) => state.weekAuditById);
+  const weekConfigById = useAppStore((state) => state.weekConfigById);
   const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
   const deleteEmployee = useAppStore((state) => state.deleteEmployee);
@@ -100,6 +101,9 @@ export function EmployeesPage(): JSX.Element {
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
   const currentWeekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
   const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
+  const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
+  const effectiveWeekConfig = currentScopedWeekId && isCurrentWeekValidated ? weekConfigById[currentScopedWeekId] : undefined;
+  const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return employees;

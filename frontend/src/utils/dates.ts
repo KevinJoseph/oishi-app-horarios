@@ -1,8 +1,12 @@
-import { addDays, addWeeks, endOfMonth, format, parseISO, startOfMonth, startOfWeek } from 'date-fns';
+import { addDays, addWeeks, differenceInCalendarWeeks, endOfMonth, format, formatISO, parseISO, startOfMonth, startOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export function getCurrentMonday(): Date {
   return startOfWeek(new Date(), { weekStartsOn: 1 });
+}
+
+export function getCurrentWeekStartDateISO(): string {
+  return formatISO(getCurrentMonday(), { representation: 'date' });
 }
 
 export function formatDayNameEs(dateISO: string): string {
@@ -12,6 +16,13 @@ export function formatDayNameEs(dateISO: string): string {
 export function buildWeekLabel(startDate: Date): string {
   const endDate = addDays(startDate, 6);
   return `${format(startDate, 'dd/MM')} - ${format(endDate, 'dd/MM')}`;
+}
+
+export function buildRelativeWeekLabel(startDate: Date): string {
+  const diff = differenceInCalendarWeeks(startDate, getCurrentMonday(), { weekStartsOn: 1 });
+  if (diff === 0) return 'Semana actual';
+  if (diff > 0) return 'Semana siguiente';
+  return 'Semana anterior';
 }
 
 export function buildMonthLabel(date: Date): string {
@@ -34,13 +45,6 @@ export function getMonthWeeks(date: Date): Date[] {
   }
 
   return weeks;
-}
-
-export function getWeekNumberInMonth(weekStartDate: Date): number {
-  const weeks = getMonthWeeks(weekStartDate);
-  const target = format(weekStartDate, 'yyyy-MM-dd');
-  const index = weeks.findIndex((week) => format(week, 'yyyy-MM-dd') === target);
-  return index >= 0 ? index + 1 : 1;
 }
 
 function capitalize(value: string): string {

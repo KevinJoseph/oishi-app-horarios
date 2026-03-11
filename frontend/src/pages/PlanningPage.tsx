@@ -21,6 +21,7 @@ import {
   useDisclosure,
   useToast
 } from '@chakra-ui/react';
+import { differenceInCalendarWeeks, formatISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import { FiAlertTriangle, FiCheckCircle, FiDownload, FiEye, FiXCircle } from 'react-icons/fi';
 import { CellEditorModal } from '../components/CellEditorModal';
@@ -33,6 +34,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Assignment } from '../types';
 import { isTimeSlotInBreak } from '../utils/breaks';
+import { getCurrentMonday } from '../utils/dates';
 import { downloadDaySchedulePdf } from '../utils/pdf';
 import { getOpeningClosingSummary } from '../utils/summary';
 
@@ -48,20 +50,26 @@ export function PlanningPage(): JSX.Element {
   const { isOpen: isProfileOpen, onOpen: openProfile, onClose: closeProfile } = useDisclosure();
   const { isOpen: isEditorOpen, onOpen: openEditor, onClose: closeEditor } = useDisclosure();
   const { isOpen: isValidateModalOpen, onOpen: openValidateModal, onClose: closeValidateModal } = useDisclosure();
+  const {
+    isOpen: isBlockedNextWeekModalOpen,
+    onOpen: openBlockedNextWeekModal,
+    onClose: closeBlockedNextWeekModal
+  } = useDisclosure();
 
   const allEmployees = useAppStore((state) => state.employees);
   const allRoles = useAppStore((state) => state.roles);
   const currentAreaId = useAppStore((state) => state.currentAreaId);
-  const timeSlots = useAppStore((state) => state.timeSlots);
+  const areaTimeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
   const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
   const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
   const weekAuditById = useAppStore((state) => state.weekAuditById);
-  const validationRequirements = useAppStore(
+  const areaValidationRequirements = useAppStore(
     (state) => state.validationRequirementsByArea[state.currentAreaId] ?? state.validationRequirements
   );
-  const breakConfig = useAppStore((state) => state.breakConfig);
+  const areaBreakConfig = useAppStore((state) => state.breakConfig);
+  const weekConfigById = useAppStore((state) => state.weekConfigById);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
   const updateAssignment = useAppStore((state) => state.updateAssignment);
   const updateEmployeeDayAssignments = useAppStore((state) => state.updateEmployeeDayAssignments);
@@ -70,7 +78,9 @@ export function PlanningPage(): JSX.Element {
   const desvalidateWeekPlan = useAppStore((state) => state.desvalidateWeekPlan);
   const currentUser = useAuthStore((state) => state.currentUser);
   const isSupervisor = currentUser?.role === 'supervisor';
-  const canEdit = currentUser?.role === 'administrador' || isSupervisor;
+  const isAdministrator = currentUser?.role === 'administrador';
+  const canEdit = isAdministrator || isSupervisor;
+  const canValidate = isAdministrator || isSupervisor;
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [selectedCell, setSelectedCell] = useState<SelectedCell>(null);
@@ -90,6 +100,37 @@ export function PlanningPage(): JSX.Element {
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
   const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
   const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
+  const effectiveWeekConfig = currentScopedWeekId && isCurrentWeekValidated ? weekConfigById[currentScopedWeekId] : undefined;
+  const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
+  const validationRequirements = effectiveWeekConfig?.validationRequirements ?? areaValidationRequirements;
+  const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
+  const currentWorkflowWeekStartDateISO = useMemo(() => formatISO(getCurrentMonday(), { representation: 'date' }), []);
+  const workflowWeek = useMemo(
+    () => weeks.find((week) => week.startDateISO === currentWorkflowWeekStartDateISO) ?? null,
+    [currentWorkflowWeekStartDateISO, weeks]
+  );
+  const workflowScopedWeekId = workflowWeek ? scopedWeekKey(currentAreaId, workflowWeek.id) : null;
+  const isWorkflowWeekValidated = workflowScopedWeekId ? validatedWeekIds.includes(workflowScopedWeekId) : false;
+  const isSelectedNextWorkflowWeek = useMemo(() => {
+    if (!currentWeek) return false;
+    return differenceInCalendarWeeks(new Date(currentWeek.startDateISO), new Date(currentWorkflowWeekStartDateISO), {
+      weekStartsOn: 1
+    }) === 1;
+  }, [currentWeek, currentWorkflowWeekStartDateISO]);
+  const shouldPromptValidateCurrentWeekFirst =
+    canEdit && isSelectedNextWorkflowWeek && !isWorkflowWeekValidated && !isCurrentWeekValidated;
+  const canEditWeek = useMemo(() => {
+    if (!canEdit || isCurrentWeekValidated || !currentWeek) return false;
+    if (currentWeek.startDateISO <= currentWorkflowWeekStartDateISO) return true;
+
+    const orderedWeeks = [...weeks].sort((a, b) => a.startDateISO.localeCompare(b.startDateISO));
+    const currentIndex = orderedWeeks.findIndex((week) => week.id === currentWeek.id);
+    if (currentIndex <= 0) return true;
+
+    const previousWeek = orderedWeeks[currentIndex - 1];
+    const previousScopedWeekId = scopedWeekKey(currentAreaId, previousWeek.id);
+    return validatedWeekIds.includes(previousScopedWeekId);
+  }, [canEdit, currentAreaId, currentWeek, currentWorkflowWeekStartDateISO, isCurrentWeekValidated, validatedWeekIds, weeks]);
   useEffect(() => {
     if (currentWeek) ensureWeekPlan(currentWeek);
   }, [currentWeek, currentAreaId, ensureWeekPlan]);
@@ -297,7 +338,7 @@ export function PlanningPage(): JSX.Element {
                 >
                   Exportar PDF
                 </Button>
-                {isSupervisor ? (
+                {canValidate ? (
                   <Tooltip
                     label={
                       isCurrentWeekValidated
@@ -346,15 +387,18 @@ export function PlanningPage(): JSX.Element {
                       timeSlots={timeSlots}
                       employeeHoursById={employeeHoursById}
                       showEmployeeCodeInCells
-                      readOnly={!canEdit}
-                      onCellClick={
-                        canEdit
-                          ? (cell) => {
-                              setSelectedCell(cell);
-                              openEditor();
-                            }
-                          : undefined
-                      }
+                      readOnly={!canEditWeek}
+                      allowCellClickWhenReadOnly={shouldPromptValidateCurrentWeekFirst}
+                      onCellClick={(cell) => {
+                        if (canEditWeek) {
+                          setSelectedCell(cell);
+                          openEditor();
+                          return;
+                        }
+                        if (shouldPromptValidateCurrentWeekFirst) {
+                          openBlockedNextWeekModal();
+                        }
+                      }}
                       onEmployeeClick={(employeeId) => {
                         setSelectedEmployeeId(employeeId);
                         openProfile();
@@ -537,6 +581,10 @@ export function PlanningPage(): JSX.Element {
             toast({ status: 'error', title: 'Perfil lector: solo visualización.' });
             return;
           }
+          if (isCurrentWeekValidated) {
+            toast({ status: 'error', title: 'La semana validada está en solo lectura. Retorna la validación para editar.' });
+            return;
+          }
           if (!selectedCell || !activeDay || !currentWeek) return;
           let result;
           if (applyToEmployeeDay && dayHours !== undefined) {
@@ -614,6 +662,21 @@ export function PlanningPage(): JSX.Element {
                 {isCurrentWeekValidated ? 'Confirmar retorno' : 'Confirmar validación'}
               </Button>
             </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal isOpen={isBlockedNextWeekModalOpen} onClose={closeBlockedNextWeekModal} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Validación requerida</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>Debes validar la semana actual para poder editar la planificación de la semana siguiente.</Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="brand" onClick={closeBlockedNextWeekModal}>
+              Entendido
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

@@ -23,6 +23,7 @@ type Props = {
   onEmployeeClick?: (employeeId: string) => void;
   showEmployeeCodeInCells?: boolean;
   readOnly?: boolean;
+  allowCellClickWhenReadOnly?: boolean;
   compact?: boolean;
   maxTableHeight?: string;
 };
@@ -37,6 +38,7 @@ export function DayGrid({
   onEmployeeClick,
   showEmployeeCodeInCells = false,
   readOnly = false,
+  allowCellClickWhenReadOnly = false,
   compact = false,
   maxTableHeight
 }: Props): JSX.Element {
@@ -123,7 +125,9 @@ export function DayGrid({
                         role={role}
                         labelOverride={assignment.roleId ? (showEmployeeCodeInCells ? employee.code ?? employee.name : undefined) : undefined}
                         onClick={
-                          readOnly ? undefined : () => onCellClick?.({ timeSlotId: slot.id, employeeId: employee.id, assignment })
+                          readOnly && !allowCellClickWhenReadOnly
+                            ? undefined
+                            : () => onCellClick?.({ timeSlotId: slot.id, employeeId: employee.id, assignment })
                         }
                       />
                     </Box>

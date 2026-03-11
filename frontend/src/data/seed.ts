@@ -11,6 +11,8 @@ import type {
   TimeSlotsByArea,
   ValidationRequirements,
   ValidationRequirementsByArea,
+  WeekConfigurationById,
+  WeekConfigurationSnapshot,
   WeekAudit,
   WeekPlan
 } from '../types';
@@ -35,6 +37,7 @@ export type SeedState = {
   weekPlans: Record<string, WeekPlan>;
   validatedWeekIds: string[];
   weekAuditById: Record<string, WeekAudit>;
+  weekConfigById: WeekConfigurationById;
 };
 
 function scopedWeekKey(areaId: AreaId, weekId: string): string {
@@ -135,6 +138,53 @@ function buildDefaultBreakConfig(timeSlots: SeedState['timeSlots']): BreakConfig
     enabled: false,
     startHour: fallbackStart,
     endHour: fallbackEnd
+  };
+}
+
+function cloneShiftRanges(input: ShiftRanges): ShiftRanges {
+  return {
+    day: { ...input.day },
+    night: { ...input.night }
+  };
+}
+
+function cloneBreakConfig(input: BreakConfig): BreakConfig {
+  return {
+    enabled: Boolean(input.enabled),
+    startHour: input.startHour,
+    endHour: input.endHour
+  };
+}
+
+function buildWeekConfigurationSnapshot(
+  areaId: AreaId,
+  timeSlotsByArea: TimeSlotsByArea,
+  shiftRangesByArea: ShiftRangesByArea,
+  validationRequirementsByArea: ValidationRequirementsByArea,
+  breakConfigByArea: BreakConfigByArea
+): WeekConfigurationSnapshot {
+  return {
+    areaId,
+    timeSlots: cloneTimeSlots(timeSlotsByArea[areaId]),
+    shiftRanges: cloneShiftRanges(shiftRangesByArea[areaId]),
+    validationRequirements: normalizeValidationRequirements(validationRequirementsByArea[areaId]),
+    breakConfig: cloneBreakConfig(breakConfigByArea[areaId])
+  };
+}
+
+function normalizeWeekConfigurationSnapshot(
+  input: unknown,
+  fallbackAreaId: AreaId,
+  fallback: WeekConfigurationSnapshot
+): WeekConfigurationSnapshot {
+  const source = (input ?? {}) as Partial<WeekConfigurationSnapshot>;
+  const areaId = AREA_IDS.includes(source.areaId as AreaId) ? (source.areaId as AreaId) : fallbackAreaId;
+  return {
+    areaId,
+    timeSlots: Array.isArray(source.timeSlots) ? cloneTimeSlots(source.timeSlots) : cloneTimeSlots(fallback.timeSlots),
+    shiftRanges: source.shiftRanges ? normalizeShiftRanges(source.shiftRanges, fallback.timeSlots) : cloneShiftRanges(fallback.shiftRanges),
+    validationRequirements: normalizeValidationRequirements(source.validationRequirements ?? fallback.validationRequirements),
+    breakConfig: source.breakConfig ? normalizeBreakConfig(source.breakConfig, fallback.timeSlots) : cloneBreakConfig(fallback.breakConfig)
   };
 }
 
@@ -247,12 +297,26 @@ export function normalizePlannerState(input: SeedState): SeedState {
     });
   const weekAuditById: Record<string, WeekAudit> = {};
   const inputWeekAuditById = (input.weekAuditById ?? {}) as Record<string, unknown>;
+  const inputWeekConfigById = (input.weekConfigById ?? {}) as Record<string, unknown>;
   for (const week of normalizedWeeks) {
     for (const areaId of AREA_IDS) {
       const scopedKey = scopedWeekKey(areaId, week.id);
       const legacyKey = areaId === DEFAULT_AREA_ID ? week.id : '';
       weekAuditById[scopedKey] = sanitizeWeekAudit(inputWeekAuditById[scopedKey] ?? (legacyKey ? inputWeekAuditById[legacyKey] : undefined));
     }
+  }
+  const weekConfigById: WeekConfigurationById = {};
+  for (const scopedKey of validatedWeekIds) {
+    const [areaIdFromKey] = scopedKey.split('::');
+    const areaId = AREA_IDS.includes(areaIdFromKey as AreaId) ? (areaIdFromKey as AreaId) : DEFAULT_AREA_ID;
+    const fallbackSnapshot = buildWeekConfigurationSnapshot(
+      areaId,
+      timeSlotsByArea,
+      shiftRangesByArea,
+      validationRequirementsByArea,
+      breakConfigByArea
+    );
+    weekConfigById[scopedKey] = normalizeWeekConfigurationSnapshot(inputWeekConfigById[scopedKey], areaId, fallbackSnapshot);
   }
 
   return {
@@ -270,7 +334,8 @@ export function normalizePlannerState(input: SeedState): SeedState {
     weeks: normalizedWeeks,
     weekPlans,
     validatedWeekIds,
-    weekAuditById
+    weekAuditById,
+    weekConfigById
   };
 }
 
@@ -339,7 +404,8 @@ export function loadSeedState(): SeedState {
     weeks,
     weekPlans,
     validatedWeekIds: [],
-    weekAuditById
+    weekAuditById,
+    weekConfigById: {}
   };
 }
 

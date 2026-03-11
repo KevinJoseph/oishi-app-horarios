@@ -13,11 +13,12 @@ export function WeeklyOverviewPage(): JSX.Element {
   const allEmployees = useAppStore((state) => state.employees);
   const allRoles = useAppStore((state) => state.roles);
   const currentAreaId = useAppStore((state) => state.currentAreaId);
-  const timeSlots = useAppStore((state) => state.timeSlots);
+  const areaTimeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
   const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
   const weekAuditById = useAppStore((state) => state.weekAuditById);
+  const weekConfigById = useAppStore((state) => state.weekConfigById);
   const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
 
@@ -40,6 +41,9 @@ export function WeeklyOverviewPage(): JSX.Element {
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
   const currentWeekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
   const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
+  const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
+  const effectiveWeekConfig = currentScopedWeekId && isCurrentWeekValidated ? weekConfigById[currentScopedWeekId] : undefined;
+  const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
   const days = currentWeekPlan?.days ?? [];
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);
   const assignedHoursByEmployee = useMemo(() => {
@@ -75,11 +79,12 @@ export function WeeklyOverviewPage(): JSX.Element {
     <Box>
       <Card mb={4}>
         <CardBody>
-          <Flex justify="space-between" align="center" gap={3} wrap="wrap">
+          <Flex direction={{ base: 'column', xl: 'row' }} justify="space-between" align={{ base: 'stretch', xl: 'center' }} gap={3}>
             <Heading size="md">Vista General</Heading>
-            <HStack>
+            <HStack spacing={2} align="center" wrap={{ base: 'wrap', xl: 'nowrap' }} justify="flex-end">
               <Select
                 maxW="220px"
+                minW="160px"
                 value={viewMode}
                 onChange={(event) => setViewMode(event.target.value as 'personal' | 'weeks' | 'grid')}
               >
@@ -89,7 +94,9 @@ export function WeeklyOverviewPage(): JSX.Element {
               </Select>
               {viewMode !== 'weeks' ? (
                 <>
-                  <WeekSelector />
+                  <Box flexShrink={0}>
+                    <WeekSelector compact />
+                  </Box>
                   {viewMode === 'personal' || viewMode === 'grid' ? (
                     <Button
                       colorScheme="teal"

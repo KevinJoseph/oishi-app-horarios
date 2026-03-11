@@ -15,7 +15,8 @@ const PlannerStateSchema = new Schema({
     weeks: { type: [Schema.Types.Mixed], required: true },
     weekPlans: { type: Schema.Types.Mixed, required: true },
     validatedWeekIds: { type: [String], required: true, default: [] },
-    weekAuditById: { type: Schema.Types.Mixed, required: true, default: {} }
+    weekAuditById: { type: Schema.Types.Mixed, required: true, default: {} },
+    weekConfigById: { type: Schema.Types.Mixed, required: true, default: {} }
 }, {
     timestamps: true,
     versionKey: false

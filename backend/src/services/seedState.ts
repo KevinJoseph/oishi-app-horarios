@@ -284,6 +284,7 @@ export function buildSeedState(): PlannerStatePayload {
     weeks,
     weekPlans,
     validatedWeekIds: [],
-    weekAuditById
+    weekAuditById,
+    weekConfigById: {}
   };
 }

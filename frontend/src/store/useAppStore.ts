@@ -653,7 +653,7 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
       const snapshot = toPersistableState(stateSnapshot);
       try {
         const serverState = await savePlannerState(snapshot);
-        const normalized = rebuildUnlockedWeekPlansForAllAreas(normalizePlannerState(serverState));
+        const normalized = normalizePlannerState(serverState);
         const latestState = get();
         const preferredWeekStartDateISO =
           latestState.currentWeekStartDateISO || stateSnapshot.currentWeekStartDateISO || normalized.weeks[0]?.startDateISO || '';
@@ -722,7 +722,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       const remote = await fetchPlannerState();
-      const normalized = rebuildUnlockedWeekPlansForAllAreas(normalizePlannerState(remote));
+      const normalized = normalizePlannerState(remote);
       set({
         ...normalized,
         currentWeekStartDateISO: resolveCurrentWeekStartDateISO(
@@ -805,7 +805,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     void resetPlannerStateApi()
       .then((fresh) => {
-        const normalized = rebuildUnlockedWeekPlansForAllAreas(normalizePlannerState(fresh));
+        const normalized = normalizePlannerState(fresh);
         set({
           ...normalized,
           currentWeekStartDateISO: resolveCurrentWeekStartDateISO(

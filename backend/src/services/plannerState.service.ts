@@ -276,7 +276,31 @@ function mapUnknownState(raw: {
       ? (raw.weekConfigById as Record<string, unknown>)
       : {};
   const weekConfigById: WeekConfigurationById = {};
+  const knownWeekConfigIds = new Set<string>();
+  for (const week of raw.weeks as PlannerStatePayload['weeks']) {
+    for (const areaId of AREA_IDS) {
+      knownWeekConfigIds.add(`${areaId}::${week.id}`);
+    }
+  }
+  for (const weekId of Object.keys(rawWeekConfigById)) {
+    const normalizedWeekId = weekId.includes('::') ? weekId : `salon::${weekId}`;
+    if (!knownWeekConfigIds.has(normalizedWeekId)) continue;
+    const fallbackAreaId = isAreaId(normalizedWeekId.split('::')[0]) ? (normalizedWeekId.split('::')[0] as AreaId) : 'salon';
+    const fallbackSnapshot = buildWeekConfigurationSnapshot(
+      fallbackAreaId,
+      timeSlotsByArea,
+      shiftRangesByArea,
+      validationRequirementsByArea,
+      breakConfigByArea
+    );
+    weekConfigById[normalizedWeekId] = sanitizeWeekConfigurationSnapshot(
+      rawWeekConfigById[weekId],
+      fallbackAreaId,
+      fallbackSnapshot
+    );
+  }
   for (const weekId of validatedWeekIds) {
+    if (weekConfigById[weekId]) continue;
     const fallbackAreaId = isAreaId(weekId.split('::')[0]) ? (weekId.split('::')[0] as AreaId) : 'salon';
     const fallbackSnapshot = buildWeekConfigurationSnapshot(
       fallbackAreaId,

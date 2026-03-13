@@ -59,7 +59,7 @@ export function PlanningPage(): JSX.Element {
   const allEmployees = useAppStore((state) => state.employees);
   const allRoles = useAppStore((state) => state.roles);
   const currentAreaId = useAppStore((state) => state.currentAreaId);
-  const areaTimeSlots = useAppStore((state) => state.timeSlots);
+  const areaTimeSlots = useAppStore((state) => state.timeSlotsByArea[state.currentAreaId] ?? state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
   const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
@@ -68,7 +68,7 @@ export function PlanningPage(): JSX.Element {
   const areaValidationRequirements = useAppStore(
     (state) => state.validationRequirementsByArea[state.currentAreaId] ?? state.validationRequirements
   );
-  const areaBreakConfig = useAppStore((state) => state.breakConfig);
+  const areaBreakConfig = useAppStore((state) => state.breakConfigByArea[state.currentAreaId] ?? state.breakConfig);
   const weekConfigById = useAppStore((state) => state.weekConfigById);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
   const updateAssignment = useAppStore((state) => state.updateAssignment);
@@ -100,7 +100,7 @@ export function PlanningPage(): JSX.Element {
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
   const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
   const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
-  const effectiveWeekConfig = currentScopedWeekId && isCurrentWeekValidated ? weekConfigById[currentScopedWeekId] : undefined;
+  const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
   const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
   const validationRequirements = effectiveWeekConfig?.validationRequirements ?? areaValidationRequirements;
   const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;

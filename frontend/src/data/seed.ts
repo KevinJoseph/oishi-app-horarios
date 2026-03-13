@@ -306,7 +306,32 @@ export function normalizePlannerState(input: SeedState): SeedState {
     }
   }
   const weekConfigById: WeekConfigurationById = {};
+  const knownScopedWeekIds = new Set<string>();
+  for (const week of normalizedWeeks) {
+    for (const areaId of AREA_IDS) {
+      knownScopedWeekIds.add(scopedWeekKey(areaId, week.id));
+    }
+  }
+  for (const scopedKey of Object.keys(inputWeekConfigById)) {
+    const normalizedScopedKey = scopedKey.includes('::') ? scopedKey : scopedWeekKey(DEFAULT_AREA_ID, scopedKey);
+    if (!knownScopedWeekIds.has(normalizedScopedKey)) continue;
+    const [areaIdFromKey] = normalizedScopedKey.split('::');
+    const areaId = AREA_IDS.includes(areaIdFromKey as AreaId) ? (areaIdFromKey as AreaId) : DEFAULT_AREA_ID;
+    const fallbackSnapshot = buildWeekConfigurationSnapshot(
+      areaId,
+      timeSlotsByArea,
+      shiftRangesByArea,
+      validationRequirementsByArea,
+      breakConfigByArea
+    );
+    weekConfigById[normalizedScopedKey] = normalizeWeekConfigurationSnapshot(
+      inputWeekConfigById[scopedKey],
+      areaId,
+      fallbackSnapshot
+    );
+  }
   for (const scopedKey of validatedWeekIds) {
+    if (weekConfigById[scopedKey]) continue;
     const [areaIdFromKey] = scopedKey.split('::');
     const areaId = AREA_IDS.includes(areaIdFromKey as AreaId) ? (areaIdFromKey as AreaId) : DEFAULT_AREA_ID;
     const fallbackSnapshot = buildWeekConfigurationSnapshot(

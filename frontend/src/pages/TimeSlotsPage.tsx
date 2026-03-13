@@ -20,26 +20,42 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
-import { saveValidationRequirements } from '../api/plannerApi';
+import { WeekSelector } from '../components/WeekSelector';
 import type { ValidationRequirements } from '../types';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 
 export function TimeSlotsPage(): JSX.Element {
   const toast = useToast();
-  const timeSlots = useAppStore((state) => state.timeSlots);
-  const shiftRanges = useAppStore((state) => state.shiftRanges);
   const currentAreaId = useAppStore((state) => state.currentAreaId);
-  const validationRequirements = useAppStore(
+  const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
+  const weeks = useAppStore((state) => state.weeks);
+  const weekConfigById = useAppStore((state) => state.weekConfigById);
+  const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
+  const areaTimeSlots = useAppStore((state) => state.timeSlotsByArea[state.currentAreaId] ?? state.timeSlots);
+  const areaShiftRanges = useAppStore((state) => state.shiftRangesByArea[state.currentAreaId] ?? state.shiftRanges);
+  const areaValidationRequirements = useAppStore(
     (state) => state.validationRequirementsByArea[state.currentAreaId] ?? state.validationRequirements
   );
-  const breakConfig = useAppStore((state) => state.breakConfig);
+  const areaBreakConfig = useAppStore((state) => state.breakConfigByArea[state.currentAreaId] ?? state.breakConfig);
   const setPlanningHoursRange = useAppStore((state) => state.setPlanningHoursRange);
   const setShiftRanges = useAppStore((state) => state.setShiftRanges);
   const setValidationRequirements = useAppStore((state) => state.setValidationRequirements);
   const setBreakConfig = useAppStore((state) => state.setBreakConfig);
+  const flushPersistence = useAppStore((state) => state.flushPersistence);
   const currentUser = useAuthStore((state) => state.currentUser);
   const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
+  const currentWeek = useMemo(
+    () => weeks.find((week) => week.startDateISO === currentWeekStartDateISO) ?? null,
+    [currentWeekStartDateISO, weeks]
+  );
+  const currentScopedWeekId = currentWeek ? `${currentAreaId}::${currentWeek.id}` : null;
+  const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
+  const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
+  const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
+  const shiftRanges = effectiveWeekConfig?.shiftRanges ?? areaShiftRanges;
+  const validationRequirements = effectiveWeekConfig?.validationRequirements ?? areaValidationRequirements;
+  const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
 
   const initialStartHour = useMemo(() => Number.parseInt(ordered[0]?.start.slice(0, 2) ?? '12', 10), [ordered]);
@@ -184,15 +200,35 @@ export function TimeSlotsPage(): JSX.Element {
       <Card>
         <CardBody>
           <Text fontWeight="600" mb={3}>
+            Semana de Configuración
+          </Text>
+          <Text fontSize="sm" color="gray.600" mb={4}>
+            Elija aquí la semana a la que se aplicarán los horarios, turnos, refrigerio y validaciones.
+          </Text>
+          <Box maxW="360px">
+            <WeekSelector />
+          </Box>
+          {currentWeek ? (
+            <Text mt={3} fontSize="sm" color={isCurrentWeekValidated ? 'orange.600' : 'gray.600'}>
+              Semana seleccionada: {currentWeek.label}
+              {isCurrentWeekValidated ? ' (validada, solo lectura)' : ''}
+            </Text>
+          ) : null}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody>
+          <Text fontWeight="600" mb={3}>
             Configuración de Horarios
           </Text>
           <Text fontSize="sm" color="gray.600" mb={4}>
-            Define el rango de horas de planificación. Se generan bloques de 1 hora automáticamente.
+            Define el rango de horas para la semana seleccionada. Se generan bloques de 1 hora automáticamente.
           </Text>
           <HStack mb={4} align="end" spacing={3} flexWrap="wrap">
             <FormControl maxW="220px">
               <FormLabel>Hora inicio</FormLabel>
-              <Select value={startHour} onChange={(event) => setStartHour(event.target.value)} isDisabled={!canEdit}>
+              <Select value={startHour} onChange={(event) => setStartHour(event.target.value)} isDisabled={!canEdit || isCurrentWeekValidated}>
                 {hourOptions.slice(0, 23).map((hour) => (
                   <option key={hour} value={hour}>
                     {String(hour).padStart(2, '0')}:00
@@ -202,7 +238,7 @@ export function TimeSlotsPage(): JSX.Element {
             </FormControl>
             <FormControl maxW="220px">
               <FormLabel>Hora fin</FormLabel>
-              <Select value={endHour} onChange={(event) => setEndHour(event.target.value)} isDisabled={!canEdit}>
+              <Select value={endHour} onChange={(event) => setEndHour(event.target.value)} isDisabled={!canEdit || isCurrentWeekValidated}>
                 {hourOptions.slice(1).map((hour) => (
                   <option key={hour} value={hour}>
                     {String(hour).padStart(2, '0')}:00
@@ -212,7 +248,7 @@ export function TimeSlotsPage(): JSX.Element {
             </FormControl>
             <Button
               colorScheme="blue"
-              isDisabled={!canEdit}
+              isDisabled={!canEdit || isCurrentWeekValidated}
               onClick={async () => {
                 const result = setPlanningHoursRange(Number.parseInt(startHour, 10), Number.parseInt(endHour, 10));
                 if (!result.ok) {
@@ -249,17 +285,17 @@ export function TimeSlotsPage(): JSX.Element {
             Configuración de Refrigerio
           </Text>
           <Text fontSize="sm" color="gray.600" mb={4}>
-            Define si el área actual usa refrigerio y en qué horario debe mostrarse en Planificación.
+            Define si la semana seleccionada usa refrigerio y en qué horario debe mostrarse en Planificación.
           </Text>
           <Box mb={4}>
-            <Checkbox isChecked={breakEnabled} onChange={(event) => setBreakEnabled(event.target.checked)} isDisabled={!canEdit}>
+            <Checkbox isChecked={breakEnabled} onChange={(event) => setBreakEnabled(event.target.checked)} isDisabled={!canEdit || isCurrentWeekValidated}>
               Considerar refrigerio en esta área
             </Checkbox>
           </Box>
           <HStack mb={4} align="end" spacing={3} flexWrap="wrap">
             <FormControl maxW="220px" isDisabled={!breakEnabled}>
               <FormLabel>Inicio refrigerio</FormLabel>
-              <Select value={breakStartHour} onChange={(event) => setBreakStartHour(event.target.value)} isDisabled={!canEdit || !breakEnabled}>
+              <Select value={breakStartHour} onChange={(event) => setBreakStartHour(event.target.value)} isDisabled={!canEdit || !breakEnabled || isCurrentWeekValidated}>
                 {breakStartOptions.map((hour) => (
                   <option key={`break-start-${hour}`} value={hour}>
                     {String(hour).padStart(2, '0')}:00
@@ -269,7 +305,7 @@ export function TimeSlotsPage(): JSX.Element {
             </FormControl>
             <FormControl maxW="220px" isDisabled={!breakEnabled}>
               <FormLabel>Fin refrigerio</FormLabel>
-              <Select value={breakEndHour} onChange={(event) => setBreakEndHour(event.target.value)} isDisabled={!canEdit || !breakEnabled}>
+              <Select value={breakEndHour} onChange={(event) => setBreakEndHour(event.target.value)} isDisabled={!canEdit || !breakEnabled || isCurrentWeekValidated}>
                 {breakEndOptions.map((hour) => (
                   <option key={`break-end-${hour}`} value={hour}>
                     {String(hour).padStart(2, '0')}:00
@@ -279,7 +315,7 @@ export function TimeSlotsPage(): JSX.Element {
             </FormControl>
             <Button
               colorScheme="blue"
-              isDisabled={!canEdit}
+              isDisabled={!canEdit || isCurrentWeekValidated}
               onClick={async () => {
                 const result = setBreakConfig({
                   enabled: breakEnabled,
@@ -333,7 +369,7 @@ export function TimeSlotsPage(): JSX.Element {
                     colorScheme="teal"
                     variant={isActive ? 'solid' : 'outline'}
                     onClick={() => handleDayClick(slot.start, slot.end, isActive)}
-                    isDisabled={!canEdit}
+                    isDisabled={!canEdit || isCurrentWeekValidated}
                   >
                     {slot.label}
                   </Button>
@@ -356,7 +392,7 @@ export function TimeSlotsPage(): JSX.Element {
                     colorScheme="orange"
                     variant={isActive ? 'solid' : 'outline'}
                     onClick={() => handleNightClick(slot.start, slot.end, isActive)}
-                    isDisabled={!canEdit}
+                    isDisabled={!canEdit || isCurrentWeekValidated}
                   >
                     {slot.label}
                   </Button>
@@ -368,7 +404,7 @@ export function TimeSlotsPage(): JSX.Element {
           <HStack mb={4} align="end" spacing={3} flexWrap="wrap">
             <Button
               colorScheme="blue"
-              isDisabled={!canEdit}
+              isDisabled={!canEdit || isCurrentWeekValidated}
               onClick={async () => {
                 if (rangesOverlap) {
                   toast({ status: 'error', title: 'Los turnos Día y Noche no deben solaparse.' });
@@ -429,7 +465,7 @@ export function TimeSlotsPage(): JSX.Element {
             Configuración de Validaciones
           </Text>
           <Text fontSize="sm" color="gray.600" mb={4}>
-            Defina la dotación mínima de apertura y cierre por día para mostrar alertas en Notas de Planificación.
+            Defina la dotación mínima de apertura y cierre por día para la semana seleccionada.
           </Text>
           <Box overflowX="auto">
             <Table size="sm" minW="640px">
@@ -451,7 +487,7 @@ export function TimeSlotsPage(): JSX.Element {
                         maxW="120px"
                         value={String(localValidation[day]?.opening ?? 0)}
                         onChange={(event) => handleValidationInput(day, 'opening', event.target.value)}
-                        isDisabled={!canEdit}
+                        isDisabled={!canEdit || isCurrentWeekValidated}
                       />
                     </Td>
                     <Td>
@@ -461,7 +497,7 @@ export function TimeSlotsPage(): JSX.Element {
                         maxW="120px"
                         value={String(localValidation[day]?.closing ?? 0)}
                         onChange={(event) => handleValidationInput(day, 'closing', event.target.value)}
-                        isDisabled={!canEdit}
+                        isDisabled={!canEdit || isCurrentWeekValidated}
                       />
                     </Td>
                   </Tr>
@@ -472,7 +508,7 @@ export function TimeSlotsPage(): JSX.Element {
           <HStack mt={4}>
             <Button
               colorScheme="blue"
-              isDisabled={!canEdit}
+              isDisabled={!canEdit || isCurrentWeekValidated}
               isLoading={isSavingValidation}
               loadingText="Guardando"
               onClick={async () => {
@@ -483,19 +519,12 @@ export function TimeSlotsPage(): JSX.Element {
                   toast({ status: 'error', title: result.error ?? 'No se pudo guardar la configuración de validaciones.' });
                   return;
                 }
-                try {
-                  await saveValidationRequirements({
-                    areaId: currentAreaId,
-                    validationRequirements: localValidation
-                  });
-                } catch (error) {
+                const persisted = await flushPersistence();
+                if (!persisted.ok) {
                   setIsSavingValidation(false);
                   toast({
                     status: 'error',
-                    title:
-                      error instanceof Error
-                        ? error.message
-                        : 'No se pudo guardar la configuración de validaciones en el backend.'
+                    title: persisted.error ?? 'No se pudo guardar la configuración de validaciones en el backend.'
                   });
                   return;
                 }
@@ -508,6 +537,8 @@ export function TimeSlotsPage(): JSX.Element {
           </HStack>
         </CardBody>
       </Card>
+
+      {currentWeek ? <Text fontSize="sm" color="gray.500">Los cambios se guardan solo para esa semana seleccionada.</Text> : null}
     </Box>
   );
 }

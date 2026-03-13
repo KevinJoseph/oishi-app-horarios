@@ -74,7 +74,7 @@ export function EmployeesPage(): JSX.Element {
   } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
-  const areaTimeSlots = useAppStore((state) => state.timeSlots);
+  const areaTimeSlots = useAppStore((state) => state.timeSlotsByArea[state.currentAreaId] ?? state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
   const currentAreaId = useAppStore((state) => state.currentAreaId);
@@ -102,7 +102,7 @@ export function EmployeesPage(): JSX.Element {
   const currentWeekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
   const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
   const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
-  const effectiveWeekConfig = currentScopedWeekId && isCurrentWeekValidated ? weekConfigById[currentScopedWeekId] : undefined;
+  const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
   const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();

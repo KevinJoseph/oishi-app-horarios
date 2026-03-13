@@ -28,10 +28,11 @@ export function WeeklyByWeeksOverviewPage(): JSX.Element {
 
 export function WeeklyByWeeksOverviewContent(): JSX.Element {
   const allEmployees = useAppStore((state) => state.employees);
-  const timeSlots = useAppStore((state) => state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
   const currentAreaId = useAppStore((state) => state.currentAreaId);
+  const weekConfigById = useAppStore((state) => state.weekConfigById);
+  const areaTimeSlots = useAppStore((state) => state.timeSlotsByArea[state.currentAreaId] ?? state.timeSlots);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
 
@@ -46,19 +47,17 @@ export function WeeklyByWeeksOverviewContent(): JSX.Element {
     [allEmployees, currentAreaId]
   );
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);
-  const slotDurationById = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const slot of timeSlots) {
-      map.set(slot.id, getDurationHours(slot.start, slot.end));
-    }
-    return map;
-  }, [timeSlots]);
-
   return (
     <VStack spacing={4} align="stretch">
       {weeks.map((week) => {
-        const weekPlan = weekPlans[scopedWeekKey(currentAreaId, week.id)];
+        const scopedWeekId = scopedWeekKey(currentAreaId, week.id);
+        const weekPlan = weekPlans[scopedWeekId];
         if (!weekPlan) return null;
+        const effectiveTimeSlots = weekConfigById[scopedWeekId]?.timeSlots ?? areaTimeSlots;
+        const slotDurationById = new Map<string, number>();
+        for (const slot of effectiveTimeSlots) {
+          slotDurationById.set(slot.id, getDurationHours(slot.start, slot.end));
+        }
         const byEmployee = buildEmployeeDailyHours(weekPlan, activeEmployees.map((employee) => employee.id), slotDurationById);
         const dayHeaders = weekPlan.days.map((day) => day.dayName);
 

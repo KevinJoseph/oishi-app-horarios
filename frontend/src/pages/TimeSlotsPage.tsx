@@ -87,6 +87,9 @@ export function TimeSlotsPage(): JSX.Element {
   const [breakEnabled, setBreakEnabled] = useState(breakConfig.enabled);
   const [breakStartHour, setBreakStartHour] = useState(String(breakConfig.startHour));
   const [breakEndHour, setBreakEndHour] = useState(String(breakConfig.endHour));
+  const [isSavingHorarios, setIsSavingHorarios] = useState(false);
+  const [isSavingRefrigerio, setIsSavingRefrigerio] = useState(false);
+  const [isSavingTurnos, setIsSavingTurnos] = useState(false);
   const [isSavingValidation, setIsSavingValidation] = useState(false);
 
   useEffect(() => {
@@ -249,17 +252,23 @@ export function TimeSlotsPage(): JSX.Element {
             <Button
               colorScheme="blue"
               isDisabled={!canEdit || isCurrentWeekValidated}
+              isLoading={isSavingHorarios}
+              loadingText="Guardando"
               onClick={async () => {
+                setIsSavingHorarios(true);
                 const result = setPlanningHoursRange(Number.parseInt(startHour, 10), Number.parseInt(endHour, 10));
                 if (!result.ok) {
+                  setIsSavingHorarios(false);
                   toast({ status: 'error', title: result.error ?? 'No se pudo actualizar el rango horario.' });
                   return;
                 }
                 const persisted = await flushPersistence();
                 if (!persisted.ok) {
+                  setIsSavingHorarios(false);
                   toast({ status: 'error', title: persisted.error ?? 'No se pudo guardar el rango horario en el backend.' });
                   return;
                 }
+                setIsSavingHorarios(false);
                 toast({ status: 'success', title: 'Rango horario actualizado.' });
               }}
             >
@@ -316,21 +325,27 @@ export function TimeSlotsPage(): JSX.Element {
             <Button
               colorScheme="blue"
               isDisabled={!canEdit || isCurrentWeekValidated}
+              isLoading={isSavingRefrigerio}
+              loadingText="Guardando"
               onClick={async () => {
+                setIsSavingRefrigerio(true);
                 const result = setBreakConfig({
                   enabled: breakEnabled,
                   startHour: Number.parseInt(breakStartHour, 10),
                   endHour: Number.parseInt(breakEndHour, 10)
                 });
                 if (!result.ok) {
+                  setIsSavingRefrigerio(false);
                   toast({ status: 'error', title: result.error ?? 'No se pudo actualizar el refrigerio.' });
                   return;
                 }
                 const persisted = await flushPersistence();
                 if (!persisted.ok) {
+                  setIsSavingRefrigerio(false);
                   toast({ status: 'error', title: persisted.error ?? 'No se pudo guardar el refrigerio en el backend.' });
                   return;
                 }
+                setIsSavingRefrigerio(false);
                 toast({ status: 'success', title: 'Refrigerio actualizado.' });
               }}
             >
@@ -405,6 +420,8 @@ export function TimeSlotsPage(): JSX.Element {
             <Button
               colorScheme="blue"
               isDisabled={!canEdit || isCurrentWeekValidated}
+              isLoading={isSavingTurnos}
+              loadingText="Guardando"
               onClick={async () => {
                 if (rangesOverlap) {
                   toast({ status: 'error', title: 'Los turnos Día y Noche no deben solaparse.' });
@@ -414,6 +431,7 @@ export function TimeSlotsPage(): JSX.Element {
                   toast({ status: 'error', title: 'Día y Noche deben cubrir todo el rango sin huecos.' });
                   return;
                 }
+                setIsSavingTurnos(true);
                 const result = setShiftRanges({
                   day: {
                     startHour: Number.parseInt(dayStartHour, 10),
@@ -425,14 +443,17 @@ export function TimeSlotsPage(): JSX.Element {
                   }
                 });
                 if (!result.ok) {
+                  setIsSavingTurnos(false);
                   toast({ status: 'error', title: result.error ?? 'No se pudo actualizar la configuración de turnos.' });
                   return;
                 }
                 const persisted = await flushPersistence();
                 if (!persisted.ok) {
+                  setIsSavingTurnos(false);
                   toast({ status: 'error', title: persisted.error ?? 'No se pudo guardar la configuración de turnos en el backend.' });
                   return;
                 }
+                setIsSavingTurnos(false);
                 toast({ status: 'success', title: 'Turnos actualizados.' });
               }}
             >

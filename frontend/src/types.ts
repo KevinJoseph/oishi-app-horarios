@@ -15,6 +15,7 @@ export type Employee = {
   mainRoleId?: string;
   notes?: string;
   phone?: string;
+  groupDescription?: string;
 };
 
 export type ShiftRange = {

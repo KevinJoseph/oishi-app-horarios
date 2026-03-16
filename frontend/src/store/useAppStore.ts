@@ -693,6 +693,21 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
         set({
           ...normalized,
           weeks: mergedWeeks,
+          employees: latestState.employees,
+          roles: latestState.roles,
+          validatedWeekIds: latestState.validatedWeekIds,
+          timeSlotsByArea: latestState.timeSlotsByArea,
+          shiftRangesByArea: latestState.shiftRangesByArea,
+          validationRequirementsByArea: latestState.validationRequirementsByArea,
+          breakConfigByArea: latestState.breakConfigByArea,
+          timeSlots: latestState.timeSlotsByArea[latestState.currentAreaId] ?? latestState.timeSlots,
+          shiftRanges: latestState.shiftRangesByArea[latestState.currentAreaId] ?? latestState.shiftRanges,
+          validationRequirements: latestState.validationRequirementsByArea[latestState.currentAreaId] ?? latestState.validationRequirements,
+          breakConfig: latestState.breakConfigByArea[latestState.currentAreaId] ?? latestState.breakConfig,
+          weekConfigById: {
+            ...normalized.weekConfigById,
+            ...latestState.weekConfigById
+          },
           weekPlans: {
             ...normalized.weekPlans,
             ...latestState.weekPlans

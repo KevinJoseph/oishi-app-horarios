@@ -26,8 +26,9 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { useMemo, useRef, useState } from 'react';
-import { FiEdit2, FiFileText, FiPower, FiSearch, FiTrash2, FiUserCheck } from 'react-icons/fi';
+import { FiEdit2, FiFileText, FiPower, FiRefreshCw, FiSearch, FiTrash2, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
+import { fetchGeoVictoriaEmployees } from '../api/plannerApi';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Employee } from '../types';
@@ -91,6 +92,7 @@ export function EmployeesPage(): JSX.Element {
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [exportingEmployeeId, setExportingEmployeeId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
@@ -176,6 +178,52 @@ export function EmployeesPage(): JSX.Element {
     closeDeleteModal();
   };
 
+  const handleSyncGeoVictoria = async (): Promise<void> => {
+    if (!canEdit) return;
+    setIsSyncing(true);
+    try {
+      const geoUsers = await fetchGeoVictoriaEmployees();
+      let created = 0;
+      let updated = 0;
+      for (const user of geoUsers) {
+        const fullName = `${user.Name} ${user.LastName}`.trim();
+        const doc = user.Identifier?.trim() || undefined;
+        const existing = employees.find((e) => doc && e.identityDocument?.trim() === doc);
+        if (existing) {
+          upsertEmployee({
+            ...existing,
+            name: fullName,
+            phone: user.Phone || existing.phone,
+            groupDescription: user.GroupDescription || existing.groupDescription
+          });
+          updated++;
+        } else {
+          upsertEmployee({
+            id: `geo-${user.Id}`,
+            name: fullName,
+            identityDocument: doc,
+            phone: user.Phone || undefined,
+            groupDescription: user.GroupDescription || undefined,
+            active: true,
+            areaId: currentAreaId
+          });
+          created++;
+        }
+      }
+      toast({
+        status: 'success',
+        title: `Sincronización completada: ${created} nuevos, ${updated} actualizados.`
+      });
+    } catch (error) {
+      toast({
+        status: 'error',
+        title: error instanceof Error ? error.message : 'No se pudo sincronizar con GeoVictoria.'
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <Box>
       <Card variant="outline" borderColor="gray.200" shadow="sm" mb={4}>
@@ -195,6 +243,18 @@ export function EmployeesPage(): JSX.Element {
                 _focusVisible={{ borderColor: 'blue.400', boxShadow: '0 0 0 1px var(--chakra-colors-blue-400)' }}
               />
             </InputGroup>
+            <Button
+              colorScheme="teal"
+              h="44px"
+              px={6}
+              leftIcon={<FiRefreshCw />}
+              onClick={handleSyncGeoVictoria}
+              isDisabled={!canEdit}
+              isLoading={isSyncing}
+              loadingText="Sincronizando"
+            >
+              Sincronizar GeoVictoria
+            </Button>
             <Button
               colorScheme="blue"
               h="44px"
@@ -226,6 +286,7 @@ export function EmployeesPage(): JSX.Element {
                   <Th>Nombre</Th>
                   <Th>Documento</Th>
                   <Th>Activo</Th>
+                  <Th>Empresa</Th>
                   <Th>Área</Th>
                   <Th>Horas semanales</Th>
                   <Th>Tipo jornada</Th>
@@ -244,6 +305,7 @@ export function EmployeesPage(): JSX.Element {
                     <Td>
                       <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                     </Td>
+                    <Td>{employee.groupDescription ?? '-'}</Td>
                     <Td>{getAreaLabel(employee.areaId)}</Td>
                     <Td>{employee.contractType ? getWeeklyHoursLabel(employee.weeklyHours) : ''}</Td>
                     <Td>{getContractTypeLabel(employee.contractType)}</Td>

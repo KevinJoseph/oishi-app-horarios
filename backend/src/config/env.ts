@@ -17,5 +17,7 @@ export const env = {
   authSessionDays: Number(process.env.AUTH_SESSION_DAYS ?? 7),
   defaultAdminUsername: requireEnv('DEFAULT_ADMIN_USERNAME', 'Administrador'),
   defaultAdminPassword: requireEnv('DEFAULT_ADMIN_PASSWORD', 'Admin@@1##'),
-  defaultAdminName: requireEnv('DEFAULT_ADMIN_NAME', 'Administrador')
+  defaultAdminName: requireEnv('DEFAULT_ADMIN_NAME', 'Administrador'),
+  geoVictoriaApiUrl: requireEnv('GEOVICTORIA_API_URL', 'https://customerapi.geovictoria.com/api/v1/User/ListComplete'),
+  geoVictoriaToken: process.env.GEOVICTORIA_TOKEN ?? ''
 };

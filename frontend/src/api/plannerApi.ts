@@ -28,3 +28,20 @@ export function resetPlannerState(): Promise<SeedState> {
     method: 'POST'
   });
 }
+
+export interface GeoVictoriaEmployee {
+  Id: string;
+  Identifier: string;
+  Name: string;
+  LastName: string;
+  Phone: string;
+  Email: string;
+  GroupDescription: string;
+  PositionDescription: string;
+  Enabled: string;
+  IntegrationCode: string;
+}
+
+export function fetchGeoVictoriaEmployees(): Promise<GeoVictoriaEmployee[]> {
+  return request<GeoVictoriaEmployee[]>('/geovictoria/employees');
+}

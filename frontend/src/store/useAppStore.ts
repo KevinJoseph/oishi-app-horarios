@@ -694,12 +694,12 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
           ...normalized,
           weeks: mergedWeeks,
           weekPlans: {
-            ...latestState.weekPlans,
-            ...normalized.weekPlans
+            ...normalized.weekPlans,
+            ...latestState.weekPlans
           },
           weekAuditById: {
-            ...latestState.weekAuditById,
-            ...normalized.weekAuditById
+            ...normalized.weekAuditById,
+            ...latestState.weekAuditById
           },
           currentWeekStartDateISO: resolveCurrentWeekStartDateISO(
             mergedWeeks,

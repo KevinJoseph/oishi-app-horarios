@@ -51,9 +51,7 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
   useEffect(() => {
     const initialArea = (editing
       ? editing?.areaId ?? roles.find((role) => role.id === editing?.mainRoleId)?.areaId ?? 'salon'
-      : currentAreaId ??
-      roles.find((role) => role.id === editing?.mainRoleId)?.areaId ??
-      'salon') as AreaId;
+      : currentAreaId ?? 'salon') as AreaId;
     setAreaId(initialArea);
     setName(editing?.name ?? '');
     setIdentityDocument(editing?.identityDocument ?? '');
@@ -224,7 +222,9 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
                   restDay: isWithoutContract ? undefined : normalizeRestDay(Number.parseInt(restDay, 10)),
                   notes: notes.trim() || undefined,
                   phone: phone.trim() || undefined,
-                  mainRoleId: mainRoleId || undefined
+                  mainRoleId: mainRoleId || undefined,
+                  groupDescription: editing?.groupDescription,
+                  positionDescription: editing?.positionDescription
                 });
                 if (!result.ok) {
                   toast({

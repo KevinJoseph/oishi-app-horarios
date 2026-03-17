@@ -84,6 +84,7 @@ export function EmployeesPage(): JSX.Element {
   const weekConfigById = useAppStore((state) => state.weekConfigById);
   const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
+  const batchUpsertEmployees = useAppStore((state) => state.batchUpsertEmployees);
   const deleteEmployee = useAppStore((state) => state.deleteEmployee);
   const currentUser = useAuthStore((state) => state.currentUser);
   const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
@@ -185,12 +186,13 @@ export function EmployeesPage(): JSX.Element {
       const geoUsers = await fetchGeoVictoriaEmployees();
       let created = 0;
       let updated = 0;
+      const toUpsert: Employee[] = [];
       for (const user of geoUsers) {
         const fullName = `${user.Name} ${user.LastName}`.trim();
         const doc = user.Identifier?.trim() || undefined;
         const existing = employees.find((e) => doc && e.identityDocument?.trim() === doc);
         if (existing) {
-          upsertEmployee({
+          toUpsert.push({
             ...existing,
             name: fullName,
             phone: user.Phone || existing.phone,
@@ -198,7 +200,7 @@ export function EmployeesPage(): JSX.Element {
           });
           updated++;
         } else {
-          upsertEmployee({
+          toUpsert.push({
             id: `geo-${user.Id}`,
             name: fullName,
             identityDocument: doc,
@@ -210,6 +212,7 @@ export function EmployeesPage(): JSX.Element {
           created++;
         }
       }
+      batchUpsertEmployees(toUpsert);
       toast({
         status: 'success',
         title: `Sincronización completada: ${created} nuevos, ${updated} actualizados.`

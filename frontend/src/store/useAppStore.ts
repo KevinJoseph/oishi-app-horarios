@@ -64,6 +64,7 @@ type AppState = PersistableState & {
   setCurrentArea: (areaId: AreaId) => void;
   resetAll: () => void;
   upsertEmployee: (employee: Employee) => { ok: boolean; error?: string };
+  batchUpsertEmployees: (employees: Employee[]) => void;
   deleteEmployee: (employeeId: string) => void;
   upsertRole: (role: Role) => { ok: boolean; error?: string };
   deleteRole: (roleId: string) => void;
@@ -932,6 +933,76 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!result.ok) return result;
     persistSnapshot(get, set);
     return result;
+  },
+
+  batchUpsertEmployees: (incomingList) => {
+    set((state) => {
+      let employees = [...state.employees];
+      const planningChangedAreas = new Set<AreaId>();
+
+      for (const employee of incomingList) {
+        const previous = employees.find((item) => item.id === employee.id);
+        const incomingDocument = normalizeIdentityDocument(employee.identityDocument);
+        const previousDocument = normalizeIdentityDocument(previous?.identityDocument);
+        const shouldValidateIdentityDocument = !previous || incomingDocument !== previousDocument;
+        if (shouldValidateIdentityDocument && incomingDocument) {
+          const duplicated = employees.some(
+            (item) => item.id !== employee.id && normalizeIdentityDocument(item.identityDocument) === incomingDocument
+          );
+          if (duplicated) continue;
+        }
+        const normalizedEmployee: Employee = {
+          ...employee,
+          restDay: normalizeRestDay(employee.restDay),
+          code: employee.code ?? previous?.code ?? getNextEmployeeCode(employees)
+        };
+        const exists = Boolean(previous);
+        employees = exists
+          ? employees.map((item) => (item.id === normalizedEmployee.id ? normalizedEmployee : item))
+          : [...employees, normalizedEmployee];
+
+        const planningChanged =
+          !previous ||
+          previous.mainRoleId !== normalizedEmployee.mainRoleId ||
+          previous.weeklyHours !== normalizedEmployee.weeklyHours ||
+          previous.restDay !== normalizedEmployee.restDay ||
+          previous.contractType !== normalizedEmployee.contractType ||
+          previous.shiftType !== normalizedEmployee.shiftType ||
+          previous.active !== normalizedEmployee.active;
+
+        if (planningChanged) {
+          const areaId = (normalizedEmployee.areaId ?? previous?.areaId ?? state.currentAreaId) as AreaId;
+          planningChangedAreas.add(areaId);
+        }
+      }
+
+      if (planningChangedAreas.size === 0) {
+        return { employees };
+      }
+
+      let weekPlans = state.weekPlans;
+      for (const areaId of planningChangedAreas) {
+        weekPlans = rebuildWeekPlansForArea(
+          weekPlans,
+          employees,
+          state.roles,
+          areaId,
+          state.validatedWeekIds,
+          state.weekConfigById,
+          state.timeSlotsByArea,
+          state.shiftRangesByArea,
+          state.breakConfigByArea
+        );
+      }
+
+      return {
+        employees,
+        weekPlans,
+        validatedWeekIds: state.validatedWeekIds,
+        weekAuditById: state.weekAuditById
+      };
+    });
+    persistSnapshot(get, set);
   },
 
   deleteEmployee: (employeeId) => {

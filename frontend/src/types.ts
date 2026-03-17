@@ -16,6 +16,7 @@ export type Employee = {
   notes?: string;
   phone?: string;
   groupDescription?: string;
+  positionDescription?: string;
 };
 
 export type ShiftRange = {

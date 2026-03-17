@@ -196,7 +196,8 @@ export function EmployeesPage(): JSX.Element {
             ...existing,
             name: fullName,
             phone: user.Phone || existing.phone,
-            groupDescription: user.GroupDescription || existing.groupDescription
+            groupDescription: user.GroupDescription || existing.groupDescription,
+            positionDescription: user.PositionDescription || existing.positionDescription
           });
           updated++;
         } else {
@@ -206,6 +207,7 @@ export function EmployeesPage(): JSX.Element {
             identityDocument: doc,
             phone: user.Phone || undefined,
             groupDescription: user.GroupDescription || undefined,
+            positionDescription: user.PositionDescription || undefined,
             active: true,
             areaId: currentAreaId
           });
@@ -246,30 +248,32 @@ export function EmployeesPage(): JSX.Element {
                 _focusVisible={{ borderColor: 'blue.400', boxShadow: '0 0 0 1px var(--chakra-colors-blue-400)' }}
               />
             </InputGroup>
-            <Button
-              colorScheme="teal"
-              h="44px"
-              px={6}
-              leftIcon={<FiRefreshCw />}
-              onClick={handleSyncGeoVictoria}
-              isDisabled={!canEdit}
-              isLoading={isSyncing}
-              loadingText="Sincronizando"
-            >
-              Sincronizar GeoVictoria
-            </Button>
-            <Button
-              colorScheme="blue"
-              h="44px"
-              px={6}
-              onClick={() => {
-                setEditing(undefined);
-                onOpen();
-              }}
-              isDisabled={!canEdit}
-            >
-              Nuevo Colaborador
-            </Button>
+            <HStack gap={3}>
+              <Button
+                colorScheme="teal"
+                h="44px"
+                px={6}
+                leftIcon={<FiRefreshCw />}
+                onClick={handleSyncGeoVictoria}
+                isDisabled={!canEdit}
+                isLoading={isSyncing}
+                loadingText="Sincronizando"
+              >
+                Sincronizar GeoVictoria
+              </Button>
+              <Button
+                colorScheme="blue"
+                h="44px"
+                px={6}
+                onClick={() => {
+                  setEditing(undefined);
+                  onOpen();
+                }}
+                isDisabled={!canEdit}
+              >
+                Nuevo Colaborador
+              </Button>
+            </HStack>
           </HStack>
         </CardBody>
       </Card>
@@ -290,6 +294,7 @@ export function EmployeesPage(): JSX.Element {
                   <Th>Documento</Th>
                   <Th>Activo</Th>
                   <Th>Empresa</Th>
+                  <Th>Cargo</Th>
                   <Th>Área</Th>
                   <Th>Horas semanales</Th>
                   <Th>Tipo jornada</Th>
@@ -309,6 +314,7 @@ export function EmployeesPage(): JSX.Element {
                       <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                     </Td>
                     <Td>{employee.groupDescription ?? '-'}</Td>
+                    <Td>{employee.positionDescription ?? '-'}</Td>
                     <Td>{getAreaLabel(employee.areaId)}</Td>
                     <Td>{employee.contractType ? getWeeklyHoursLabel(employee.weeklyHours) : ''}</Td>
                     <Td>{getContractTypeLabel(employee.contractType)}</Td>

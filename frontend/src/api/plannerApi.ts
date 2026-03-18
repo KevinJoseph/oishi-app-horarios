@@ -45,3 +45,7 @@ export interface GeoVictoriaEmployee {
 export function fetchGeoVictoriaEmployees(): Promise<GeoVictoriaEmployee[]> {
   return request<GeoVictoriaEmployee[]>('/geovictoria/employees');
 }
+
+export function fetchGeoVictoriaReciboEmployees(): Promise<GeoVictoriaEmployee[]> {
+  return request<GeoVictoriaEmployee[]>('/geovictoria/recibo-employees');
+}

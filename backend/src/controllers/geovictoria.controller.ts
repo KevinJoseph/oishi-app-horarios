@@ -19,6 +19,9 @@ interface GeoVictoriaUser {
 let cachedToken: string | null = null;
 let tokenExpiresAt: number = 0;
 
+let cachedReciboToken: string | null = null;
+let reciboTokenExpiresAt: number = 0;
+
 function readJwtExp(token: string): number | null {
   try {
     const payload = token.split('.')[1];
@@ -54,6 +57,70 @@ async function getToken(): Promise<string> {
   tokenExpiresAt = exp !== null ? exp - 60_000 : Date.now() + 60 * 60 * 1000;
   cachedToken = data.token;
   return cachedToken;
+}
+
+async function getReciboToken(): Promise<string> {
+  if (cachedReciboToken && Date.now() < reciboTokenExpiresAt) {
+    return cachedReciboToken;
+  }
+
+  const response = await fetch(env.geoVictoriaLoginUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ User: env.geoVictoriaReciboUser, Password: env.geoVictoriaReciboPassword })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error al autenticar con GeoVictoria Recibo: ${response.status} ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as { token: string };
+  if (!data.token) {
+    throw new Error('GeoVictoria Recibo no devolvió un token válido.');
+  }
+
+  const exp = readJwtExp(data.token);
+  reciboTokenExpiresAt = exp !== null ? exp - 60_000 : Date.now() + 60 * 60 * 1000;
+  cachedReciboToken = data.token;
+  return cachedReciboToken;
+}
+
+export async function getGeoVictoriaReciboEmployeesController(_req: Request, res: Response): Promise<void> {
+  if (!env.geoVictoriaReciboUser || !env.geoVictoriaReciboPassword) {
+    res.status(503).json({ error: 'Credenciales de GeoVictoria Recibo no configuradas en el servidor.' });
+    return;
+  }
+
+  let token: string;
+  try {
+    token = await getReciboToken();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error de autenticación con GeoVictoria Recibo.';
+    res.status(502).json({ error: message });
+    return;
+  }
+
+  const response = await fetch(env.geoVictoriaApiUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({})
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      cachedReciboToken = null;
+      reciboTokenExpiresAt = 0;
+    }
+    res.status(502).json({ error: `Error al consultar GeoVictoria Recibo: ${response.status} ${response.statusText}` });
+    return;
+  }
+
+  const data = (await response.json()) as GeoVictoriaUser[];
+  const active = data.filter((user) => user.Enabled === '1');
+  res.status(200).json(active);
 }
 
 export async function getGeoVictoriaEmployeesController(_req: Request, res: Response): Promise<void> {

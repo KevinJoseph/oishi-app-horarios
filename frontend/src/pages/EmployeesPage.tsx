@@ -28,6 +28,7 @@ import {
 import { useMemo, useRef, useState } from 'react';
 import { FiEdit2, FiFileText, FiPower, FiRefreshCw, FiSearch, FiTrash2, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
+import { GeoVictoriaReciboModal } from '../components/GeoVictoriaReciboModal';
 import { fetchGeoVictoriaEmployees } from '../api/plannerApi';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -72,6 +73,11 @@ export function EmployeesPage(): JSX.Element {
     isOpen: isDeleteModalOpen,
     onOpen: openDeleteModal,
     onClose: closeDeleteModal
+  } = useDisclosure();
+  const {
+    isOpen: isReciboModalOpen,
+    onOpen: openReciboModal,
+    onClose: closeReciboModal
   } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
@@ -250,6 +256,16 @@ export function EmployeesPage(): JSX.Element {
             </InputGroup>
             <HStack gap={3}>
               <Button
+                colorScheme="gray"
+                h="44px"
+                px={6}
+                leftIcon={<FiRefreshCw />}
+                onClick={openReciboModal}
+                isDisabled={!canEdit}
+              >
+                Sincronización Recibo
+              </Button>
+              <Button
                 colorScheme="teal"
                 h="44px"
                 px={6}
@@ -383,6 +399,12 @@ export function EmployeesPage(): JSX.Element {
           </Box>
         </CardBody>
       </Card>
+
+      <GeoVictoriaReciboModal
+        isOpen={isReciboModalOpen}
+        onClose={closeReciboModal}
+        currentAreaId={currentAreaId}
+      />
 
       <EmployeeFormModal
         isOpen={isOpen}

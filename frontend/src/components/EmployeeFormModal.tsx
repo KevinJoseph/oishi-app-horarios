@@ -30,11 +30,36 @@ type Props = {
   onSave: (employee: Employee) => { ok: boolean; error?: string };
 };
 
+function splitEmployeeName(employee?: Employee): { firstName: string; lastName: string } {
+  if (!employee) return { firstName: '', lastName: '' };
+  if (employee.firstName || employee.lastName) {
+    return {
+      firstName: employee.firstName ?? '',
+      lastName: employee.lastName ?? ''
+    };
+  }
+
+  const parts = employee.name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) {
+    return { firstName: employee.name ?? '', lastName: '' };
+  }
+  if (parts.length === 2) {
+    return { firstName: parts[0], lastName: parts[1] };
+  }
+
+  return {
+    firstName: parts.slice(0, 2).join(' '),
+    lastName: parts.slice(2).join(' ')
+  };
+}
+
 export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentAreaId, onSave }: Props): JSX.Element {
   const toast = useToast();
   const [areaId, setAreaId] = useState<AreaId>('salon');
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [identityDocument, setIdentityDocument] = useState('');
+  const [email, setEmail] = useState('');
   const [active, setActive] = useState(true);
   const [weeklyHours, setWeeklyHours] = useState('');
   const [contractType, setContractType] = useState<'full-time' | 'part-time' | ''>('');
@@ -52,9 +77,12 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
     const initialArea = (editing
       ? editing?.areaId ?? roles.find((role) => role.id === editing?.mainRoleId)?.areaId ?? 'salon'
       : currentAreaId ?? 'salon') as AreaId;
+    const nameParts = splitEmployeeName(editing);
     setAreaId(initialArea);
-    setName(editing?.name ?? '');
+    setFirstName(nameParts.firstName);
+    setLastName(nameParts.lastName);
     setIdentityDocument(editing?.identityDocument ?? '');
+    setEmail(editing?.email ?? '');
     setActive(editing?.active ?? true);
     setContractType(editing?.contractType ?? '');
     setWeeklyHours(editing?.weeklyHours !== undefined ? String(editing.weeklyHours) : '0');
@@ -81,6 +109,16 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
   }, [contractType]);
 
   const isWithoutContract = contractType === '';
+  const trimmedFirstName = firstName.trim();
+  const trimmedLastName = lastName.trim();
+  const trimmedIdentityDocument = identityDocument.trim();
+  const trimmedEmail = email.trim();
+  const hasRequiredErrors = {
+    firstName: !trimmedFirstName,
+    lastName: !trimmedLastName,
+    identityDocument: !trimmedIdentityDocument,
+    email: !trimmedEmail
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -91,11 +129,19 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
         <ModalBody>
           <FormControl mb={3} isRequired>
             <FormLabel>Nombre</FormLabel>
-            <Input value={name} onChange={(event) => setName(event.target.value)} />
+            <Input value={firstName} onChange={(event) => setFirstName(event.target.value)} />
           </FormControl>
-          <FormControl mb={3}>
-            <FormLabel>Documento de Identidad</FormLabel>
+          <FormControl mb={3} isRequired>
+            <FormLabel>Apellidos</FormLabel>
+            <Input value={lastName} onChange={(event) => setLastName(event.target.value)} />
+          </FormControl>
+          <FormControl mb={3} isRequired>
+            <FormLabel>DNI</FormLabel>
             <Input value={identityDocument} onChange={(event) => setIdentityDocument(event.target.value)} />
+          </FormControl>
+          <FormControl mb={3} isRequired>
+            <FormLabel>Email</FormLabel>
+            <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
           </FormControl>
           <FormControl mb={3}>
             <FormLabel>Área</FormLabel>
@@ -201,7 +247,18 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
             <Button
               colorScheme="blue"
               onClick={() => {
-                if (!name.trim()) return;
+                if (
+                  hasRequiredErrors.firstName ||
+                  hasRequiredErrors.lastName ||
+                  hasRequiredErrors.identityDocument ||
+                  hasRequiredErrors.email
+                ) {
+                  toast({
+                    status: 'error',
+                    title: 'Completa todos los campos obligatorios.'
+                  });
+                  return;
+                }
                 const parsedWeeklyHours = Number.parseFloat(weeklyHours);
                 if (!isWithoutContract && (!Number.isFinite(parsedWeeklyHours) || parsedWeeklyHours <= 0)) {
                   toast({
@@ -210,10 +267,14 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
                   });
                   return;
                 }
+                const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim();
                 const result = onSave({
                   id: editing?.id ?? createId('emp'),
-                  name: name.trim(),
-                  identityDocument: identityDocument.trim() || undefined,
+                  name: fullName,
+                  firstName: trimmedFirstName,
+                  lastName: trimmedLastName,
+                  identityDocument: trimmedIdentityDocument,
+                  email: trimmedEmail,
                   areaId,
                   active,
                   weeklyHours: isWithoutContract ? 0 : parsedWeeklyHours,

@@ -49,3 +49,17 @@ export function fetchGeoVictoriaEmployees(): Promise<GeoVictoriaEmployee[]> {
 export function fetchGeoVictoriaReciboEmployees(): Promise<GeoVictoriaEmployee[]> {
   return request<GeoVictoriaEmployee[]>('/geovictoria/recibo-employees');
 }
+
+export type GeoVictoriaAddUserPayload = {
+  identifier: string;
+  email: string;
+  name: string;
+  lastName: string;
+};
+
+export function sendEmployeeToGeoVictoria(payload: GeoVictoriaAddUserPayload): Promise<{ message?: string }> {
+  return request<{ message?: string }>('/geovictoria/users', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}

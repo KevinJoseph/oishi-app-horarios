@@ -26,10 +26,10 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { useMemo, useRef, useState } from 'react';
-import { FiEdit2, FiFileText, FiPower, FiRefreshCw, FiSearch, FiTrash2, FiUserCheck } from 'react-icons/fi';
+import { FiEdit2, FiFileText, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { GeoVictoriaReciboModal } from '../components/GeoVictoriaReciboModal';
-import { fetchGeoVictoriaEmployees } from '../api/plannerApi';
+import { fetchGeoVictoriaEmployees, sendEmployeeToGeoVictoria } from '../api/plannerApi';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Employee } from '../types';
@@ -79,6 +79,11 @@ export function EmployeesPage(): JSX.Element {
     onOpen: openReciboModal,
     onClose: closeReciboModal
   } = useDisclosure();
+  const {
+    isOpen: isGeoVictoriaModalOpen,
+    onOpen: openGeoVictoriaModal,
+    onClose: closeGeoVictoriaModal
+  } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const areaTimeSlots = useAppStore((state) => state.timeSlotsByArea[state.currentAreaId] ?? state.timeSlots);
@@ -97,10 +102,13 @@ export function EmployeesPage(): JSX.Element {
 
   const [editing, setEditing] = useState<Employee | undefined>(undefined);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [employeeToSend, setEmployeeToSend] = useState<Employee | null>(null);
   const [exportingEmployeeId, setExportingEmployeeId] = useState<string | null>(null);
+  const [sendingEmployeeId, setSendingEmployeeId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+  const cancelGeoVictoriaRef = useRef<HTMLButtonElement>(null);
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
   const currentWeek = useMemo(
@@ -123,6 +131,19 @@ export function EmployeesPage(): JSX.Element {
         (employee.identityDocument ?? '').toLowerCase().includes(term)
     );
   }, [employees, search]);
+
+  const getEmployeeGeoVictoriaPayload = (employee: Employee): { identifier: string; email: string; name: string; lastName: string } => {
+    const firstName = employee.firstName?.trim() ?? '';
+    const lastName = employee.lastName?.trim() ?? '';
+    const fallbackParts = employee.name.trim().split(/\s+/).filter(Boolean);
+
+    return {
+      identifier: employee.identityDocument?.trim() ?? '',
+      email: employee.email?.trim() ?? '',
+      name: firstName || fallbackParts.slice(0, Math.max(1, fallbackParts.length - 1)).join(' '),
+      lastName: lastName || fallbackParts.slice(Math.max(1, fallbackParts.length - 1)).join(' ')
+    };
+  };
 
   const handleDownloadPdf = (employee: Employee): void => {
     if (!currentWeek || !currentWeekPlan) {
@@ -201,6 +222,9 @@ export function EmployeesPage(): JSX.Element {
           toUpsert.push({
             ...existing,
             name: fullName,
+            firstName: user.Name || existing.firstName,
+            lastName: user.LastName || existing.lastName,
+            email: user.Email || existing.email,
             phone: user.Phone || existing.phone,
             groupDescription: user.GroupDescription || existing.groupDescription,
             positionDescription: user.PositionDescription || existing.positionDescription
@@ -210,7 +234,10 @@ export function EmployeesPage(): JSX.Element {
           toUpsert.push({
             id: `geo-${user.Id}`,
             name: fullName,
+            firstName: user.Name || undefined,
+            lastName: user.LastName || undefined,
             identityDocument: doc,
+            email: user.Email || undefined,
             phone: user.Phone || undefined,
             groupDescription: user.GroupDescription || undefined,
             positionDescription: user.PositionDescription || undefined,
@@ -232,6 +259,37 @@ export function EmployeesPage(): JSX.Element {
       });
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleSendToGeoVictoria = async (): Promise<void> => {
+    if (!canEdit || !employeeToSend) return;
+
+    const payload = getEmployeeGeoVictoriaPayload(employeeToSend);
+    if (!payload.identifier || !payload.email || !payload.name || !payload.lastName) {
+      toast({
+        status: 'error',
+        title: 'El colaborador debe tener DNI, email, nombre y apellidos para enviarse a GeoVictoria.'
+      });
+      return;
+    }
+
+    setSendingEmployeeId(employeeToSend.id);
+    try {
+      const response = await sendEmployeeToGeoVictoria(payload);
+      toast({
+        status: 'success',
+        title: response.message || `${employeeToSend.name} fue enviado a GeoVictoria.`
+      });
+      setEmployeeToSend(null);
+      closeGeoVictoriaModal();
+    } catch (error) {
+      toast({
+        status: 'error',
+        title: error instanceof Error ? error.message : 'No se pudo enviar el colaborador a GeoVictoria.'
+      });
+    } finally {
+      setSendingEmployeeId(null);
     }
   };
 
@@ -390,6 +448,22 @@ export function EmployeesPage(): JSX.Element {
                             isLoading={exportingEmployeeId === employee.id}
                           />
                         </Tooltip>
+                        <Tooltip label="Enviar a GeoVictoria" hasArrow>
+                          <IconButton
+                            aria-label="Enviar a GeoVictoria"
+                            size="xs"
+                            variant="outline"
+                            colorScheme="teal"
+                            icon={<FiSend />}
+                            onClick={() => {
+                              if (!canEdit) return;
+                              setEmployeeToSend(employee);
+                              openGeoVictoriaModal();
+                            }}
+                            isDisabled={!canEdit}
+                            isLoading={sendingEmployeeId === employee.id}
+                          />
+                        </Tooltip>
                       </HStack>
                     </Td>
                   </Tr>
@@ -449,6 +523,48 @@ export function EmployeesPage(): JSX.Element {
               </Button>
               <Button colorScheme="red" ml={3} onClick={handleDeleteEmployee}>
                 Eliminar
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      <AlertDialog
+        isOpen={isGeoVictoriaModalOpen}
+        leastDestructiveRef={cancelGeoVictoriaRef}
+        onClose={() => {
+          if (sendingEmployeeId) return;
+          setEmployeeToSend(null);
+          closeGeoVictoriaModal();
+        }}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader>Enviar a GeoVictoria</AlertDialogHeader>
+            <AlertDialogBody>
+              ¿Está seguro de enviar a {employeeToSend?.name ?? 'este colaborador'} a GeoVictoria?
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                ref={cancelGeoVictoriaRef}
+                variant="ghost"
+                onClick={() => {
+                  setEmployeeToSend(null);
+                  closeGeoVictoriaModal();
+                }}
+                isDisabled={Boolean(sendingEmployeeId)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                colorScheme="teal"
+                ml={3}
+                onClick={handleSendToGeoVictoria}
+                isLoading={Boolean(employeeToSend && sendingEmployeeId === employeeToSend.id)}
+                loadingText="Enviando"
+              >
+                Enviar
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

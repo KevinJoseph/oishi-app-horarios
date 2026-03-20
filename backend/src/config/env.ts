@@ -20,6 +20,7 @@ export const env = {
   defaultAdminName: requireEnv('DEFAULT_ADMIN_NAME', 'Administrador'),
   geoVictoriaLoginUrl: requireEnv('GEOVICTORIA_LOGIN_URL', 'https://customerapi.geovictoria.com/api/v1/Login'),
   geoVictoriaApiUrl: requireEnv('GEOVICTORIA_API_URL', 'https://customerapi.geovictoria.com/api/v1/User/ListComplete'),
+  geoVictoriaUserAddUrl: requireEnv('GEOVICTORIA_USER_ADD_URL', 'https://customerapi.geovictoria.com/api/v1/User/Add'),
   geoVictoriaUser: process.env.GEOVICTORIA_USER ?? '',
   geoVictoriaPassword: process.env.GEOVICTORIA_PASSWORD ?? '',
   geoVictoriaReciboUser: process.env.GEOVICTORIA_RECIBO_USER ?? '',

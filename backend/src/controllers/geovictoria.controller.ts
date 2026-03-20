@@ -16,6 +16,21 @@ interface GeoVictoriaUser {
   TradeName: string;
 }
 
+interface GeoVictoriaAddUserRequestBody {
+  Identifier?: string;
+  identifier?: string;
+  Email?: string;
+  email?: string;
+  Name?: string;
+  name?: string;
+  LastName?: string;
+  lastName?: string;
+}
+
+function cleanRequiredText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 let cachedToken: string | null = null;
 let tokenExpiresAt: number = 0;
 
@@ -160,4 +175,85 @@ export async function getGeoVictoriaEmployeesController(_req: Request, res: Resp
   const data = (await response.json()) as GeoVictoriaUser[];
   const active = data.filter((user) => user.Enabled === '1');
   res.status(200).json(active);
+}
+
+export async function addGeoVictoriaUserController(req: Request, res: Response): Promise<void> {
+  if (!env.geoVictoriaUser || !env.geoVictoriaPassword) {
+    res.status(503).json({ error: 'Credenciales de GeoVictoria no configuradas en el servidor.' });
+    return;
+  }
+
+  const body = (req.body ?? {}) as GeoVictoriaAddUserRequestBody;
+  const identifier = cleanRequiredText(body.Identifier ?? body.identifier);
+  const email = cleanRequiredText(body.Email ?? body.email);
+  const name = cleanRequiredText(body.Name ?? body.name);
+  const lastName = cleanRequiredText(body.LastName ?? body.lastName);
+
+  if (!identifier || !email || !name || !lastName) {
+    res.status(400).json({ error: 'Identifier, Email, Name y LastName son obligatorios para enviar a GeoVictoria.' });
+    return;
+  }
+
+  let token: string;
+  try {
+    token = await getToken();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error de autenticación con GeoVictoria.';
+    res.status(502).json({ error: message });
+    return;
+  }
+
+  const response = await fetch(env.geoVictoriaUserAddUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      Identifier: identifier,
+      Email: email,
+      Name: name,
+      LastName: lastName
+    })
+  });
+
+  const rawText = await response.text();
+  let parsedBody: unknown = null;
+  if (rawText) {
+    try {
+      parsedBody = JSON.parse(rawText) as unknown;
+    } catch {
+      parsedBody = rawText;
+    }
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      cachedToken = null;
+      tokenExpiresAt = 0;
+    }
+
+    const remoteMessage =
+      typeof parsedBody === 'object' && parsedBody !== null && '_message' in parsedBody && typeof parsedBody._message === 'string'
+        ? parsedBody._message
+        : typeof parsedBody === 'object' && parsedBody !== null && 'message' in parsedBody && typeof parsedBody.message === 'string'
+          ? parsedBody.message
+          : typeof parsedBody === 'string'
+            ? parsedBody
+            : '';
+
+    res.status(502).json({
+      error: remoteMessage || `Error al enviar usuario a GeoVictoria: ${response.status} ${response.statusText}`
+    });
+    return;
+  }
+
+  const message =
+    typeof parsedBody === 'object' && parsedBody !== null && '_message' in parsedBody && typeof parsedBody._message === 'string'
+      ? parsedBody._message
+      : typeof parsedBody === 'object' && parsedBody !== null && 'message' in parsedBody && typeof parsedBody.message === 'string'
+        ? parsedBody.message
+        : 'Usuario enviado correctamente a GeoVictoria.';
+
+  res.status(200).json({ message });
 }

@@ -3,7 +3,13 @@ export type AreaId = (typeof AREA_IDS)[number];
 
 export type Employee = {
   id: string;
+  code?: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
+  identityDocument?: string;
+  email?: string;
+  areaId?: AreaId;
   active: boolean;
   weeklyHours?: number;
   restDay?: number;
@@ -12,6 +18,8 @@ export type Employee = {
   mainRoleId?: string;
   notes?: string;
   phone?: string;
+  groupDescription?: string;
+  positionDescription?: string;
 };
 
 export type ShiftRange = {

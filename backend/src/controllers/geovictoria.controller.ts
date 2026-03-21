@@ -115,7 +115,7 @@ export async function getGeoVictoriaReciboEmployeesController(_req: Request, res
     return;
   }
 
-  const response = await fetch(env.geoVictoriaApiUrl, {
+  const response = await fetch(env.geoVictoriaUserListUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -153,7 +153,7 @@ export async function getGeoVictoriaEmployeesController(_req: Request, res: Resp
     return;
   }
 
-  const response = await fetch(env.geoVictoriaApiUrl, {
+  const response = await fetch(env.geoVictoriaUserListUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,

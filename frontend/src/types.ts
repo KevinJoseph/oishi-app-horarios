@@ -9,6 +9,9 @@ export type Employee = {
   lastName?: string;
   identityDocument?: string;
   email?: string;
+  companyAlias?: string;
+  companyName?: string;
+  companyId?: string;
   areaId?: AreaId;
   active: boolean;
   weeklyHours?: number;

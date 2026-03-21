@@ -13,10 +13,10 @@ import {
   ModalHeader,
   ModalOverlay,
   Select,
-  Textarea,
   useToast
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
+import type { GeoVictoriaCompany } from '../api/plannerApi';
 import type { AreaId, Employee, Role } from '../types';
 import { createId } from '../store/useAppStore';
 import { normalizeRestDay, WEEKDAY_OPTIONS } from '../utils/weekdays';
@@ -26,6 +26,7 @@ type Props = {
   onClose: () => void;
   editing?: Employee;
   roles: Role[];
+  companies: GeoVictoriaCompany[];
   currentAreaId: AreaId;
   onSave: (employee: Employee) => { ok: boolean; error?: string };
 };
@@ -53,20 +54,27 @@ function splitEmployeeName(employee?: Employee): { firstName: string; lastName: 
   };
 }
 
-export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentAreaId, onSave }: Props): JSX.Element {
+export function EmployeeFormModal({
+  isOpen,
+  onClose,
+  editing,
+  roles,
+  companies,
+  currentAreaId,
+  onSave
+}: Props): JSX.Element {
   const toast = useToast();
   const [areaId, setAreaId] = useState<AreaId>('salon');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [identityDocument, setIdentityDocument] = useState('');
   const [email, setEmail] = useState('');
+  const [companyAlias, setCompanyAlias] = useState('');
   const [active, setActive] = useState(true);
   const [weeklyHours, setWeeklyHours] = useState('');
   const [contractType, setContractType] = useState<'full-time' | 'part-time' | ''>('');
   const [shiftType, setShiftType] = useState<'day' | 'night'>('day');
   const [restDay, setRestDay] = useState('0');
-  const [notes, setNotes] = useState('');
-  const [phone, setPhone] = useState('');
   const [mainRoleId, setMainRoleId] = useState('');
   const filteredRoles = useMemo(
     () => roles.filter((role) => (role.areaId ?? 'salon') === areaId),
@@ -83,13 +91,12 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
     setLastName(nameParts.lastName);
     setIdentityDocument(editing?.identityDocument ?? '');
     setEmail(editing?.email ?? '');
+    setCompanyAlias(editing?.companyAlias ?? '');
     setActive(editing?.active ?? true);
     setContractType(editing?.contractType ?? '');
     setWeeklyHours(editing?.weeklyHours !== undefined ? String(editing.weeklyHours) : '0');
     setShiftType(editing?.shiftType ?? 'day');
     setRestDay(String(normalizeRestDay(editing?.restDay)));
-    setNotes(editing?.notes ?? '');
-    setPhone(editing?.phone ?? '');
     setMainRoleId(editing?.mainRoleId ?? '');
   }, [editing, isOpen, roles, currentAreaId]);
 
@@ -113,11 +120,13 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
   const trimmedLastName = lastName.trim();
   const trimmedIdentityDocument = identityDocument.trim();
   const trimmedEmail = email.trim();
+  const selectedCompany = companies.find((company) => company.alias === companyAlias);
   const hasRequiredErrors = {
     firstName: !trimmedFirstName,
     lastName: !trimmedLastName,
     identityDocument: !trimmedIdentityDocument,
-    email: !trimmedEmail
+    email: !trimmedEmail,
+    companyAlias: !companyAlias
   };
 
   return (
@@ -143,13 +152,20 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
             <FormLabel>Email</FormLabel>
             <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
           </FormControl>
+          <FormControl mb={3} isRequired>
+            <FormLabel>Company</FormLabel>
+            <Select value={companyAlias} onChange={(event) => setCompanyAlias(event.target.value)}>
+              <option value="">Selecciona una empresa</option>
+              {companies.map((company) => (
+                <option key={company.alias} value={company.alias}>
+                  {`${company.alias} - ${company.name}`}
+                </option>
+              ))}
+            </Select>
+          </FormControl>
           <FormControl mb={3}>
             <FormLabel>Área</FormLabel>
-            <Select
-              value={areaId}
-              onChange={(event) => setAreaId(event.target.value as AreaId)}
-              isDisabled={!editing}
-            >
+            <Select value={areaId} onChange={(event) => setAreaId(event.target.value as AreaId)}>
               <option value="salon">Salón</option>
               <option value="cocina">Cocina</option>
               <option value="oficina">Oficina</option>
@@ -227,14 +243,6 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
               </Select>
             </FormControl>
           </HStack>
-          <FormControl mb={3}>
-            <FormLabel>Teléfono</FormLabel>
-            <Input value={phone} onChange={(event) => setPhone(event.target.value)} />
-          </FormControl>
-          <FormControl mb={3}>
-            <FormLabel>Notas</FormLabel>
-            <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
-          </FormControl>
           <Checkbox isChecked={active} onChange={(event) => setActive(event.target.checked)}>
             Activo
           </Checkbox>
@@ -251,7 +259,8 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
                   hasRequiredErrors.firstName ||
                   hasRequiredErrors.lastName ||
                   hasRequiredErrors.identityDocument ||
-                  hasRequiredErrors.email
+                  hasRequiredErrors.email ||
+                  hasRequiredErrors.companyAlias
                 ) {
                   toast({
                     status: 'error',
@@ -275,14 +284,17 @@ export function EmployeeFormModal({ isOpen, onClose, editing, roles, currentArea
                   lastName: trimmedLastName,
                   identityDocument: trimmedIdentityDocument,
                   email: trimmedEmail,
+                  companyAlias: selectedCompany?.alias,
+                  companyName: selectedCompany?.name,
+                  companyId: selectedCompany?.companyId,
                   areaId,
                   active,
                   weeklyHours: isWithoutContract ? 0 : parsedWeeklyHours,
                   contractType: contractType || undefined,
                   shiftType: contractType === 'part-time' ? shiftType : undefined,
                   restDay: isWithoutContract ? undefined : normalizeRestDay(Number.parseInt(restDay, 10)),
-                  notes: notes.trim() || undefined,
-                  phone: phone.trim() || undefined,
+                  notes: editing?.notes,
+                  phone: editing?.phone,
                   mainRoleId: mainRoleId || undefined,
                   groupDescription: editing?.groupDescription,
                   positionDescription: editing?.positionDescription

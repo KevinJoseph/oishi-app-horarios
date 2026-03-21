@@ -42,6 +42,13 @@ export interface GeoVictoriaEmployee {
   IntegrationCode: string;
 }
 
+export interface GeoVictoriaCompany {
+  alias: string;
+  name: string;
+  ruc: string;
+  companyId: string;
+}
+
 export function fetchGeoVictoriaEmployees(): Promise<GeoVictoriaEmployee[]> {
   return request<GeoVictoriaEmployee[]>('/geovictoria/employees');
 }
@@ -50,11 +57,16 @@ export function fetchGeoVictoriaReciboEmployees(): Promise<GeoVictoriaEmployee[]
   return request<GeoVictoriaEmployee[]>('/geovictoria/recibo-employees');
 }
 
+export function fetchGeoVictoriaCompanies(): Promise<GeoVictoriaCompany[]> {
+  return request<GeoVictoriaCompany[]>('/geovictoria/companies');
+}
+
 export type GeoVictoriaAddUserPayload = {
-  identifier: string;
-  email: string;
-  name: string;
-  lastName: string;
+  Identifier: string;
+  Email: string;
+  Name: string;
+  LastName: string;
+  CostCenterCode: string;
 };
 
 export function sendEmployeeToGeoVictoria(payload: GeoVictoriaAddUserPayload): Promise<{ message?: string }> {

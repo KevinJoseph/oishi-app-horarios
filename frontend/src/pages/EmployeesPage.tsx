@@ -25,11 +25,11 @@ import {
   useDisclosure,
   useToast
 } from '@chakra-ui/react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FiEdit2, FiFileText, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { GeoVictoriaReciboModal } from '../components/GeoVictoriaReciboModal';
-import { fetchGeoVictoriaEmployees, sendEmployeeToGeoVictoria } from '../api/plannerApi';
+import { fetchGeoVictoriaCompanies, fetchGeoVictoriaEmployees, type GeoVictoriaCompany, sendEmployeeToGeoVictoria } from '../api/plannerApi';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Employee } from '../types';
@@ -105,6 +105,7 @@ export function EmployeesPage(): JSX.Element {
   const [employeeToSend, setEmployeeToSend] = useState<Employee | null>(null);
   const [exportingEmployeeId, setExportingEmployeeId] = useState<string | null>(null);
   const [sendingEmployeeId, setSendingEmployeeId] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<GeoVictoriaCompany[]>([]);
   const [search, setSearch] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
@@ -132,16 +133,32 @@ export function EmployeesPage(): JSX.Element {
     );
   }, [employees, search]);
 
-  const getEmployeeGeoVictoriaPayload = (employee: Employee): { identifier: string; email: string; name: string; lastName: string } => {
+  useEffect(() => {
+    if (!canEdit) return;
+
+    fetchGeoVictoriaCompanies()
+      .then((items) => setCompanies(items))
+      .catch((error) => {
+        toast({
+          status: 'error',
+          title: error instanceof Error ? error.message : 'No se pudo obtener la lista de companies.'
+        });
+      });
+  }, [canEdit, toast]);
+
+  const getEmployeeGeoVictoriaPayload = (
+    employee: Employee
+  ): { Identifier: string; Email: string; Name: string; LastName: string; CostCenterCode: string } => {
     const firstName = employee.firstName?.trim() ?? '';
     const lastName = employee.lastName?.trim() ?? '';
     const fallbackParts = employee.name.trim().split(/\s+/).filter(Boolean);
 
     return {
-      identifier: employee.identityDocument?.trim() ?? '',
-      email: employee.email?.trim() ?? '',
-      name: firstName || fallbackParts.slice(0, Math.max(1, fallbackParts.length - 1)).join(' '),
-      lastName: lastName || fallbackParts.slice(Math.max(1, fallbackParts.length - 1)).join(' ')
+      Identifier: employee.identityDocument?.trim() ?? '',
+      Email: employee.email?.trim() ?? '',
+      Name: firstName || fallbackParts.slice(0, Math.max(1, fallbackParts.length - 1)).join(' '),
+      LastName: lastName || fallbackParts.slice(Math.max(1, fallbackParts.length - 1)).join(' '),
+      CostCenterCode: employee.companyId?.trim() ?? ''
     };
   };
 
@@ -266,10 +283,10 @@ export function EmployeesPage(): JSX.Element {
     if (!canEdit || !employeeToSend) return;
 
     const payload = getEmployeeGeoVictoriaPayload(employeeToSend);
-    if (!payload.identifier || !payload.email || !payload.name || !payload.lastName) {
+    if (!payload.Identifier || !payload.Email || !payload.Name || !payload.LastName || !payload.CostCenterCode) {
       toast({
         status: 'error',
-        title: 'El colaborador debe tener DNI, email, nombre y apellidos para enviarse a GeoVictoria.'
+        title: 'El colaborador debe tener DNI, email, nombre, apellidos y company para enviarse a GeoVictoria.'
       });
       return;
     }
@@ -485,6 +502,7 @@ export function EmployeesPage(): JSX.Element {
         onClose={onClose}
         editing={editing}
         roles={roles}
+        companies={companies}
         currentAreaId={currentAreaId}
         onSave={(employee) => {
           if (!canEdit) return { ok: false, error: 'No tienes permisos para guardar colaboradores.' };

@@ -148,7 +148,7 @@ export function EmployeesPage(): JSX.Element {
 
   const getEmployeeGeoVictoriaPayload = (
     employee: Employee
-  ): { Identifier: string; Email: string; Name: string; LastName: string; CostCenterCode: string } => {
+  ): { Identifier: string; Email: string; Name: string; LastName: string; CostCenterCode: string; Enabled: string } => {
     const firstName = employee.firstName?.trim() ?? '';
     const lastName = employee.lastName?.trim() ?? '';
     const fallbackParts = employee.name.trim().split(/\s+/).filter(Boolean);
@@ -158,7 +158,8 @@ export function EmployeesPage(): JSX.Element {
       Email: employee.email?.trim() ?? '',
       Name: firstName || fallbackParts.slice(0, Math.max(1, fallbackParts.length - 1)).join(' '),
       LastName: lastName || fallbackParts.slice(Math.max(1, fallbackParts.length - 1)).join(' '),
-      CostCenterCode: employee.companyId?.trim() ?? ''
+      CostCenterCode: employee.companyId?.trim() ?? '',
+      Enabled: '1'
     };
   };
 

@@ -40,6 +40,26 @@ function cleanRequiredText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function extractGeoVictoriaMessage(payload: unknown): string {
+  if (typeof payload !== 'object' || payload === null) {
+    return typeof payload === 'string' ? payload : '';
+  }
+
+  if ('Message' in payload && typeof payload.Message === 'string') {
+    return payload.Message;
+  }
+
+  if ('message' in payload && typeof payload.message === 'string') {
+    return payload.message;
+  }
+
+  if ('_message' in payload && typeof payload._message === 'string') {
+    return payload._message;
+  }
+
+  return '';
+}
+
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
 function readJwtExp(token: string): number | null {
@@ -227,7 +247,8 @@ export async function addGeoVictoriaUserController(req: Request, res: Response):
       Email: email,
       Name: name,
       LastName: lastName,
-      CostCenterCode: costCenterCode
+      CostCenterCode: costCenterCode,
+      Enabled: '1'
     })
   });
 
@@ -241,32 +262,25 @@ export async function addGeoVictoriaUserController(req: Request, res: Response):
     }
   }
 
+  if (typeof parsedBody === 'object' && parsedBody !== null && 'Success' in parsedBody && parsedBody.Success === false) {
+    res.status(409).json({
+      error: extractGeoVictoriaMessage(parsedBody) || 'GeoVictoria rechazó la creación del usuario.'
+    });
+    return;
+  }
+
   if (!response.ok) {
     if (response.status === 401) {
       tokenCache.delete(`company:${costCenterCode}`);
     }
 
-    const remoteMessage =
-      typeof parsedBody === 'object' && parsedBody !== null && '_message' in parsedBody && typeof parsedBody._message === 'string'
-        ? parsedBody._message
-        : typeof parsedBody === 'object' && parsedBody !== null && 'message' in parsedBody && typeof parsedBody.message === 'string'
-          ? parsedBody.message
-          : typeof parsedBody === 'string'
-            ? parsedBody
-            : '';
-
     res.status(502).json({
-      error: remoteMessage || `Error al enviar usuario a GeoVictoria: ${response.status} ${response.statusText}`
+      error: extractGeoVictoriaMessage(parsedBody) || `Error al enviar usuario a GeoVictoria: ${response.status} ${response.statusText}`
     });
     return;
   }
 
-  const message =
-    typeof parsedBody === 'object' && parsedBody !== null && '_message' in parsedBody && typeof parsedBody._message === 'string'
-      ? parsedBody._message
-      : typeof parsedBody === 'object' && parsedBody !== null && 'message' in parsedBody && typeof parsedBody.message === 'string'
-        ? parsedBody.message
-        : 'Usuario enviado correctamente a GeoVictoria.';
+  const message = extractGeoVictoriaMessage(parsedBody) || 'Usuario enviado correctamente a GeoVictoria.';
 
   res.status(200).json({ message });
 }

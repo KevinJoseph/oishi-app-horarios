@@ -67,6 +67,7 @@ export type GeoVictoriaAddUserPayload = {
   Name: string;
   LastName: string;
   CostCenterCode: string;
+  Enabled: string;
 };
 
 export function sendEmployeeToGeoVictoria(payload: GeoVictoriaAddUserPayload): Promise<{ message?: string }> {

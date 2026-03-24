@@ -70,6 +70,7 @@ export function EmployeeFormModal({
   const [identityDocument, setIdentityDocument] = useState('');
   const [email, setEmail] = useState('');
   const [companyAlias, setCompanyAlias] = useState('');
+  const [reciboGroupCode, setReciboGroupCode] = useState('');
   const [active, setActive] = useState(true);
   const [weeklyHours, setWeeklyHours] = useState('');
   const [contractType, setContractType] = useState<'full-time' | 'part-time' | ''>('');
@@ -92,6 +93,7 @@ export function EmployeeFormModal({
     setIdentityDocument(editing?.identityDocument ?? '');
     setEmail(editing?.email ?? '');
     setCompanyAlias(editing?.companyAlias ?? '');
+    setReciboGroupCode(editing?.geoVictoriaCostCenterCode ?? '');
     setActive(editing?.active ?? true);
     setContractType(editing?.contractType ?? '');
     setWeeklyHours(editing?.weeklyHours !== undefined ? String(editing.weeklyHours) : '0');
@@ -121,13 +123,28 @@ export function EmployeeFormModal({
   const trimmedIdentityDocument = identityDocument.trim();
   const trimmedEmail = email.trim();
   const selectedCompany = companies.find((company) => company.alias === companyAlias);
+  const selectedReciboGroup = selectedCompany?.groups.find((group) => group.code_centro_costo === reciboGroupCode);
+  const requiresReciboGroup = Boolean(selectedCompany?.groups.length);
   const hasRequiredErrors = {
     firstName: !trimmedFirstName,
     lastName: !trimmedLastName,
     identityDocument: !trimmedIdentityDocument,
     email: !trimmedEmail,
-    companyAlias: !companyAlias
+    companyAlias: !companyAlias,
+    reciboGroupCode: requiresReciboGroup && !selectedReciboGroup
   };
+
+  useEffect(() => {
+    if (!selectedCompany?.groups.length) {
+      if (reciboGroupCode) setReciboGroupCode('');
+      return;
+    }
+
+    const stillExists = selectedCompany.groups.some((group) => group.code_centro_costo === reciboGroupCode);
+    if (!stillExists) {
+      setReciboGroupCode('');
+    }
+  }, [selectedCompany, reciboGroupCode]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -154,7 +171,12 @@ export function EmployeeFormModal({
           </FormControl>
           <FormControl mb={3} isRequired>
             <FormLabel>Company</FormLabel>
-            <Select value={companyAlias} onChange={(event) => setCompanyAlias(event.target.value)}>
+            <Select
+              value={companyAlias}
+              onChange={(event) => {
+                setCompanyAlias(event.target.value);
+              }}
+            >
               <option value="">Selecciona una empresa</option>
               {companies.map((company) => (
                 <option key={company.alias} value={company.alias}>
@@ -163,6 +185,19 @@ export function EmployeeFormModal({
               ))}
             </Select>
           </FormControl>
+          {requiresReciboGroup ? (
+            <FormControl mb={3} isRequired>
+              <FormLabel>Grupo Recibo</FormLabel>
+              <Select value={reciboGroupCode} onChange={(event) => setReciboGroupCode(event.target.value)}>
+                <option value="">Selecciona un grupo</option>
+                {selectedCompany?.groups.map((group) => (
+                  <option key={group.code_centro_costo} value={group.code_centro_costo}>
+                    {group.name}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+          ) : null}
           <FormControl mb={3}>
             <FormLabel>Área</FormLabel>
             <Select value={areaId} onChange={(event) => setAreaId(event.target.value as AreaId)}>
@@ -260,7 +295,8 @@ export function EmployeeFormModal({
                   hasRequiredErrors.lastName ||
                   hasRequiredErrors.identityDocument ||
                   hasRequiredErrors.email ||
-                  hasRequiredErrors.companyAlias
+                  hasRequiredErrors.companyAlias ||
+                  hasRequiredErrors.reciboGroupCode
                 ) {
                   toast({
                     status: 'error',
@@ -287,6 +323,9 @@ export function EmployeeFormModal({
                   companyAlias: selectedCompany?.alias,
                   companyName: selectedCompany?.name,
                   companyId: selectedCompany?.companyId,
+                  companyRuc: selectedCompany?.ruc,
+                  geoVictoriaGroupName: selectedReciboGroup?.name,
+                  geoVictoriaCostCenterCode: selectedReciboGroup?.code_centro_costo ?? selectedCompany?.ruc,
                   areaId,
                   active,
                   weeklyHours: isWithoutContract ? 0 : parsedWeeklyHours,

@@ -40,6 +40,7 @@ export interface GeoVictoriaEmployee {
   PositionDescription: string;
   Enabled: string;
   IntegrationCode: string;
+  UserCompanyIdentifier?: string;
 }
 
 export interface GeoVictoriaCompany {
@@ -47,6 +48,12 @@ export interface GeoVictoriaCompany {
   name: string;
   ruc: string;
   companyId: string;
+  groups: GeoVictoriaCompanyGroup[];
+}
+
+export interface GeoVictoriaCompanyGroup {
+  name: string;
+  code_centro_costo: string;
 }
 
 export function fetchGeoVictoriaEmployees(): Promise<GeoVictoriaEmployee[]> {
@@ -62,6 +69,7 @@ export function fetchGeoVictoriaCompanies(): Promise<GeoVictoriaCompany[]> {
 }
 
 export type GeoVictoriaAddUserPayload = {
+  CompanyId: string;
   Identifier: string;
   Email: string;
   Name: string;

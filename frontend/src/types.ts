@@ -12,6 +12,9 @@ export type Employee = {
   companyAlias?: string;
   companyName?: string;
   companyId?: string;
+  companyRuc?: string;
+  geoVictoriaGroupName?: string;
+  geoVictoriaCostCenterCode?: string;
   areaId?: AreaId;
   active: boolean;
   weeklyHours?: number;

@@ -21,9 +21,12 @@ interface GeoVictoriaCompanyResponse {
   name: string;
   ruc: string;
   companyId: string;
+  groups: typeof env.geoVictoriaReciboGroups;
 }
 
 interface GeoVictoriaAddUserRequestBody {
+  CompanyId?: string;
+  companyId?: string;
   Identifier?: string;
   identifier?: string;
   Email?: string;
@@ -154,7 +157,8 @@ export async function getGeoVictoriaCompaniesController(_req: Request, res: Resp
     alias: company.alias,
     name: company.name,
     ruc: company.ruc,
-    companyId: company.companyId
+    companyId: company.companyId,
+    groups: company.alias.toUpperCase() === 'RECIBO' ? env.geoVictoriaReciboGroups : []
   }));
 
   res.status(200).json(companies);
@@ -199,36 +203,34 @@ export async function getGeoVictoriaEmployeesController(_req: Request, res: Resp
 }
 
 export async function addGeoVictoriaUserController(req: Request, res: Response): Promise<void> {
-  if (!env.geoVictoriaUser || !env.geoVictoriaPassword) {
-    res.status(503).json({ error: 'Credenciales de GeoVictoria no configuradas en el servidor.' });
-    return;
-  }
-
   const body = (req.body ?? {}) as GeoVictoriaAddUserRequestBody;
+  const companyId = cleanRequiredText(body.CompanyId ?? body.companyId);
   const identifier = cleanRequiredText(body.Identifier ?? body.identifier);
   const email = cleanRequiredText(body.Email ?? body.email);
   const name = cleanRequiredText(body.Name ?? body.name);
   const lastName = cleanRequiredText(body.LastName ?? body.lastName);
   const costCenterCode = cleanRequiredText(body.CostCenterCode ?? body.costCenterCode);
 
-  if (!identifier || !email || !name || !lastName || !costCenterCode) {
-    res.status(400).json({ error: 'Identifier, Email, Name, LastName y CostCenterCode son obligatorios para enviar a GeoVictoria.' });
+  if (!companyId || !identifier || !email || !name || !lastName || !costCenterCode) {
+    res
+      .status(400)
+      .json({ error: 'CompanyId, Identifier, Email, Name, LastName y CostCenterCode son obligatorios para enviar a GeoVictoria.' });
     return;
   }
 
-  const credentials = getCompanyCredentials(costCenterCode);
+  const credentials = getCompanyCredentials(companyId);
   if (!credentials) {
-    res.status(400).json({ error: `No existen credenciales configuradas para el CostCenterCode "${costCenterCode}".` });
+    res.status(400).json({ error: `No existen credenciales configuradas para la company "${companyId}".` });
     return;
   }
 
   let token: string;
   try {
     token = await getTokenForCredentials(
-      `company:${costCenterCode}`,
+      `company:${companyId}`,
       credentials.user,
       credentials.password,
-      costCenterCode
+      companyId
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error de autenticación con GeoVictoria.';

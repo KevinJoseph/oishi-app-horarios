@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 type GeoVictoriaCompany = {
+  envKey: string;
   alias: string;
   name: string;
   ruc: string;
@@ -15,6 +16,11 @@ type GeoVictoriaCredential = {
   password: string;
 };
 
+type GeoVictoriaGroup = {
+  name: string;
+  code_centro_costo: string;
+};
+
 function requireEnv(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
   if (!value) {
@@ -23,37 +29,72 @@ function requireEnv(name: string, fallback?: string): string {
   return value;
 }
 
+function requireTrimmedEnv(name: string, fallback?: string): string {
+  return requireEnv(name, fallback).trim().replace(/^"|"$/g, '');
+}
+
+function parseGeoVictoriaActiveCompanyKeys(): string[] {
+  const raw = requireTrimmedEnv('GEOVICTORIA_ACTIVE_COMPANIES', 'CANETE,RECIBO,CHINCHA,ICA,LINAJE');
+  const keys = raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => item.toUpperCase());
+
+  if (keys.length === 0) {
+    throw new Error('GEOVICTORIA_ACTIVE_COMPANIES debe incluir al menos una empresa.');
+  }
+
+  return [...new Set(keys)];
+}
+
+function formatCompanyAlias(envKey: string): string {
+  return envKey
+    .toLowerCase()
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function parseGeoVictoriaCompanies(): GeoVictoriaCompany[] {
-  const raw = process.env.GEOVICTORIA_COMPANIES?.trim() ?? '[]';
+  return parseGeoVictoriaActiveCompanyKeys().map((envKey) => ({
+    envKey,
+    alias: process.env[`GEOVICTORIA_${envKey}_ALIAS`]?.trim() || formatCompanyAlias(envKey),
+    name: requireTrimmedEnv(`GEOVICTORIA_${envKey}_NAME`),
+    ruc: requireTrimmedEnv(`GEOVICTORIA_${envKey}_RUC`),
+    companyId: requireTrimmedEnv(`GEOVICTORIA_${envKey}_ID`)
+  }));
+}
+
+function parseGeoVictoriaGroups(envName: string): GeoVictoriaGroup[] {
+  const raw = process.env[envName]?.trim() ?? '[]';
   let parsed: unknown;
+
   try {
     parsed = JSON.parse(raw) as unknown;
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Formato inválido.';
-    throw new Error(`GEOVICTORIA_COMPANIES no tiene un JSON válido: ${message}`);
+    const message = error instanceof Error ? error.message : 'Formato invalido.';
+    throw new Error(`${envName} no tiene un JSON valido: ${message}`);
   }
 
   if (!Array.isArray(parsed)) {
-    throw new Error('GEOVICTORIA_COMPANIES debe ser un arreglo JSON.');
+    throw new Error(`${envName} debe ser un arreglo JSON.`);
   }
 
-  return parsed.map((company, index) => {
+  return parsed.map((group, index) => {
     if (
-      !company ||
-      typeof company !== 'object' ||
-      typeof company.alias !== 'string' ||
-      typeof company.name !== 'string' ||
-      typeof company.ruc !== 'string' ||
-      typeof company.companyId !== 'string'
+      !group ||
+      typeof group !== 'object' ||
+      typeof group.name !== 'string' ||
+      typeof group.code_centro_costo !== 'string'
     ) {
-      throw new Error(`GEOVICTORIA_COMPANIES tiene una empresa inválida en la posición ${index}.`);
+      throw new Error(`${envName} tiene un grupo invalido en la posicion ${index}.`);
     }
 
     return {
-      alias: company.alias.trim(),
-      name: company.name.trim(),
-      ruc: company.ruc.trim(),
-      companyId: company.companyId.trim()
+      name: group.name.trim(),
+      code_centro_costo: group.code_centro_costo.trim()
     };
   });
 }
@@ -71,26 +112,18 @@ function parseGeoVictoriaCredentialsByCompanyId(companies: GeoVictoriaCompany[])
   const credentials: Record<string, GeoVictoriaCredential> = {};
 
   for (const company of companies) {
-    const aliasKey = normalizeCompanyAliasKey(company.alias);
-    const idEnvName = `GEOVICTORIA_${aliasKey}_ID`;
+    const aliasKey = normalizeCompanyAliasKey(company.envKey);
     const userEnvName = `GEOVICTORIA_${aliasKey}_USER`;
     const passwordEnvName = `GEOVICTORIA_${aliasKey}_PASSWORD`;
-    const configuredCompanyId = process.env[idEnvName]?.trim().replace(/^"|"$/g, '') ?? '';
     const user = process.env[userEnvName]?.trim() ?? '';
     const password = process.env[passwordEnvName]?.trim() ?? '';
 
-    if (!configuredCompanyId || !user || !password) {
-      throw new Error(`Faltan credenciales para la company "${company.alias}": ${idEnvName}/${userEnvName}/${passwordEnvName}.`);
-    }
-
-    if (configuredCompanyId !== company.companyId) {
-      throw new Error(
-        `El ID configurado para "${company.alias}" en ${idEnvName} no coincide con GEOVICTORIA_COMPANIES.`
-      );
+    if (!user || !password) {
+      throw new Error(`Faltan credenciales para la company "${company.alias}": ${userEnvName}/${passwordEnvName}.`);
     }
 
     credentials[company.companyId] = {
-      companyId: configuredCompanyId,
+      companyId: company.companyId,
       user,
       password
     };
@@ -100,6 +133,7 @@ function parseGeoVictoriaCredentialsByCompanyId(companies: GeoVictoriaCompany[])
 }
 
 const geoVictoriaCompanies = parseGeoVictoriaCompanies();
+const geoVictoriaReciboGroups = parseGeoVictoriaGroups('GEOVICTORIA_RECIBO_GROUPS');
 
 export const env = {
   port: Number(process.env.PORT ?? 4000),
@@ -116,6 +150,7 @@ export const env = {
   geoVictoriaPassword: process.env.GEOVICTORIA_CANETE_PASSWORD ?? '',
   geoVictoriaReciboUser: process.env.GEOVICTORIA_RECIBO_USER ?? '',
   geoVictoriaReciboPassword: process.env.GEOVICTORIA_RECIBO_PASSWORD ?? '',
+  geoVictoriaReciboGroups,
   geoVictoriaCompanies,
   geoVictoriaCredentialsByCompanyId: parseGeoVictoriaCredentialsByCompanyId(geoVictoriaCompanies)
 };

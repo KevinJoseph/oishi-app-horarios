@@ -66,6 +66,15 @@ function getAreaLabel(value: Employee['areaId']): string {
   return 'Salón';
 }
 
+function normalizeText(value: string | undefined): string {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 export function EmployeesPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -133,6 +142,23 @@ export function EmployeesPage(): JSX.Element {
     );
   }, [employees, search]);
 
+  const findCompanyFromGeoVictoriaUser = (groupDescription: string | undefined, userCompanyIdentifier: string | undefined): GeoVictoriaCompany | undefined => {
+    const normalizedGroupDescription = normalizeText(groupDescription);
+    const normalizedIdentifier = normalizeText(userCompanyIdentifier);
+
+    return companies.find((company) => {
+      const normalizedAlias = normalizeText(company.alias);
+      const normalizedName = normalizeText(company.name);
+      const normalizedRuc = normalizeText(company.ruc);
+
+      return (
+        (normalizedIdentifier && normalizedRuc === normalizedIdentifier) ||
+        (normalizedGroupDescription && normalizedName === normalizedGroupDescription) ||
+        (normalizedGroupDescription && normalizedAlias === normalizedGroupDescription)
+      );
+    });
+  };
+
   useEffect(() => {
     if (!canEdit) return;
 
@@ -148,17 +174,33 @@ export function EmployeesPage(): JSX.Element {
 
   const getEmployeeGeoVictoriaPayload = (
     employee: Employee
-  ): { Identifier: string; Email: string; Name: string; LastName: string; CostCenterCode: string; Enabled: string } => {
+  ): {
+    CompanyId: string;
+    Identifier: string;
+    Email: string;
+    Name: string;
+    LastName: string;
+    CostCenterCode: string;
+    Enabled: string;
+  } => {
     const firstName = employee.firstName?.trim() ?? '';
     const lastName = employee.lastName?.trim() ?? '';
     const fallbackParts = employee.name.trim().split(/\s+/).filter(Boolean);
+    const company = companies.find(
+      (item) => item.companyId === employee.companyId || item.alias === employee.companyAlias
+    );
 
     return {
+      CompanyId: employee.companyId?.trim() ?? company?.companyId?.trim() ?? '',
       Identifier: employee.identityDocument?.trim() ?? '',
       Email: employee.email?.trim() ?? '',
       Name: firstName || fallbackParts.slice(0, Math.max(1, fallbackParts.length - 1)).join(' '),
       LastName: lastName || fallbackParts.slice(Math.max(1, fallbackParts.length - 1)).join(' '),
-      CostCenterCode: employee.companyId?.trim() ?? '',
+      CostCenterCode:
+        employee.geoVictoriaCostCenterCode?.trim() ??
+        employee.companyRuc?.trim() ??
+        company?.ruc?.trim() ??
+        '',
       Enabled: '1'
     };
   };
@@ -236,6 +278,7 @@ export function EmployeesPage(): JSX.Element {
         const fullName = `${user.Name} ${user.LastName}`.trim();
         const doc = user.Identifier?.trim() || undefined;
         const existing = employees.find((e) => doc && e.identityDocument?.trim() === doc);
+        const matchedCompany = findCompanyFromGeoVictoriaUser(user.GroupDescription, user.UserCompanyIdentifier);
         if (existing) {
           toUpsert.push({
             ...existing,
@@ -244,6 +287,10 @@ export function EmployeesPage(): JSX.Element {
             lastName: user.LastName || existing.lastName,
             email: user.Email || existing.email,
             phone: user.Phone || existing.phone,
+            companyAlias: matchedCompany?.alias || existing.companyAlias,
+            companyName: matchedCompany?.name || existing.companyName,
+            companyId: matchedCompany?.companyId || existing.companyId,
+            companyRuc: matchedCompany?.ruc || existing.companyRuc,
             groupDescription: user.GroupDescription || existing.groupDescription,
             positionDescription: user.PositionDescription || existing.positionDescription
           });
@@ -257,6 +304,10 @@ export function EmployeesPage(): JSX.Element {
             identityDocument: doc,
             email: user.Email || undefined,
             phone: user.Phone || undefined,
+            companyAlias: matchedCompany?.alias || undefined,
+            companyName: matchedCompany?.name || undefined,
+            companyId: matchedCompany?.companyId || undefined,
+            companyRuc: matchedCompany?.ruc || undefined,
             groupDescription: user.GroupDescription || undefined,
             positionDescription: user.PositionDescription || undefined,
             active: true,
@@ -284,10 +335,10 @@ export function EmployeesPage(): JSX.Element {
     if (!canEdit || !employeeToSend) return;
 
     const payload = getEmployeeGeoVictoriaPayload(employeeToSend);
-    if (!payload.Identifier || !payload.Email || !payload.Name || !payload.LastName || !payload.CostCenterCode) {
+    if (!payload.CompanyId || !payload.Identifier || !payload.Email || !payload.Name || !payload.LastName || !payload.CostCenterCode) {
       toast({
         status: 'error',
-        title: 'El colaborador debe tener DNI, email, nombre, apellidos y company para enviarse a GeoVictoria.'
+        title: 'El colaborador debe tener company, DNI, email, nombre, apellidos y CostCenterCode válido para enviarse a GeoVictoria.'
       });
       return;
     }

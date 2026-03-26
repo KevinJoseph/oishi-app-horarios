@@ -70,6 +70,7 @@ export interface GeoVictoriaPlanningMigrationItem {
 export interface GeoVictoriaPlanningMigrationResult extends GeoVictoriaPlanningMigrationItem {
   ok: boolean;
   shiftId?: string;
+  shiftSource?: 'existing' | 'created';
   planningResponse?: string;
   error?: string;
 }

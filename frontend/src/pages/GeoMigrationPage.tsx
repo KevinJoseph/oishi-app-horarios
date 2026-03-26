@@ -227,9 +227,15 @@ export function GeoMigrationPage(): JSX.Element {
                         <Td>{row.userIdentifier || '-'}</Td>
                         <Td>
                           {result ? (
-                            <Tooltip label={result.error ?? result.planningResponse ?? 'Migrado'} hasArrow>
+                            <Tooltip
+                              label={
+                                result.error ??
+                                `${result.shiftSource === 'existing' ? 'Turno reutilizado' : 'Turno creado'}${result.planningResponse ? ` | ${result.planningResponse}` : ''}`
+                              }
+                              hasArrow
+                            >
                               <Badge colorScheme={result.ok ? 'green' : 'red'}>
-                                {result.ok ? 'Migrado' : 'Error'}
+                                {result.ok ? (result.shiftSource === 'existing' ? 'Reutilizado' : 'Creado') : 'Error'}
                               </Badge>
                             </Tooltip>
                           ) : row.canMigrate ? (

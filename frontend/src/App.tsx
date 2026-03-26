@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { RequireAuth } from './components/RequireAuth';
 import { EmployeesPage } from './pages/EmployeesPage';
+import { GeoMigrationPage } from './pages/GeoMigrationPage';
 import { LoginPage } from './pages/LoginPage';
 import { PlanningPage } from './pages/PlanningPage';
 import { RolesPage } from './pages/RolesPage';
@@ -17,6 +18,7 @@ export default function App(): JSX.Element {
         <Route element={<AppShell />}>
           <Route path="/planning" element={<PlanningPage />} />
           <Route path="/planning/weekly-overview" element={<WeeklyOverviewPage />} />
+          <Route path="/geo-migration" element={<GeoMigrationPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/users" element={<UsersPage />} />

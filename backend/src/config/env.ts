@@ -146,6 +146,8 @@ export const env = {
   geoVictoriaLoginUrl: requireEnv('GEOVICTORIA_LOGIN_URL', 'https://customerapi.geovictoria.com/api/v1/Login'),
   geoVictoriaUserListUrl: requireEnv('GEOVICTORIA_USER_LIST_URL', 'https://customerapi.geovictoria.com/api/v1/User/ListComplete'),
   geoVictoriaUserAddUrl: requireEnv('GEOVICTORIA_USER_ADD_URL', 'https://customerapi.geovictoria.com/api/v1/User/Add'),
+  geoVictoriaShiftInsertUrl: requireEnv('GEOVICTORIA_SHIFT_INSERT_URL', 'https://customerapi.geovictoria.com/api/v1/Shift/Insert'),
+  geoVictoriaPlanningUrl: requireEnv('GEOVICTORIA_PLANNING_URL', 'https://customerapi.geovictoria.com/api/v1/Planning'),
   geoVictoriaUser: process.env.GEOVICTORIA_CANETE_USER ?? '',
   geoVictoriaPassword: process.env.GEOVICTORIA_CANETE_PASSWORD ?? '',
   geoVictoriaReciboUser: process.env.GEOVICTORIA_RECIBO_USER ?? '',

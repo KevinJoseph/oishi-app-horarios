@@ -56,6 +56,24 @@ export interface GeoVictoriaCompanyGroup {
   code_centro_costo: string;
 }
 
+export interface GeoVictoriaPlanningMigrationItem {
+  employeeId: string;
+  employeeName: string;
+  companyId: string;
+  userIdentifier: string;
+  dateISO: string;
+  startHour: string;
+  endHour: string;
+  custom: string;
+}
+
+export interface GeoVictoriaPlanningMigrationResult extends GeoVictoriaPlanningMigrationItem {
+  ok: boolean;
+  shiftId?: string;
+  planningResponse?: string;
+  error?: string;
+}
+
 export function fetchGeoVictoriaEmployees(): Promise<GeoVictoriaEmployee[]> {
   return request<GeoVictoriaEmployee[]>('/geovictoria/employees');
 }
@@ -83,4 +101,16 @@ export function sendEmployeeToGeoVictoria(payload: GeoVictoriaAddUserPayload): P
     method: 'POST',
     body: JSON.stringify(payload)
   });
+}
+
+export function migrateGeoVictoriaPlanning(
+  items: GeoVictoriaPlanningMigrationItem[]
+): Promise<{ migrated: number; failed: number; results: GeoVictoriaPlanningMigrationResult[] }> {
+  return request<{ migrated: number; failed: number; results: GeoVictoriaPlanningMigrationResult[] }>(
+    '/geovictoria/planning/migrate',
+    {
+      method: 'POST',
+      body: JSON.stringify({ items })
+    }
+  );
 }

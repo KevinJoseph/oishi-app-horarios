@@ -39,6 +39,21 @@ interface GeoVictoriaAddUserRequestBody {
   costCenterCode?: string;
 }
 
+interface GeoVictoriaMigrateShiftItemRequestBody {
+  employeeId?: string;
+  employeeName?: string;
+  companyId?: string;
+  userIdentifier?: string;
+  dateISO?: string;
+  startHour?: string;
+  endHour?: string;
+  custom?: string;
+}
+
+interface GeoVictoriaMigratePlanningRequestBody {
+  items?: GeoVictoriaMigrateShiftItemRequestBody[];
+}
+
 function cleanRequiredText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -61,6 +76,25 @@ function extractGeoVictoriaMessage(payload: unknown): string {
   }
 
   return '';
+}
+
+function formatGeoVictoriaDate(dateISO: string): string {
+  return `${dateISO.replace(/-/g, '')}000000`;
+}
+
+function isValidHour(value: string): boolean {
+  return /^\d{2}:\d{2}$/.test(value);
+}
+
+function isValidDateISO(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function toMinutes(value: string): number | null {
+  if (!isValidHour(value)) return null;
+  const [hours, minutes] = value.split(':').map((part) => Number.parseInt(part, 10));
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return hours * 60 + minutes;
 }
 
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
@@ -113,6 +147,97 @@ async function getReciboToken(): Promise<string> {
 function getCompanyCredentials(companyId: string): { companyId: string; user: string; password: string } | null {
   const credentials = env.geoVictoriaCredentialsByCompanyId[companyId];
   return credentials ?? null;
+}
+
+async function insertGeoVictoriaShift(
+  token: string,
+  tokenCacheKey: string,
+  startHour: string,
+  endHour: string,
+  custom: string
+): Promise<string> {
+  const response = await fetch(env.geoVictoriaShiftInsertUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      StartHour: startHour,
+      EndHour: endHour,
+      ShiftDay: 'fin',
+      Custom: custom
+    })
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      tokenCache.delete(tokenCacheKey);
+    }
+    throw new Error(`Error al crear turno en GeoVictoria: ${response.status} ${response.statusText}`);
+  }
+
+  const rawText = (await response.text()).trim();
+  if (!rawText) {
+    throw new Error('GeoVictoria no devolvio el identificador del turno.');
+  }
+
+  try {
+    const parsed = JSON.parse(rawText) as unknown;
+    if (typeof parsed === 'string' && parsed.trim()) {
+      return parsed.trim();
+    }
+  } catch {
+    // La API tambien puede responder en texto plano.
+  }
+
+  return rawText.replace(/^"|"$/g, '');
+}
+
+async function assignGeoVictoriaPlanning(
+  token: string,
+  tokenCacheKey: string,
+  userIdentifier: string,
+  shiftId: string,
+  dateISO: string
+): Promise<string> {
+  const response = await fetch(env.geoVictoriaPlanningUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify([
+      {
+        User: userIdentifier,
+        Shift: [
+          {
+            ShiftId: shiftId,
+            Date: formatGeoVictoriaDate(dateISO)
+          }
+        ]
+      }
+    ])
+  });
+
+  const rawText = (await response.text()).trim();
+  if (!response.ok) {
+    if (response.status === 401) {
+      tokenCache.delete(tokenCacheKey);
+    }
+    throw new Error(`Error al asignar planificacion en GeoVictoria: ${response.status} ${response.statusText}`);
+  }
+
+  if (!rawText) {
+    return 'OK';
+  }
+
+  try {
+    const parsed = JSON.parse(rawText) as unknown;
+    return extractGeoVictoriaMessage(parsed) || rawText;
+  } catch {
+    return rawText;
+  }
 }
 
 export async function getGeoVictoriaReciboEmployeesController(_req: Request, res: Response): Promise<void> {
@@ -273,7 +398,7 @@ export async function addGeoVictoriaUserController(req: Request, res: Response):
 
   if (!response.ok) {
     if (response.status === 401) {
-      tokenCache.delete(`company:${costCenterCode}`);
+      tokenCache.delete(`company:${companyId}`);
     }
 
     res.status(502).json({
@@ -285,4 +410,125 @@ export async function addGeoVictoriaUserController(req: Request, res: Response):
   const message = extractGeoVictoriaMessage(parsedBody) || 'Usuario enviado correctamente a GeoVictoria.';
 
   res.status(200).json({ message });
+}
+
+export async function migrateGeoVictoriaPlanningController(req: Request, res: Response): Promise<void> {
+  const body = (req.body ?? {}) as GeoVictoriaMigratePlanningRequestBody;
+  const items = Array.isArray(body.items) ? body.items : [];
+
+  if (items.length === 0) {
+    res.status(400).json({ error: 'Debes enviar al menos un turno para migrar.' });
+    return;
+  }
+
+  const shiftIdCache = new Map<string, string>();
+  const results: Array<{
+    employeeId: string;
+    employeeName: string;
+    userIdentifier: string;
+    companyId: string;
+    dateISO: string;
+    startHour: string;
+    endHour: string;
+    ok: boolean;
+    shiftId?: string;
+    planningResponse?: string;
+    error?: string;
+  }> = [];
+
+  for (const item of items) {
+    const employeeId = cleanRequiredText(item.employeeId);
+    const employeeName = cleanRequiredText(item.employeeName);
+    const companyId = cleanRequiredText(item.companyId);
+    const userIdentifier = cleanRequiredText(item.userIdentifier);
+    const dateISO = cleanRequiredText(item.dateISO);
+    const startHour = cleanRequiredText(item.startHour);
+    const endHour = cleanRequiredText(item.endHour);
+    const custom = (cleanRequiredText(item.custom) || `${startHour}-${endHour}`).slice(0, 20);
+    const startMinutes = toMinutes(startHour);
+    const endMinutes = toMinutes(endHour);
+
+    if (
+      !employeeId ||
+      !employeeName ||
+      !companyId ||
+      !userIdentifier ||
+      !isValidDateISO(dateISO) ||
+      startMinutes === null ||
+      endMinutes === null ||
+      endMinutes <= startMinutes
+    ) {
+      results.push({
+        employeeId,
+        employeeName,
+        userIdentifier,
+        companyId,
+        dateISO,
+        startHour,
+        endHour,
+        ok: false,
+        error: 'Fila invalida. Verifica company, identificador, fecha y horas.'
+      });
+      continue;
+    }
+
+    const credentials = getCompanyCredentials(companyId);
+    if (!credentials) {
+      results.push({
+        employeeId,
+        employeeName,
+        userIdentifier,
+        companyId,
+        dateISO,
+        startHour,
+        endHour,
+        ok: false,
+        error: `No existen credenciales configuradas para la company "${companyId}".`
+      });
+      continue;
+    }
+
+    const tokenCacheKey = `company:${companyId}`;
+
+    try {
+      const token = await getTokenForCredentials(tokenCacheKey, credentials.user, credentials.password, companyId);
+      const shiftSignature = `${companyId}|${startHour}|${endHour}|${custom}`;
+      let shiftId = shiftIdCache.get(shiftSignature);
+
+      if (!shiftId) {
+        shiftId = await insertGeoVictoriaShift(token, tokenCacheKey, startHour, endHour, custom);
+        shiftIdCache.set(shiftSignature, shiftId);
+      }
+
+      const planningResponse = await assignGeoVictoriaPlanning(token, tokenCacheKey, userIdentifier, shiftId, dateISO);
+      results.push({
+        employeeId,
+        employeeName,
+        userIdentifier,
+        companyId,
+        dateISO,
+        startHour,
+        endHour,
+        ok: true,
+        shiftId,
+        planningResponse
+      });
+    } catch (error) {
+      results.push({
+        employeeId,
+        employeeName,
+        userIdentifier,
+        companyId,
+        dateISO,
+        startHour,
+        endHour,
+        ok: false,
+        error: error instanceof Error ? error.message : 'Error al migrar turno a GeoVictoria.'
+      });
+    }
+  }
+
+  const migrated = results.filter((item) => item.ok).length;
+  const failed = results.length - migrated;
+  res.status(200).json({ migrated, failed, results });
 }

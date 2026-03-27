@@ -37,6 +37,7 @@ export interface GeoVictoriaEmployee {
   Phone: string;
   Email: string;
   GroupDescription: string;
+  CostCenterCode?: string;
   PositionDescription: string;
   Enabled: string;
   IntegrationCode: string;

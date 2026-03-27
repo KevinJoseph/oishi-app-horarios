@@ -92,7 +92,11 @@ export function GeoVictoriaReciboModal({
 
   const alreadyExistsInSelectedCompany = (user: GeoVictoriaEmployee): boolean => {
     const existing = existingEmployeeForUser(user);
-    return !!existing && !!selectedCompany && existing.companyId === selectedCompany.companyId;
+    return (
+      !!existing &&
+      !!selectedCompany &&
+      (existing.moduleCompanyId ?? existing.companyId) === selectedCompany.companyId
+    );
   };
 
   const handleImport = (): void => {
@@ -110,6 +114,14 @@ export function GeoVictoriaReciboModal({
     let created = 0;
     let updated = 0;
     const toUpsert: Employee[] = [];
+    const reciboCompany = users.length > 0
+      ? {
+          alias: 'Recibo',
+          name: 'OISHI RESTAURANTE(Recibo)',
+          companyId: '2a8M03DV5w6g5gBak-4uA',
+          ruc: '20230809234717'
+        }
+      : null;
 
     for (const user of toImport) {
       const fullName = `${user.Name} ${user.LastName}`.trim();
@@ -120,10 +132,16 @@ export function GeoVictoriaReciboModal({
           ...existing,
           name: fullName,
           phone: user.Phone || existing.phone,
-          companyAlias: selectedCompany.alias,
-          companyName: selectedCompany.name,
-          companyId: selectedCompany.companyId,
-          companyRuc: selectedCompany.ruc,
+          moduleCompanyAlias: selectedCompany.alias,
+          moduleCompanyName: selectedCompany.name,
+          moduleCompanyId: selectedCompany.companyId,
+          moduleCompanyRuc: selectedCompany.ruc,
+          companyAlias: reciboCompany?.alias ?? existing.companyAlias,
+          companyName: reciboCompany?.name ?? existing.companyName,
+          companyId: reciboCompany?.companyId ?? existing.companyId,
+          companyRuc: reciboCompany?.ruc ?? existing.companyRuc,
+          geoVictoriaGroupName: user.GroupDescription || existing.geoVictoriaGroupName,
+          geoVictoriaCostCenterCode: user.CostCenterCode || existing.geoVictoriaCostCenterCode,
           groupDescription: user.GroupDescription || existing.groupDescription,
           positionDescription: user.PositionDescription || existing.positionDescription,
           areaId: currentAreaId
@@ -135,10 +153,16 @@ export function GeoVictoriaReciboModal({
           name: fullName,
           identityDocument: doc,
           phone: user.Phone || undefined,
-          companyAlias: selectedCompany.alias,
-          companyName: selectedCompany.name,
-          companyId: selectedCompany.companyId,
-          companyRuc: selectedCompany.ruc,
+          moduleCompanyAlias: selectedCompany.alias,
+          moduleCompanyName: selectedCompany.name,
+          moduleCompanyId: selectedCompany.companyId,
+          moduleCompanyRuc: selectedCompany.ruc,
+          companyAlias: reciboCompany?.alias,
+          companyName: reciboCompany?.name,
+          companyId: reciboCompany?.companyId,
+          companyRuc: reciboCompany?.ruc,
+          geoVictoriaGroupName: user.GroupDescription || undefined,
+          geoVictoriaCostCenterCode: user.CostCenterCode || undefined,
           groupDescription: user.GroupDescription || undefined,
           positionDescription: user.PositionDescription || undefined,
           active: true,

@@ -142,7 +142,9 @@ export function EmployeesPage(): JSX.Element {
   const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
   const companyScopedEmployees = useMemo(() => {
     if (!selectedGeoVictoriaCompanyId) return employees;
-    return employees.filter((employee) => (employee.companyId ?? '') === selectedGeoVictoriaCompanyId);
+    return employees.filter(
+      (employee) => (employee.moduleCompanyId ?? employee.companyId ?? '') === selectedGeoVictoriaCompanyId
+    );
   }, [employees, selectedGeoVictoriaCompanyId]);
   const selectedGeoVictoriaCompany = useMemo(
     () => companies.find((company) => company.companyId === selectedGeoVictoriaCompanyId) ?? null,
@@ -204,11 +206,15 @@ export function EmployeesPage(): JSX.Element {
     const lastName = employee.lastName?.trim() ?? '';
     const fallbackParts = employee.name.trim().split(/\s+/).filter(Boolean);
     const company = companies.find(
-      (item) => item.companyId === employee.companyId || item.alias === employee.companyAlias
+      (item) =>
+        item.companyId === employee.companyId ||
+        item.alias === employee.companyAlias ||
+        item.companyId === employee.moduleCompanyId ||
+        item.alias === employee.moduleCompanyAlias
     );
 
     return {
-      CompanyId: employee.companyId?.trim() ?? company?.companyId?.trim() ?? '',
+      CompanyId: employee.companyId?.trim() ?? employee.moduleCompanyId?.trim() ?? company?.companyId?.trim() ?? '',
       Identifier: employee.identityDocument?.trim() ?? '',
       Email: employee.email?.trim() ?? '',
       Name: firstName || fallbackParts.slice(0, Math.max(1, fallbackParts.length - 1)).join(' '),
@@ -216,6 +222,7 @@ export function EmployeesPage(): JSX.Element {
       CostCenterCode:
         employee.geoVictoriaCostCenterCode?.trim() ??
         employee.companyRuc?.trim() ??
+        employee.moduleCompanyRuc?.trim() ??
         company?.ruc?.trim() ??
         '',
       Enabled: '1'
@@ -314,6 +321,10 @@ export function EmployeesPage(): JSX.Element {
             lastName: user.LastName || existing.lastName,
             email: user.Email || existing.email,
             phone: user.Phone || existing.phone,
+            moduleCompanyAlias: matchedCompany?.alias || existing.moduleCompanyAlias || existing.companyAlias,
+            moduleCompanyName: matchedCompany?.name || existing.moduleCompanyName || existing.companyName,
+            moduleCompanyId: matchedCompany?.companyId || existing.moduleCompanyId || existing.companyId,
+            moduleCompanyRuc: matchedCompany?.ruc || existing.moduleCompanyRuc || existing.companyRuc,
             companyAlias: matchedCompany?.alias || existing.companyAlias,
             companyName: matchedCompany?.name || existing.companyName,
             companyId: matchedCompany?.companyId || existing.companyId,
@@ -331,6 +342,10 @@ export function EmployeesPage(): JSX.Element {
             identityDocument: doc,
             email: user.Email || undefined,
             phone: user.Phone || undefined,
+            moduleCompanyAlias: matchedCompany?.alias || undefined,
+            moduleCompanyName: matchedCompany?.name || undefined,
+            moduleCompanyId: matchedCompany?.companyId || undefined,
+            moduleCompanyRuc: matchedCompany?.ruc || undefined,
             companyAlias: matchedCompany?.alias || undefined,
             companyName: matchedCompany?.name || undefined,
             companyId: matchedCompany?.companyId || undefined,

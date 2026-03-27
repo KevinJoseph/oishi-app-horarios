@@ -129,6 +129,10 @@ function normalizeIdentityDocument(value: string | undefined): string {
   return (value ?? '').trim().replace(/\s+/g, '').toLowerCase();
 }
 
+function employeeModuleCompanyId(employee: Pick<Employee, 'moduleCompanyId' | 'companyId'>): string {
+  return employee.moduleCompanyId ?? employee.companyId ?? '';
+}
+
 function buildAutoWeekPlanForEmployee(
   plan: WeekPlan,
   employeeId: string,
@@ -879,10 +883,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       const previous = state.employees.find((item) => item.id === employee.id);
       const incomingDocument = normalizeIdentityDocument(employee.identityDocument);
       const previousDocument = normalizeIdentityDocument(previous?.identityDocument);
+      const incomingModuleCompanyId = employeeModuleCompanyId(employee);
       const shouldValidateIdentityDocument = !previous || incomingDocument !== previousDocument;
       if (shouldValidateIdentityDocument && incomingDocument) {
         const duplicated = state.employees.some(
-          (item) => item.id !== employee.id && normalizeIdentityDocument(item.identityDocument) === incomingDocument
+          (item) =>
+            item.id !== employee.id &&
+            employeeModuleCompanyId(item) === incomingModuleCompanyId &&
+            normalizeIdentityDocument(item.identityDocument) === incomingDocument
         );
         if (duplicated) {
           result = { ok: false, error: 'Ya existe un colaborador con el mismo Documento de Identidad (DNI).' };
@@ -946,10 +954,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         const previous = employees.find((item) => item.id === employee.id);
         const incomingDocument = normalizeIdentityDocument(employee.identityDocument);
         const previousDocument = normalizeIdentityDocument(previous?.identityDocument);
+        const incomingModuleCompanyId = employeeModuleCompanyId(employee);
         const shouldValidateIdentityDocument = !previous || incomingDocument !== previousDocument;
         if (shouldValidateIdentityDocument && incomingDocument) {
           const duplicated = employees.some(
-            (item) => item.id !== employee.id && normalizeIdentityDocument(item.identityDocument) === incomingDocument
+            (item) =>
+              item.id !== employee.id &&
+              employeeModuleCompanyId(item) === incomingModuleCompanyId &&
+              normalizeIdentityDocument(item.identityDocument) === incomingDocument
           );
           if (duplicated) continue;
         }
@@ -1062,7 +1074,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   deleteEmployeesByCompany: (companyId) => {
     set((state) => {
       const idsToDelete = new Set(
-        state.employees.filter((employee) => (employee.companyId ?? '') === companyId).map((employee) => employee.id)
+        state.employees
+          .filter((employee) => (employee.moduleCompanyId ?? employee.companyId ?? '') === companyId)
+          .map((employee) => employee.id)
       );
       if (idsToDelete.size === 0) {
         return {};

@@ -21,6 +21,15 @@ import type { AreaId, Employee, Role } from '../types';
 import { createId } from '../store/useAppStore';
 import { normalizeRestDay, WEEKDAY_OPTIONS } from '../utils/weekdays';
 
+function normalizeGroupValue(value: string | undefined): string {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
@@ -94,9 +103,20 @@ export function EmployeeFormModal({
     setLastName(nameParts.lastName);
     setIdentityDocument(editing?.identityDocument ?? '');
     setEmail(editing?.email ?? '');
-    const selectedCompany = selectedCompanyId ? companies.find((company) => company.companyId === selectedCompanyId) : null;
-    setCompanyAlias(editing?.companyAlias ?? selectedCompany?.alias ?? '');
-    setReciboGroupCode(editing?.geoVictoriaCostCenterCode ?? '');
+    const selectedModuleCompany = selectedCompanyId
+      ? companies.find((company) => company.companyId === selectedCompanyId)
+      : null;
+    const editingCompanyAlias = editing?.companyAlias ?? selectedModuleCompany?.alias ?? '';
+    const editingCompany = companies.find((company) => company.alias === editingCompanyAlias);
+    const normalizedEditingGroupName = normalizeGroupValue(
+      editing?.geoVictoriaGroupName ?? editing?.groupDescription
+    );
+    const matchingReciboGroup =
+      editingCompany?.groups.find((group) => group.code_centro_costo === (editing?.geoVictoriaCostCenterCode ?? '')) ??
+      editingCompany?.groups.find((group) => normalizeGroupValue(group.name) === normalizedEditingGroupName) ??
+      null;
+    setCompanyAlias(editing?.companyAlias ?? selectedModuleCompany?.alias ?? '');
+    setReciboGroupCode(matchingReciboGroup?.code_centro_costo ?? editing?.geoVictoriaCostCenterCode ?? '');
     setActive(editing?.active ?? true);
     setContractType(editing?.contractType ?? '');
     setWeeklyHours(editing?.weeklyHours !== undefined ? String(editing.weeklyHours) : '0');
@@ -125,6 +145,9 @@ export function EmployeeFormModal({
   const trimmedLastName = lastName.trim();
   const trimmedIdentityDocument = identityDocument.trim();
   const trimmedEmail = email.trim();
+  const selectedModuleCompany = selectedCompanyId
+    ? companies.find((company) => company.companyId === selectedCompanyId)
+    : null;
   const selectedCompany = companies.find((company) => company.alias === companyAlias);
   const selectedReciboGroup = selectedCompany?.groups.find((group) => group.code_centro_costo === reciboGroupCode);
   const requiresReciboGroup = Boolean(selectedCompany?.groups.length);
@@ -136,18 +159,6 @@ export function EmployeeFormModal({
     companyAlias: !companyAlias,
     reciboGroupCode: requiresReciboGroup && !selectedReciboGroup
   };
-
-  useEffect(() => {
-    if (!selectedCompany?.groups.length) {
-      if (reciboGroupCode) setReciboGroupCode('');
-      return;
-    }
-
-    const stillExists = selectedCompany.groups.some((group) => group.code_centro_costo === reciboGroupCode);
-    if (!stillExists) {
-      setReciboGroupCode('');
-    }
-  }, [selectedCompany, reciboGroupCode]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -178,6 +189,7 @@ export function EmployeeFormModal({
               value={companyAlias}
               onChange={(event) => {
                 setCompanyAlias(event.target.value);
+                setReciboGroupCode('');
               }}
             >
               <option value="">Selecciona una empresa</option>
@@ -316,6 +328,7 @@ export function EmployeeFormModal({
                   return;
                 }
                 const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim();
+                const selectedGroupDescription = selectedReciboGroup?.name ?? editing?.groupDescription;
                 const result = onSave({
                   id: editing?.id ?? createId('emp'),
                   name: fullName,
@@ -323,6 +336,10 @@ export function EmployeeFormModal({
                   lastName: trimmedLastName,
                   identityDocument: trimmedIdentityDocument,
                   email: trimmedEmail,
+                  moduleCompanyAlias: editing?.moduleCompanyAlias ?? selectedModuleCompany?.alias ?? selectedCompany?.alias,
+                  moduleCompanyName: editing?.moduleCompanyName ?? selectedModuleCompany?.name ?? selectedCompany?.name,
+                  moduleCompanyId: editing?.moduleCompanyId ?? selectedModuleCompany?.companyId ?? selectedCompany?.companyId,
+                  moduleCompanyRuc: editing?.moduleCompanyRuc ?? selectedModuleCompany?.ruc ?? selectedCompany?.ruc,
                   companyAlias: selectedCompany?.alias,
                   companyName: selectedCompany?.name,
                   companyId: selectedCompany?.companyId,
@@ -338,7 +355,7 @@ export function EmployeeFormModal({
                   notes: editing?.notes,
                   phone: editing?.phone,
                   mainRoleId: mainRoleId || undefined,
-                  groupDescription: editing?.groupDescription,
+                  groupDescription: selectedGroupDescription,
                   positionDescription: editing?.positionDescription
                 });
                 if (!result.ok) {

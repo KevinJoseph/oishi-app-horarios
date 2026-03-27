@@ -9,6 +9,10 @@ export type Employee = {
   lastName?: string;
   identityDocument?: string;
   email?: string;
+  moduleCompanyAlias?: string;
+  moduleCompanyName?: string;
+  moduleCompanyId?: string;
+  moduleCompanyRuc?: string;
   companyAlias?: string;
   companyName?: string;
   companyId?: string;

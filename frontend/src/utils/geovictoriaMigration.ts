@@ -33,10 +33,12 @@ function parseTimeToMinutes(value: string): number | null {
 }
 
 function buildCompanyLabel(employee: Employee): string {
-  if (employee.companyAlias && employee.companyName) {
-    return `${employee.companyAlias} - ${employee.companyName}`;
+  const moduleCompanyAlias = employee.moduleCompanyAlias ?? employee.companyAlias;
+  const moduleCompanyName = employee.moduleCompanyName ?? employee.companyName;
+  if (moduleCompanyAlias && moduleCompanyName) {
+    return `${moduleCompanyAlias} - ${moduleCompanyName}`;
   }
-  return employee.companyName ?? employee.companyAlias ?? '-';
+  return moduleCompanyName ?? moduleCompanyAlias ?? '-';
 }
 
 export function buildGeoMigrationRows(
@@ -82,7 +84,7 @@ export function buildGeoMigrationRows(
       const flushCurrentSegment = (): void => {
         if (!currentSegment) return;
         const warnings: string[] = [];
-        if (!employee.companyId) warnings.push('Sin company asignada.');
+        if (!(employee.moduleCompanyId ?? employee.companyId)) warnings.push('Sin company asignada.');
         if (!employee.identityDocument) warnings.push('Sin DNI.');
 
         const companyLabel = buildCompanyLabel(employee);
@@ -92,7 +94,7 @@ export function buildGeoMigrationRows(
           employeeId: employee.id,
           employeeName: employee.name,
           employeeCode: employee.code ?? '-',
-          companyId: employee.companyId ?? '',
+          companyId: employee.moduleCompanyId ?? employee.companyId ?? '',
           companyLabel,
           userIdentifier: employee.identityDocument?.trim() ?? '',
           dateISO: day.dateISO,
@@ -207,7 +209,7 @@ export function buildGeoMigrationRows(
 
       if (employeeRestDay && !hasWorkAssignments) {
         const warnings: string[] = [];
-        if (!employee.companyId) warnings.push('Sin company asignada.');
+        if (!(employee.moduleCompanyId ?? employee.companyId)) warnings.push('Sin company asignada.');
         if (!employee.identityDocument) warnings.push('Sin DNI.');
 
         rows.push({
@@ -216,7 +218,7 @@ export function buildGeoMigrationRows(
           employeeId: employee.id,
           employeeName: employee.name,
           employeeCode: employee.code ?? '-',
-          companyId: employee.companyId ?? '',
+          companyId: employee.moduleCompanyId ?? employee.companyId ?? '',
           companyLabel: buildCompanyLabel(employee),
           userIdentifier: employee.identityDocument?.trim() ?? '',
           dateISO: day.dateISO,
@@ -230,7 +232,7 @@ export function buildGeoMigrationRows(
         });
       } else if (!hasAnyAssignments && !hasWorkAssignments) {
         const warnings: string[] = [];
-        if (!employee.companyId) warnings.push('Sin company asignada.');
+        if (!(employee.moduleCompanyId ?? employee.companyId)) warnings.push('Sin company asignada.');
         if (!employee.identityDocument) warnings.push('Sin DNI.');
 
         rows.push({
@@ -239,7 +241,7 @@ export function buildGeoMigrationRows(
           employeeId: employee.id,
           employeeName: employee.name,
           employeeCode: employee.code ?? '-',
-          companyId: employee.companyId ?? '',
+          companyId: employee.moduleCompanyId ?? employee.companyId ?? '',
           companyLabel: buildCompanyLabel(employee),
           userIdentifier: employee.identityDocument?.trim() ?? '',
           dateISO: day.dateISO,

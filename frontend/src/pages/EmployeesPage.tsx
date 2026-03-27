@@ -84,6 +84,11 @@ export function EmployeesPage(): JSX.Element {
     onClose: closeDeleteModal
   } = useDisclosure();
   const {
+    isOpen: isDeleteAllModalOpen,
+    onOpen: openDeleteAllModal,
+    onClose: closeDeleteAllModal
+  } = useDisclosure();
+  const {
     isOpen: isReciboModalOpen,
     onOpen: openReciboModal,
     onClose: closeReciboModal
@@ -106,7 +111,10 @@ export function EmployeesPage(): JSX.Element {
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
   const batchUpsertEmployees = useAppStore((state) => state.batchUpsertEmployees);
   const deleteEmployee = useAppStore((state) => state.deleteEmployee);
+  const deleteEmployeesByCompany = useAppStore((state) => state.deleteEmployeesByCompany);
   const currentUser = useAuthStore((state) => state.currentUser);
+  const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
+  const selectedGeoVictoriaCompanyLabel = useAuthStore((state) => state.selectedGeoVictoriaCompanyLabel);
   const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
 
   const [editing, setEditing] = useState<Employee | undefined>(undefined);
@@ -118,6 +126,7 @@ export function EmployeesPage(): JSX.Element {
   const [search, setSearch] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+  const cancelDeleteAllRef = useRef<HTMLButtonElement>(null);
   const cancelGeoVictoriaRef = useRef<HTMLButtonElement>(null);
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
@@ -131,16 +140,24 @@ export function EmployeesPage(): JSX.Element {
   const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
   const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
+  const companyScopedEmployees = useMemo(() => {
+    if (!selectedGeoVictoriaCompanyId) return employees;
+    return employees.filter((employee) => (employee.companyId ?? '') === selectedGeoVictoriaCompanyId);
+  }, [employees, selectedGeoVictoriaCompanyId]);
+  const selectedGeoVictoriaCompany = useMemo(
+    () => companies.find((company) => company.companyId === selectedGeoVictoriaCompanyId) ?? null,
+    [companies, selectedGeoVictoriaCompanyId]
+  );
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return employees;
-    return employees.filter(
+    if (!term) return companyScopedEmployees;
+    return companyScopedEmployees.filter(
       (employee) =>
         employee.name.toLowerCase().includes(term) ||
         (employee.code ?? '').toLowerCase().includes(term) ||
         (employee.identityDocument ?? '').toLowerCase().includes(term)
     );
-  }, [employees, search]);
+  }, [companyScopedEmployees, search]);
 
   const findCompanyFromGeoVictoriaUser = (groupDescription: string | undefined, userCompanyIdentifier: string | undefined): GeoVictoriaCompany | undefined => {
     const normalizedGroupDescription = normalizeText(groupDescription);
@@ -266,11 +283,21 @@ export function EmployeesPage(): JSX.Element {
     closeDeleteModal();
   };
 
+  const handleDeleteAllEmployees = (): void => {
+    if (!canEdit || !selectedGeoVictoriaCompanyId || companyScopedEmployees.length === 0) return;
+    deleteEmployeesByCompany(selectedGeoVictoriaCompanyId);
+    toast({
+      status: 'success',
+      title: `Se eliminaron permanentemente los colaboradores de ${selectedGeoVictoriaCompanyLabel}.`
+    });
+    closeDeleteAllModal();
+  };
+
   const handleSyncGeoVictoria = async (): Promise<void> => {
     if (!canEdit) return;
     setIsSyncing(true);
     try {
-      const geoUsers = await fetchGeoVictoriaEmployees();
+      const geoUsers = await fetchGeoVictoriaEmployees(selectedGeoVictoriaCompanyId ?? undefined);
       let created = 0;
       let updated = 0;
       const toUpsert: Employee[] = [];
@@ -319,12 +346,15 @@ export function EmployeesPage(): JSX.Element {
       batchUpsertEmployees(toUpsert);
       toast({
         status: 'success',
-        title: `Sincronización completada: ${created} nuevos, ${updated} actualizados.`
+        title: `Sincronización completada${selectedGeoVictoriaCompanyLabel ? ` (${selectedGeoVictoriaCompanyLabel})` : ''}: ${created} nuevos, ${updated} actualizados.`
       });
     } catch (error) {
       toast({
         status: 'error',
-        title: error instanceof Error ? error.message : 'No se pudo sincronizar con GeoVictoria.'
+        title:
+          error instanceof Error
+            ? error.message
+            : `No se pudo sincronizar con GeoVictoria${selectedGeoVictoriaCompanyLabel ? ` (${selectedGeoVictoriaCompanyLabel})` : ''}.`
       });
     } finally {
       setIsSyncing(false);
@@ -383,6 +413,17 @@ export function EmployeesPage(): JSX.Element {
             </InputGroup>
             <HStack gap={3}>
               <Button
+                colorScheme="red"
+                variant="outline"
+                h="44px"
+                px={6}
+                leftIcon={<FiTrash2 />}
+                onClick={openDeleteAllModal}
+                isDisabled={!canEdit || !selectedGeoVictoriaCompanyId || companyScopedEmployees.length === 0}
+              >
+                Borrar
+              </Button>
+              <Button
                 colorScheme="gray"
                 h="44px"
                 px={6}
@@ -402,7 +443,7 @@ export function EmployeesPage(): JSX.Element {
                 isLoading={isSyncing}
                 loadingText="Sincronizando"
               >
-                Sincronizar GeoVictoria
+                {selectedGeoVictoriaCompanyLabel ? `Sincronizar ${selectedGeoVictoriaCompanyLabel}` : 'Sincronizar GeoVictoria'}
               </Button>
               <Button
                 colorScheme="blue"
@@ -425,8 +466,13 @@ export function EmployeesPage(): JSX.Element {
         <CardBody>
           <HStack justify="space-between" mb={4} flexWrap="wrap" gap={3}>
             <Badge px={3} py={1} rounded="md" colorScheme="blue" variant="subtle">
-              Total Colaboradores: {employees.length}
+              Total Colaboradores: {companyScopedEmployees.length}
             </Badge>
+            {selectedGeoVictoriaCompanyLabel ? (
+              <Badge px={3} py={1} rounded="md" colorScheme="purple" variant="subtle">
+                Empresa activa: {selectedGeoVictoriaCompanyLabel}
+              </Badge>
+            ) : null}
           </HStack>
           <Box overflowX="auto">
             <Table size="sm" bg="white" minW="980px">
@@ -547,6 +593,7 @@ export function EmployeesPage(): JSX.Element {
         isOpen={isReciboModalOpen}
         onClose={closeReciboModal}
         currentAreaId={currentAreaId}
+        selectedCompany={selectedGeoVictoriaCompany}
       />
 
       <EmployeeFormModal
@@ -556,6 +603,7 @@ export function EmployeesPage(): JSX.Element {
         roles={roles}
         companies={companies}
         currentAreaId={currentAreaId}
+        selectedCompanyId={selectedGeoVictoriaCompanyId}
         onSave={(employee) => {
           if (!canEdit) return { ok: false, error: 'No tienes permisos para guardar colaboradores.' };
           return upsertEmployee({
@@ -564,6 +612,32 @@ export function EmployeesPage(): JSX.Element {
           });
         }}
       />
+
+      <AlertDialog
+        isOpen={isDeleteAllModalOpen}
+        leastDestructiveRef={cancelDeleteAllRef}
+        onClose={closeDeleteAllModal}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader>Borrar todos los colaboradores</AlertDialogHeader>
+            <AlertDialogBody>
+              {selectedGeoVictoriaCompanyLabel
+                ? `Esta acción eliminará permanentemente a los ${companyScopedEmployees.length} colaboradores de ${selectedGeoVictoriaCompanyLabel} y limpiará sus asignaciones de planificación. No se puede deshacer.`
+                : 'Debes seleccionar una empresa GeoVictoria arriba para poder borrar sus colaboradores.'}
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelDeleteAllRef} variant="ghost" onClick={closeDeleteAllModal}>
+                Cancelar
+              </Button>
+              <Button colorScheme="red" ml={3} onClick={handleDeleteAllEmployees} isDisabled={!selectedGeoVictoriaCompanyId}>
+                Borrar
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
 
       <AlertDialog
         isOpen={isDeleteModalOpen}

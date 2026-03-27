@@ -82,8 +82,9 @@ export interface GeoVictoriaPlanningMigrationResult extends GeoVictoriaPlanningM
   error?: string;
 }
 
-export function fetchGeoVictoriaEmployees(): Promise<GeoVictoriaEmployee[]> {
-  return request<GeoVictoriaEmployee[]>('/geovictoria/employees');
+export function fetchGeoVictoriaEmployees(companyId?: string): Promise<GeoVictoriaEmployee[]> {
+  const query = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  return request<GeoVictoriaEmployee[]>(`/geovictoria/employees${query}`);
 }
 
 export function fetchGeoVictoriaReciboEmployees(): Promise<GeoVictoriaEmployee[]> {

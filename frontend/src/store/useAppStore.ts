@@ -66,6 +66,8 @@ type AppState = PersistableState & {
   upsertEmployee: (employee: Employee) => { ok: boolean; error?: string };
   batchUpsertEmployees: (employees: Employee[]) => void;
   deleteEmployee: (employeeId: string) => void;
+  deleteAllEmployees: () => void;
+  deleteEmployeesByCompany: (companyId: string) => void;
   upsertRole: (role: Role) => { ok: boolean; error?: string };
   deleteRole: (roleId: string) => void;
   ensureWeekPlan: (week: Week) => void;
@@ -1026,6 +1028,72 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       return { employees, weekPlans, validatedWeekIds: [], weekAuditById: clearAllWeekValidators(state.weekAuditById) };
+    });
+    persistSnapshot(get, set);
+  },
+
+  deleteAllEmployees: () => {
+    set((state) => {
+      const weekPlans: Record<string, WeekPlan> = {};
+
+      for (const [weekId, plan] of Object.entries(state.weekPlans)) {
+        weekPlans[weekId] = {
+          ...plan,
+          days: plan.days.map((day) => {
+            const assignments: typeof day.assignments = {};
+            for (const [slotId] of Object.entries(day.assignments)) {
+              assignments[slotId] = {};
+            }
+            return { ...day, assignments };
+          })
+        };
+      }
+
+      return {
+        employees: [],
+        weekPlans,
+        validatedWeekIds: [],
+        weekAuditById: clearAllWeekValidators(state.weekAuditById)
+      };
+    });
+    persistSnapshot(get, set);
+  },
+
+  deleteEmployeesByCompany: (companyId) => {
+    set((state) => {
+      const idsToDelete = new Set(
+        state.employees.filter((employee) => (employee.companyId ?? '') === companyId).map((employee) => employee.id)
+      );
+      if (idsToDelete.size === 0) {
+        return {};
+      }
+
+      const employees = state.employees.filter((employee) => !idsToDelete.has(employee.id));
+      const weekPlans: Record<string, WeekPlan> = {};
+
+      for (const [weekId, plan] of Object.entries(state.weekPlans)) {
+        weekPlans[weekId] = {
+          ...plan,
+          days: plan.days.map((day) => {
+            const assignments = { ...day.assignments };
+            for (const [slotId, byEmployee] of Object.entries(assignments)) {
+              const nextByEmployee = { ...byEmployee };
+              for (const employeeId of idsToDelete) {
+                delete nextByEmployee[employeeId];
+              }
+              assignments[slotId] = nextByEmployee;
+            }
+            return { ...day, assignments };
+          })
+        };
+      }
+
+      return {
+        employees,
+        weekPlans,
+        validatedWeekIds: [],
+        weekAuditById: clearAllWeekValidators(state.weekAuditById)
+      };
     });
     persistSnapshot(get, set);
   },

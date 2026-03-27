@@ -5,6 +5,7 @@ import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
 import { WeekSelector } from '../components/WeekSelector';
 import { WeeklyByWeeksOverviewContent } from './WeeklyByWeeksOverviewPage';
 import { useAppStore } from '../store/useAppStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { downloadWeeklyGridPdf, downloadWeeklyOverviewPdf } from '../utils/pdf';
 import type { AreaId } from '../types';
 
@@ -22,11 +23,17 @@ export function WeeklyOverviewPage(): JSX.Element {
   const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
   const areaBreakConfig = useAppStore((state) => state.breakConfigByArea[state.currentAreaId] ?? state.breakConfig);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
+  const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
 
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const employees = useMemo(
-    () => allEmployees.filter((employee) => (employee.areaId ?? 'salon') === currentAreaId),
-    [allEmployees, currentAreaId]
+    () =>
+      allEmployees.filter(
+        (employee) =>
+          (employee.areaId ?? 'salon') === currentAreaId &&
+          (!selectedGeoVictoriaCompanyId || (employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
+      ),
+    [allEmployees, currentAreaId, selectedGeoVictoriaCompanyId]
   );
   const roles = useMemo(
     () => allRoles.filter((role) => (role.areaId ?? 'salon') === currentAreaId),

@@ -29,6 +29,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FiEye, FiSend } from 'react-icons/fi';
 import { migrateGeoVictoriaPlanning, type GeoVictoriaPlanningMigrationResult } from '../api/plannerApi';
 import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
+import { useAuthStore } from '../store/useAuthStore';
 import { WeekSelector } from '../components/WeekSelector';
 import { useAppStore } from '../store/useAppStore';
 import type { AreaId } from '../types';
@@ -43,6 +44,7 @@ type GeoMigrationGroup = {
   employeeId: string;
   employeeName: string;
   employeeCode: string;
+  companyId: string;
   companyLabel: string;
   userIdentifier: string;
   roleSummary: string;
@@ -54,6 +56,8 @@ type GeoMigrationGroup = {
 export function GeoMigrationPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
+  const selectedGeoVictoriaCompanyLabel = useAuthStore((state) => state.selectedGeoVictoriaCompanyLabel);
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const weeks = useAppStore((state) => state.weeks);
@@ -74,8 +78,13 @@ export function GeoMigrationPage(): JSX.Element {
   const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
   const weekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
   const scopedEmployees = useMemo(
-    () => employees.filter((employee) => (employee.areaId ?? 'salon') === currentAreaId),
-    [employees, currentAreaId]
+    () =>
+      employees.filter(
+        (employee) =>
+          (employee.areaId ?? 'salon') === currentAreaId &&
+          (!selectedGeoVictoriaCompanyId || (employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
+      ),
+    [employees, currentAreaId, selectedGeoVictoriaCompanyId]
   );
   const scopedRoles = useMemo(
     () => roles.filter((role) => (role.areaId ?? 'salon') === currentAreaId),
@@ -89,12 +98,18 @@ export function GeoMigrationPage(): JSX.Element {
     const grouped = new Map<string, GeoMigrationGroup>();
 
     for (const row of rows) {
-      const key = `${row.employeeId}:${row.companyId}:${row.userIdentifier}`;
+      const effectiveCompanyId = selectedGeoVictoriaCompanyId ?? row.companyId;
+      const effectiveCompanyLabel = selectedGeoVictoriaCompanyLabel ?? row.companyLabel;
+      const effectiveWarnings = selectedGeoVictoriaCompanyId
+        ? row.warnings.filter((warning) => warning !== 'Sin company asignada.')
+        : row.warnings;
+      const effectiveCanMigrate = Boolean(effectiveCompanyId) && effectiveWarnings.length === 0;
+      const key = `${row.employeeId}:${effectiveCompanyId}:${row.userIdentifier}`;
       const current = grouped.get(key);
       if (current) {
         current.rows.push(row);
-        current.canMigrate = current.canMigrate && row.canMigrate;
-        current.warnings = Array.from(new Set([...current.warnings, ...row.warnings]));
+        current.canMigrate = current.canMigrate && effectiveCanMigrate;
+        current.warnings = Array.from(new Set([...current.warnings, ...effectiveWarnings]));
         continue;
       }
 
@@ -103,11 +118,12 @@ export function GeoMigrationPage(): JSX.Element {
         employeeId: row.employeeId,
         employeeName: row.employeeName,
         employeeCode: row.employeeCode,
-        companyLabel: row.companyLabel,
+        companyId: effectiveCompanyId,
+        companyLabel: effectiveCompanyLabel,
         userIdentifier: row.userIdentifier,
         roleSummary: row.roleName,
-        canMigrate: row.canMigrate,
-        warnings: [...row.warnings],
+        canMigrate: effectiveCanMigrate,
+        warnings: [...effectiveWarnings],
         rows: [row]
       });
     }
@@ -150,7 +166,7 @@ export function GeoMigrationPage(): JSX.Element {
         assignmentType: row.assignmentType,
         employeeId: row.employeeId,
         employeeName: row.employeeName,
-        companyId: row.companyId,
+        companyId: selectedGeoVictoriaCompanyId ?? row.companyId,
         userIdentifier: row.userIdentifier,
         dateISO: row.dateISO,
         startHour: row.startHour,
@@ -207,8 +223,9 @@ export function GeoMigrationPage(): JSX.Element {
               Migrar a Geo
             </Text>
             <Text color="gray.600">
-              Revisa la semana seleccionada y migra los turnos diarios a GeoVictoria usando la company de cada colaborador.
-              La tabla muestra por separado el resultado del turno y de la planificacion.
+              Revisa la semana seleccionada y migra los turnos diarios a GeoVictoria. Si eliges una empresa global en el
+              menú del usuario, todas las migraciones se enviarán a esa company; si no, se usará la company de cada
+              colaborador.
             </Text>
           </VStack>
         </CardHeader>
@@ -219,12 +236,17 @@ export function GeoMigrationPage(): JSX.Element {
               <Badge colorScheme="blue" variant="subtle" px={3} py={1} rounded="md">
                 Filas: {groups.length}
               </Badge>
-              <Badge colorScheme="green" variant="subtle" px={3} py={1} rounded="md">
-                Migrables: {migratableKeys.length}
-              </Badge>
-              <Button
-                colorScheme="teal"
-                leftIcon={<FiSend />}
+                <Badge colorScheme="green" variant="subtle" px={3} py={1} rounded="md">
+                  Migrables: {migratableKeys.length}
+                </Badge>
+                {selectedGeoVictoriaCompanyLabel ? (
+                  <Badge colorScheme="purple" variant="subtle" px={3} py={1} rounded="md">
+                    Destino: {selectedGeoVictoriaCompanyLabel}
+                  </Badge>
+                ) : null}
+                <Button
+                  colorScheme="teal"
+                  leftIcon={<FiSend />}
                 onClick={() => void handleMigrate(selectedKeys)}
                 isDisabled={selectedKeys.length === 0}
                 isLoading={isMigrating}
@@ -268,7 +290,6 @@ export function GeoMigrationPage(): JSX.Element {
                     <Th>Codigo</Th>
                     <Th>Empresa</Th>
                     <Th>Identificador</Th>
-                    <Th>Zona</Th>
                     <Th>Planificación semanal</Th>
                     <Th>Turno</Th>
                     <Th>Planificacion</Th>
@@ -301,7 +322,6 @@ export function GeoMigrationPage(): JSX.Element {
                         <Td>{group.employeeCode}</Td>
                         <Td>{group.companyLabel}</Td>
                         <Td>{group.userIdentifier || '-'}</Td>
-                        <Td>{group.roleSummary}</Td>
                         <Td>
                           <VStack align="start" spacing={1}>
                             {group.rows.map((row) => (

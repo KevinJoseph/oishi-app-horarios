@@ -77,6 +77,7 @@ export function PlanningPage(): JSX.Element {
   const validateWeekPlan = useAppStore((state) => state.validateWeekPlan);
   const desvalidateWeekPlan = useAppStore((state) => state.desvalidateWeekPlan);
   const currentUser = useAuthStore((state) => state.currentUser);
+  const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
   const isSupervisor = currentUser?.role === 'supervisor';
   const isAdministrator = currentUser?.role === 'administrador';
   const canEdit = isAdministrator || isSupervisor;
@@ -89,8 +90,13 @@ export function PlanningPage(): JSX.Element {
 
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const employees = useMemo(
-    () => allEmployees.filter((employee) => (employee.areaId ?? 'salon') === currentAreaId),
-    [allEmployees, currentAreaId]
+    () =>
+      allEmployees.filter(
+        (employee) =>
+          (employee.areaId ?? 'salon') === currentAreaId &&
+          (!selectedGeoVictoriaCompanyId || (employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
+      ),
+    [allEmployees, currentAreaId, selectedGeoVictoriaCompanyId]
   );
   const roles = useMemo(
     () => allRoles.filter((role) => (role.areaId ?? 'salon') === currentAreaId),

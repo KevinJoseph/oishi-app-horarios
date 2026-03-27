@@ -1,6 +1,7 @@
 import { Badge, Box, Card, CardBody, Flex, Heading, Table, Tbody, Td, Text, Th, Thead, Tr, VStack } from '@chakra-ui/react';
 import { useEffect, useMemo } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, WeekPlan } from '../types';
 
 type EmployeeDailyHours = {
@@ -34,6 +35,7 @@ export function WeeklyByWeeksOverviewContent(): JSX.Element {
   const weekConfigById = useAppStore((state) => state.weekConfigById);
   const areaTimeSlots = useAppStore((state) => state.timeSlotsByArea[state.currentAreaId] ?? state.timeSlots);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
+  const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
 
   useEffect(() => {
@@ -43,8 +45,13 @@ export function WeeklyByWeeksOverviewContent(): JSX.Element {
   }, [weeks, currentAreaId, ensureWeekPlan]);
 
   const employees = useMemo(
-    () => allEmployees.filter((employee) => (employee.areaId ?? 'salon') === currentAreaId),
-    [allEmployees, currentAreaId]
+    () =>
+      allEmployees.filter(
+        (employee) =>
+          (employee.areaId ?? 'salon') === currentAreaId &&
+          (!selectedGeoVictoriaCompanyId || (employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
+      ),
+    [allEmployees, currentAreaId, selectedGeoVictoriaCompanyId]
   );
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);
   return (

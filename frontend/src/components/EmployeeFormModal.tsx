@@ -28,6 +28,7 @@ type Props = {
   roles: Role[];
   companies: GeoVictoriaCompany[];
   currentAreaId: AreaId;
+  selectedCompanyId?: string | null;
   onSave: (employee: Employee) => { ok: boolean; error?: string };
 };
 
@@ -61,6 +62,7 @@ export function EmployeeFormModal({
   roles,
   companies,
   currentAreaId,
+  selectedCompanyId,
   onSave
 }: Props): JSX.Element {
   const toast = useToast();
@@ -92,7 +94,8 @@ export function EmployeeFormModal({
     setLastName(nameParts.lastName);
     setIdentityDocument(editing?.identityDocument ?? '');
     setEmail(editing?.email ?? '');
-    setCompanyAlias(editing?.companyAlias ?? '');
+    const selectedCompany = selectedCompanyId ? companies.find((company) => company.companyId === selectedCompanyId) : null;
+    setCompanyAlias(editing?.companyAlias ?? selectedCompany?.alias ?? '');
     setReciboGroupCode(editing?.geoVictoriaCostCenterCode ?? '');
     setActive(editing?.active ?? true);
     setContractType(editing?.contractType ?? '');
@@ -100,7 +103,7 @@ export function EmployeeFormModal({
     setShiftType(editing?.shiftType ?? 'day');
     setRestDay(String(normalizeRestDay(editing?.restDay)));
     setMainRoleId(editing?.mainRoleId ?? '');
-  }, [editing, isOpen, roles, currentAreaId]);
+  }, [editing, isOpen, roles, currentAreaId, selectedCompanyId, companies]);
 
   useEffect(() => {
     if (!mainRoleId) return;

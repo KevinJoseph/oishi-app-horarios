@@ -25,14 +25,21 @@ import { useEffect, useState } from 'react';
 import { fetchGeoVictoriaReciboEmployees, type GeoVictoriaEmployee } from '../api/plannerApi';
 import { useAppStore } from '../store/useAppStore';
 import type { AreaId, Employee } from '../types';
+import type { GeoVictoriaCompany } from '../api/plannerApi';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   currentAreaId: AreaId;
+  selectedCompany: GeoVictoriaCompany | null;
 }
 
-export function GeoVictoriaReciboModal({ isOpen, onClose, currentAreaId }: Props): JSX.Element {
+export function GeoVictoriaReciboModal({
+  isOpen,
+  onClose,
+  currentAreaId,
+  selectedCompany
+}: Props): JSX.Element {
   const toast = useToast();
   const employees = useAppStore((state) => state.employees);
   const batchUpsertEmployees = useAppStore((state) => state.batchUpsertEmployees);
@@ -78,13 +85,25 @@ export function GeoVictoriaReciboModal({ isOpen, onClose, currentAreaId }: Props
     });
   };
 
-  const alreadyExists = (user: GeoVictoriaEmployee): boolean => {
+  const existingEmployeeForUser = (user: GeoVictoriaEmployee): Employee | undefined => {
     const doc = user.Identifier?.trim();
-    return !!doc && employees.some((e) => e.identityDocument?.trim() === doc);
+    return doc ? employees.find((e) => e.identityDocument?.trim() === doc) : undefined;
+  };
+
+  const alreadyExistsInSelectedCompany = (user: GeoVictoriaEmployee): boolean => {
+    const existing = existingEmployeeForUser(user);
+    return !!existing && !!selectedCompany && existing.companyId === selectedCompany.companyId;
   };
 
   const handleImport = (): void => {
     if (selected.size === 0) return;
+    if (!selectedCompany) {
+      toast({
+        status: 'warning',
+        title: 'Selecciona una empresa arriba antes de importar colaboradores por Recibo.'
+      });
+      return;
+    }
     setImporting(true);
 
     const toImport = users.filter((u) => selected.has(u.Id));
@@ -95,14 +114,19 @@ export function GeoVictoriaReciboModal({ isOpen, onClose, currentAreaId }: Props
     for (const user of toImport) {
       const fullName = `${user.Name} ${user.LastName}`.trim();
       const doc = user.Identifier?.trim() || undefined;
-      const existing = employees.find((e) => doc && e.identityDocument?.trim() === doc);
+      const existing = existingEmployeeForUser(user);
       if (existing) {
         toUpsert.push({
           ...existing,
           name: fullName,
           phone: user.Phone || existing.phone,
+          companyAlias: selectedCompany.alias,
+          companyName: selectedCompany.name,
+          companyId: selectedCompany.companyId,
+          companyRuc: selectedCompany.ruc,
           groupDescription: user.GroupDescription || existing.groupDescription,
-          positionDescription: user.PositionDescription || existing.positionDescription
+          positionDescription: user.PositionDescription || existing.positionDescription,
+          areaId: currentAreaId
         });
         updated++;
       } else {
@@ -111,6 +135,10 @@ export function GeoVictoriaReciboModal({ isOpen, onClose, currentAreaId }: Props
           name: fullName,
           identityDocument: doc,
           phone: user.Phone || undefined,
+          companyAlias: selectedCompany.alias,
+          companyName: selectedCompany.name,
+          companyId: selectedCompany.companyId,
+          companyRuc: selectedCompany.ruc,
           groupDescription: user.GroupDescription || undefined,
           positionDescription: user.PositionDescription || undefined,
           active: true,
@@ -123,7 +151,7 @@ export function GeoVictoriaReciboModal({ isOpen, onClose, currentAreaId }: Props
     batchUpsertEmployees(toUpsert);
     toast({
       status: 'success',
-      title: `Importación completada: ${created} nuevos, ${updated} actualizados.`
+      title: `Importación completada en ${selectedCompany.name}: ${created} nuevos, ${updated} actualizados.`
     });
     setImporting(false);
     onClose();
@@ -140,10 +168,26 @@ export function GeoVictoriaReciboModal({ isOpen, onClose, currentAreaId }: Props
               {users.length} activos
             </Badge>
           )}
+          {selectedCompany ? (
+            <Badge ml={3} colorScheme="blue" fontSize="sm">
+              Destino: {selectedCompany.name}
+            </Badge>
+          ) : (
+            <Badge ml={3} colorScheme="orange" fontSize="sm">
+              Selecciona una empresa
+            </Badge>
+          )}
         </ModalHeader>
         <ModalCloseButton />
 
         <ModalBody>
+          {!selectedCompany ? (
+            <Box mb={4} rounded="md" bg="orange.50" borderWidth="1px" borderColor="orange.200" px={4} py={3}>
+              <Text color="orange.700" fontSize="sm">
+                Debes elegir una empresa en la parte superior para agregar los colaboradores de Recibo a ese módulo.
+              </Text>
+            </Box>
+          ) : null}
           {loading ? (
             <HStack justify="center" py={10}>
               <Spinner size="lg" color="gray.500" />
@@ -174,7 +218,8 @@ export function GeoVictoriaReciboModal({ isOpen, onClose, currentAreaId }: Props
                 </Thead>
                 <Tbody>
                   {users.map((user) => {
-                    const exists = alreadyExists(user);
+                    const existing = existingEmployeeForUser(user);
+                    const exists = alreadyExistsInSelectedCompany(user);
                     return (
                       <Tr
                         key={user.Id}
@@ -193,6 +238,8 @@ export function GeoVictoriaReciboModal({ isOpen, onClose, currentAreaId }: Props
                         <Td>
                           {exists ? (
                             <Badge colorScheme="blue" variant="subtle">Ya existe</Badge>
+                          ) : existing ? (
+                            <Badge colorScheme="orange" variant="subtle">Se reasignará</Badge>
                           ) : (
                             <Badge colorScheme="green" variant="subtle">Nuevo</Badge>
                           )}
@@ -216,7 +263,7 @@ export function GeoVictoriaReciboModal({ isOpen, onClose, currentAreaId }: Props
             </Button>
             <Button
               colorScheme="gray"
-              isDisabled={selected.size === 0}
+              isDisabled={selected.size === 0 || !selectedCompany}
               isLoading={importing}
               onClick={handleImport}
             >

@@ -415,14 +415,33 @@ export async function getGeoVictoriaCompaniesController(_req: Request, res: Resp
 }
 
 export async function getGeoVictoriaEmployeesController(_req: Request, res: Response): Promise<void> {
-  if (!env.geoVictoriaUser || !env.geoVictoriaPassword) {
+  const companyId = cleanRequiredText((_req.query.companyId as string | undefined) ?? '');
+
+  let tokenCacheKey = 'main';
+  let tokenLabel = 'principal';
+  let credentialsUser = env.geoVictoriaUser;
+  let credentialsPassword = env.geoVictoriaPassword;
+
+  if (companyId) {
+    const credentials = getCompanyCredentials(companyId);
+    if (!credentials) {
+      res.status(400).json({ error: `No existen credenciales configuradas para la company "${companyId}".` });
+      return;
+    }
+    tokenCacheKey = `company:${companyId}`;
+    tokenLabel = companyId;
+    credentialsUser = credentials.user;
+    credentialsPassword = credentials.password;
+  }
+
+  if (!credentialsUser || !credentialsPassword) {
     res.status(503).json({ error: 'Credenciales de GeoVictoria no configuradas en el servidor.' });
     return;
   }
 
   let token: string;
   try {
-    token = await getToken();
+    token = await getTokenForCredentials(tokenCacheKey, credentialsUser, credentialsPassword, tokenLabel);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error de autenticación con GeoVictoria.';
     res.status(502).json({ error: message });
@@ -441,7 +460,7 @@ export async function getGeoVictoriaEmployeesController(_req: Request, res: Resp
   if (!response.ok) {
     // Si el token fue rechazado, limpiar caché para forzar re-login en el próximo intento
     if (response.status === 401) {
-      tokenCache.delete('main');
+      tokenCache.delete(tokenCacheKey);
     }
     res.status(502).json({ error: `Error al consultar GeoVictoria: ${response.status} ${response.statusText}` });
     return;

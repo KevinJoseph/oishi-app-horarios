@@ -1,5 +1,7 @@
 import { Box, Button, Text } from '@chakra-ui/react';
-import type { Assignment, DayPlan, Employee, Role, TimeSlot } from '../types';
+import type { Assignment, BreakConfig, DayPlan, Employee, Role, TimeSlot } from '../types';
+import { isTimeSlotInBreak } from '../utils/breaks';
+import { isRestDayForDate } from '../utils/weekdays';
 import { AssignmentCell } from './AssignmentCell';
 
 type CellPayload = {
@@ -18,6 +20,7 @@ type Props = {
   employees: Employee[];
   roles: Role[];
   timeSlots: TimeSlot[];
+  breakConfig: BreakConfig;
   employeeHoursById?: Record<string, EmployeeHoursSummary>;
   onCellClick?: (payload: CellPayload) => void;
   onEmployeeClick?: (employeeId: string) => void;
@@ -33,6 +36,7 @@ export function DayGrid({
   employees,
   roles,
   timeSlots,
+  breakConfig,
   employeeHoursById,
   onCellClick,
   onEmployeeClick,
@@ -118,12 +122,24 @@ export function DayGrid({
                 {visibleEmployees.map((employee) => {
                   const assignment = dayPlan.assignments[slot.id]?.[employee.id] ?? { roleId: null, code: 'LIBRE' };
                   const role = assignment.roleId ? roleById.get(assignment.roleId) : undefined;
+                  const isBreakSlot = assignment.roleId === null && isTimeSlotInBreak(slot, breakConfig);
+                  const isRestDay = assignment.roleId === null && isRestDayForDate(dayPlan.dateISO, employee.restDay);
                   return (
                     <Box as="td" key={employee.id} p={0}>
                       <AssignmentCell
                         assignment={assignment}
                         role={role}
-                        labelOverride={assignment.roleId ? (showEmployeeCodeInCells ? employee.code ?? employee.name : undefined) : undefined}
+                        labelOverride={
+                          assignment.roleId
+                            ? showEmployeeCodeInCells
+                              ? employee.code ?? employee.name
+                              : undefined
+                            : isRestDay
+                              ? 'Descanso'
+                            : isBreakSlot
+                              ? 'Break'
+                              : undefined
+                        }
                         onClick={
                           readOnly && !allowCellClickWhenReadOnly
                             ? undefined

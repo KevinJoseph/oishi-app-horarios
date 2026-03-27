@@ -324,6 +324,7 @@ export function PlanningPage(): JSX.Element {
                         employees,
                         roles,
                         timeSlots,
+                        breakConfig,
                         week: currentWeek,
                         isValidated: currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false,
                         validatedByName: currentWeekAudit?.validatedByName ?? null
@@ -385,6 +386,7 @@ export function PlanningPage(): JSX.Element {
                       employees={employees}
                       roles={roles}
                       timeSlots={timeSlots}
+                      breakConfig={breakConfig}
                       employeeHoursById={employeeHoursById}
                       showEmployeeCodeInCells
                       readOnly={!canEditWeek}

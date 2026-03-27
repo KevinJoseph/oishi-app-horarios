@@ -68,7 +68,7 @@ export function CellEditorModal({ isOpen, onClose, assignment, employeeName, rol
           <FormControl mb={4}>
             <FormLabel>Zona</FormLabel>
             <Select value={roleId} onChange={(event) => setRoleId(event.target.value)}>
-              <option value="">LIBRE</option>
+              <option value="">SIN ASIGNAR</option>
               {roles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name}
@@ -79,7 +79,7 @@ export function CellEditorModal({ isOpen, onClose, assignment, employeeName, rol
           <FormControl>
             <FormLabel>Código</FormLabel>
             <Select value={code} isDisabled={isFree} onChange={(event) => setCode(event.target.value)}>
-              {isFree ? <option value="LIBRE">LIBRE</option> : options.map((item) => <option key={item}>{item}</option>)}
+              {isFree ? <option value="LIBRE">SIN ASIGNAR</option> : options.map((item) => <option key={item}>{item}</option>)}
             </Select>
           </FormControl>
           <FormControl mt={4}>

@@ -1,5 +1,7 @@
 import { Box, Text } from '@chakra-ui/react';
-import type { DayPlan, Employee, Role, TimeSlot } from '../types';
+import type { BreakConfig, DayPlan, Employee, Role, TimeSlot } from '../types';
+import { isTimeSlotInBreak } from '../utils/breaks';
+import { isRestDayForDate } from '../utils/weekdays';
 import { AssignmentCell } from './AssignmentCell';
 
 type Props = {
@@ -7,10 +9,11 @@ type Props = {
   days: DayPlan[];
   roles: Role[];
   timeSlots: TimeSlot[];
+  breakConfig: BreakConfig;
   maxTableHeight?: string;
 };
 
-export function EmployeeWeekGrid({ employee, days, roles, timeSlots, maxTableHeight = '46vh' }: Props): JSX.Element {
+export function EmployeeWeekGrid({ employee, days, roles, timeSlots, breakConfig, maxTableHeight = '46vh' }: Props): JSX.Element {
   const roleById = new Map(roles.map((role) => [role.id, role]));
   const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
   const visibleSlots = orderedSlots;
@@ -54,9 +57,15 @@ export function EmployeeWeekGrid({ employee, days, roles, timeSlots, maxTableHei
                 {days.map((day) => {
                   const assignment = day.assignments[slot.id]?.[employee.id] ?? { roleId: null, code: 'LIBRE' };
                   const role = assignment.roleId ? roleById.get(assignment.roleId) : undefined;
+                  const isBreakSlot = assignment.roleId === null && isTimeSlotInBreak(slot, breakConfig);
+                  const isRestDay = assignment.roleId === null && isRestDayForDate(day.dateISO, employee.restDay);
                   return (
                     <Box as="td" key={`${day.dateISO}-${slot.id}`} p={0}>
-                      <AssignmentCell assignment={assignment} role={role} />
+                      <AssignmentCell
+                        assignment={assignment}
+                        role={role}
+                        labelOverride={isRestDay ? 'Descanso' : isBreakSlot ? 'Break' : undefined}
+                      />
                     </Box>
                   );
                 })}

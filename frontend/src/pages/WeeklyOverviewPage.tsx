@@ -20,6 +20,7 @@ export function WeeklyOverviewPage(): JSX.Element {
   const weekAuditById = useAppStore((state) => state.weekAuditById);
   const weekConfigById = useAppStore((state) => state.weekConfigById);
   const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
+  const areaBreakConfig = useAppStore((state) => state.breakConfigByArea[state.currentAreaId] ?? state.breakConfig);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
 
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
@@ -44,6 +45,7 @@ export function WeeklyOverviewPage(): JSX.Element {
   const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
   const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
+  const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
   const days = currentWeekPlan?.days ?? [];
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);
   const assignedHoursByEmployee = useMemo(() => {
@@ -114,6 +116,7 @@ export function WeeklyOverviewPage(): JSX.Element {
                             employees,
                             roles,
                             timeSlots,
+                            breakConfig,
                             week: currentWeek,
                             weekPlan: currentWeekPlan,
                             isValidated: currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false,
@@ -161,6 +164,7 @@ export function WeeklyOverviewPage(): JSX.Element {
                   employees={employees}
                   roles={roles}
                   timeSlots={timeSlots}
+                  breakConfig={breakConfig}
                   employeeHoursById={employeeHoursById}
                   showEmployeeCodeInCells
                   readOnly
@@ -197,6 +201,7 @@ export function WeeklyOverviewPage(): JSX.Element {
                     days={days}
                     roles={roles}
                     timeSlots={timeSlots}
+                    breakConfig={breakConfig}
                     maxTableHeight="42vh"
                   />
                 </CardBody>

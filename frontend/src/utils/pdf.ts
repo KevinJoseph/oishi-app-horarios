@@ -1,10 +1,13 @@
 import { jsPDF } from 'jspdf';
-import type { DayPlan, Employee, Role, TimeSlot, Week, WeekPlan } from '../types';
+import type { BreakConfig, DayPlan, Employee, Role, TimeSlot, Week, WeekPlan } from '../types';
+import { isTimeSlotInBreak } from './breaks';
+import { isRestDayForDate } from './weekdays';
 
 type DownloadEmployeeWeekPdfInput = {
   employee: Employee;
   roles: Role[];
   timeSlots: TimeSlot[];
+  breakConfig: BreakConfig;
   week: Week;
   weekPlan: WeekPlan;
   isValidated: boolean;
@@ -15,6 +18,7 @@ type DownloadWeeklyOverviewPdfInput = {
   employees: Employee[];
   roles: Role[];
   timeSlots: TimeSlot[];
+  breakConfig: BreakConfig;
   week: Week;
   weekPlan: WeekPlan;
   isValidated: boolean;
@@ -25,6 +29,7 @@ type DownloadWeeklyGridPdfInput = {
   employees: Employee[];
   roles: Role[];
   timeSlots: TimeSlot[];
+  breakConfig: BreakConfig;
   week: Week;
   weekPlan: WeekPlan;
   isValidated: boolean;
@@ -36,6 +41,7 @@ type DownloadDaySchedulePdfInput = {
   employees: Employee[];
   roles: Role[];
   timeSlots: TimeSlot[];
+  breakConfig: BreakConfig;
   week: Week;
   isValidated: boolean;
   validatedByName: string | null;
@@ -45,6 +51,7 @@ export function downloadEmployeeWeekPdf({
   employee,
   roles,
   timeSlots,
+  breakConfig,
   week,
   weekPlan,
   isValidated,
@@ -55,6 +62,7 @@ export function downloadEmployeeWeekPdf({
     employee,
     roles,
     timeSlots,
+    breakConfig,
     week,
     weekPlan,
     includeSummary: false,
@@ -71,6 +79,7 @@ export function downloadWeeklyOverviewPdf({
   employees,
   roles,
   timeSlots,
+  breakConfig,
   week,
   weekPlan,
   isValidated,
@@ -85,6 +94,7 @@ export function downloadWeeklyOverviewPdf({
       employee,
       roles,
       timeSlots,
+      breakConfig,
       week,
       weekPlan,
       includeSummary: true,
@@ -102,12 +112,13 @@ export function downloadDaySchedulePdf({
   employees,
   roles,
   timeSlots,
+  breakConfig,
   week,
   isValidated,
   validatedByName
 }: DownloadDaySchedulePdfInput): void {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
-  drawDaySchedulePage(doc, { dayPlan, employees, roles, timeSlots, week, isValidated, validatedByName });
+  drawDaySchedulePage(doc, { dayPlan, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName });
 
   const safeDay = `${dayPlan.dayName}-${dayPlan.dateISO}`.replace(/[^\w-]+/g, '-').toLowerCase();
   doc.save(`horario-dia-${safeDay}.pdf`);
@@ -117,6 +128,7 @@ export function downloadWeeklyGridPdf({
   employees,
   roles,
   timeSlots,
+  breakConfig,
   week,
   weekPlan,
   isValidated,
@@ -127,7 +139,7 @@ export function downloadWeeklyGridPdf({
 
   days.forEach((dayPlan, index) => {
     if (index > 0) doc.addPage();
-    drawDaySchedulePage(doc, { dayPlan, employees, roles, timeSlots, week, isValidated, validatedByName });
+    drawDaySchedulePage(doc, { dayPlan, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName });
   });
 
   const safeWeek = week.label.replace(/[^\w-]+/g, '-');
@@ -141,12 +153,13 @@ function drawDaySchedulePage(
     employees: Employee[];
     roles: Role[];
     timeSlots: TimeSlot[];
+    breakConfig: BreakConfig;
     week: Week;
     isValidated: boolean;
     validatedByName: string | null;
   }
 ): void {
-  const { dayPlan, employees, roles, timeSlots, week, isValidated, validatedByName } = input;
+  const { dayPlan, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName } = input;
   const roleColorById = new Map(roles.map((role) => [role.id, role.colorHex]));
   const activeEmployees = employees.filter((employee) => employee.active);
   const visibleTimeSlots = getVisibleTimeSlots(timeSlots);
@@ -183,7 +196,15 @@ function drawDaySchedulePage(
     const fillColors: Array<[number, number, number] | null> = [null];
     for (const employee of activeEmployees) {
       const assignment = dayPlan.assignments[slot.id]?.[employee.id];
-      rowValues.push(assignment?.code ?? 'LIBRE');
+      const label =
+        !assignment || assignment.roleId === null || assignment.code === 'LIBRE'
+          ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
+            ? 'Descanso'
+            : isTimeSlotInBreak(slot, breakConfig)
+            ? 'Break'
+            : 'SIN ASIGNAR'
+          : assignment.code;
+      rowValues.push(label);
       if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') {
         fillColors.push([255, 255, 255]);
       } else {
@@ -202,6 +223,7 @@ function drawEmployeeSchedulePage(
     employee: Employee;
     roles: Role[];
     timeSlots: TimeSlot[];
+    breakConfig: BreakConfig;
     week: Week;
     weekPlan: WeekPlan;
     includeSummary: boolean;
@@ -209,7 +231,7 @@ function drawEmployeeSchedulePage(
     validatedByName: string | null;
   }
 ): void {
-  const { employee, roles, timeSlots, week, weekPlan, includeSummary, isValidated, validatedByName } = input;
+  const { employee, roles, timeSlots, breakConfig, week, weekPlan, includeSummary, isValidated, validatedByName } = input;
   const roleById = new Map(roles.map((role) => [role.id, role.name]));
   const roleColorById = new Map(roles.map((role) => [role.id, role.colorHex]));
   const visibleTimeSlots = getVisibleTimeSlots(timeSlots);
@@ -256,7 +278,15 @@ function drawEmployeeSchedulePage(
     const fillColors: Array<[number, number, number] | null> = [null];
     for (const day of days) {
       const assignment = day.assignments[slot.id]?.[employee.id];
-      rowValues.push(assignment?.code ?? 'LIBRE');
+      const label =
+        !assignment || assignment.roleId === null || assignment.code === 'LIBRE'
+          ? isRestDayForDate(day.dateISO, employee.restDay)
+            ? 'Descanso'
+            : isTimeSlotInBreak(slot, breakConfig)
+            ? 'Break'
+            : 'SIN ASIGNAR'
+          : assignment.code;
+      rowValues.push(label);
       if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') {
         fillColors.push([255, 255, 255]);
       } else {

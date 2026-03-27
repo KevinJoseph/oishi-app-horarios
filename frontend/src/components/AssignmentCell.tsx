@@ -10,7 +10,7 @@ type Props = {
 
 export function AssignmentCell({ assignment, role, labelOverride, onClick }: Props): JSX.Element {
   const isFree = assignment.roleId === null;
-  const label = isFree ? 'LIBRE' : labelOverride ?? assignment.code;
+  const label = labelOverride ?? (isFree ? 'SIN ASIGNAR' : assignment.code);
   return (
     <Box
       minH="48px"

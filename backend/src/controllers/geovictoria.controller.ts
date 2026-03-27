@@ -40,6 +40,7 @@ interface GeoVictoriaAddUserRequestBody {
 }
 
 interface GeoVictoriaMigrateShiftItemRequestBody {
+  assignmentType?: string;
   employeeId?: string;
   employeeName?: string;
   companyId?: string;
@@ -47,6 +48,8 @@ interface GeoVictoriaMigrateShiftItemRequestBody {
   dateISO?: string;
   startHour?: string;
   endHour?: string;
+  breakStartHour?: string;
+  breakEndHour?: string;
   custom?: string;
 }
 
@@ -56,6 +59,8 @@ interface GeoVictoriaMigratePlanningRequestBody {
 
 interface GeoVictoriaShiftListItem {
   id: string;
+  type: string;
+  shiftDisplay: string;
   startTime: string;
   exitTime: string;
   breakStart: string;
@@ -120,6 +125,8 @@ function normalizeGeoVictoriaShiftListItem(item: unknown): GeoVictoriaShiftListI
 
   return {
     id,
+    type: cleanRequiredText(source.Type ?? source.type),
+    shiftDisplay: cleanRequiredText(source.ShiftDisplay ?? source.shiftDisplay),
     startTime: normalizeShiftTime(source.StartTime ?? source.startTime),
     exitTime: normalizeShiftTime(source.ExitTime ?? source.exitTime),
     breakStart: normalizeShiftTime(source.BreakStart ?? source.breakStart),
@@ -127,6 +134,29 @@ function normalizeGeoVictoriaShiftListItem(item: unknown): GeoVictoriaShiftListI
     breakMinutes: cleanRequiredText(source.BreakMinutes ?? source.breakMinutes),
     custom: cleanRequiredText(source.Custom ?? source.custom)
   };
+}
+
+function findGeoVictoriaRestShift(shifts: GeoVictoriaShiftListItem[]): GeoVictoriaShiftListItem | null {
+  return (
+    shifts.find((shift) => {
+      const type = shift.type.toLowerCase();
+      const display = shift.shiftDisplay.toLowerCase();
+      return (
+        (type === 'notworking' && display === 'descanso') ||
+        (type === 'notworking' && display === 'break')
+      );
+    }) ?? null
+  );
+}
+
+function findGeoVictoriaFreeShift(shifts: GeoVictoriaShiftListItem[]): GeoVictoriaShiftListItem | null {
+  return (
+    shifts.find((shift) => {
+      const type = shift.type.toLowerCase();
+      const display = shift.shiftDisplay.toLowerCase();
+      return type === 'noshift' && display === 'no shift';
+    }) ?? null
+  );
 }
 
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
@@ -186,20 +216,29 @@ async function insertGeoVictoriaShift(
   tokenCacheKey: string,
   startHour: string,
   endHour: string,
+  breakStartHour: string | undefined,
+  breakEndHour: string | undefined,
   custom: string
 ): Promise<string> {
+  const payload: Record<string, string> = {
+    StartHour: startHour,
+    EndHour: endHour,
+    ShiftDay: 'fin',
+    Custom: custom
+  };
+
+  if (breakStartHour && breakEndHour) {
+    payload.BreakStart = breakStartHour;
+    payload.BreakEnd = breakEndHour;
+  }
+
   const response = await fetch(env.geoVictoriaShiftInsertUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      StartHour: startHour,
-      EndHour: endHour,
-      ShiftDay: 'fin',
-      Custom: custom
-    })
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
@@ -254,7 +293,9 @@ async function listGeoVictoriaShifts(token: string, tokenCacheKey: string): Prom
 function findMatchingGeoVictoriaShift(
   shifts: GeoVictoriaShiftListItem[],
   startHour: string,
-  endHour: string
+  endHour: string,
+  breakStartHour?: string,
+  breakEndHour?: string
 ): GeoVictoriaShiftListItem | null {
   return (
     shifts.find((shift) => {
@@ -263,7 +304,17 @@ function findMatchingGeoVictoriaShift(
         (!shift.breakStart || shift.breakStart === '00:00') &&
         (!shift.breakEnd || shift.breakEnd === '00:00');
 
-      return shift.startTime === startHour && shift.exitTime === endHour && hasNoBreak;
+      const hasMatchingFixedBreak =
+        Boolean(breakStartHour && breakEndHour) &&
+        shift.breakStart === breakStartHour &&
+        shift.breakEnd === breakEndHour &&
+        (!shift.breakMinutes || shift.breakMinutes === '0');
+
+      return (
+        shift.startTime === startHour &&
+        shift.exitTime === endHour &&
+        ((breakStartHour && breakEndHour ? hasMatchingFixedBreak : hasNoBreak))
+      );
     }) ?? null
   );
 }
@@ -497,7 +548,9 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
 
   const shiftIdCache = new Map<string, string>();
   const shiftsByCompanyId = new Map<string, GeoVictoriaShiftListItem[]>();
+  const preclearedDays = new Set<string>();
   const results: Array<{
+    assignmentType: 'work' | 'rest' | 'free';
     employeeId: string;
     employeeName: string;
     userIdentifier: string;
@@ -505,14 +558,22 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
     dateISO: string;
     startHour: string;
     endHour: string;
+    breakStartHour?: string;
+    breakEndHour?: string;
     ok: boolean;
     shiftId?: string;
     shiftSource?: 'existing' | 'created';
+    shiftOk?: boolean;
+    shiftMessage?: string;
+    planningOk?: boolean;
     planningResponse?: string;
+    planningMessage?: string;
     error?: string;
   }> = [];
 
   for (const item of items) {
+    const rawAssignmentType = cleanRequiredText(item.assignmentType).toLowerCase();
+    const assignmentType = rawAssignmentType === 'rest' ? 'rest' : rawAssignmentType === 'free' ? 'free' : 'work';
     const employeeId = cleanRequiredText(item.employeeId);
     const employeeName = cleanRequiredText(item.employeeName);
     const companyId = cleanRequiredText(item.companyId);
@@ -520,9 +581,23 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
     const dateISO = cleanRequiredText(item.dateISO);
     const startHour = cleanRequiredText(item.startHour);
     const endHour = cleanRequiredText(item.endHour);
+    const breakStartHour = cleanRequiredText(item.breakStartHour);
+    const breakEndHour = cleanRequiredText(item.breakEndHour);
     const custom = (cleanRequiredText(item.custom) || `${startHour}-${endHour}`).slice(0, 20);
     const startMinutes = toMinutes(startHour);
     const endMinutes = toMinutes(endHour);
+    const breakStartMinutes = breakStartHour ? toMinutes(breakStartHour) : null;
+    const breakEndMinutes = breakEndHour ? toMinutes(breakEndHour) : null;
+    const hasFixedBreak = Boolean(breakStartHour || breakEndHour);
+    const breakIsValid =
+      !hasFixedBreak ||
+      (breakStartMinutes !== null &&
+        breakEndMinutes !== null &&
+        breakEndMinutes > breakStartMinutes &&
+        startMinutes !== null &&
+        endMinutes !== null &&
+        breakStartMinutes >= startMinutes &&
+        breakEndMinutes <= endMinutes);
 
     if (
       !employeeId ||
@@ -530,11 +605,11 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
       !companyId ||
       !userIdentifier ||
       !isValidDateISO(dateISO) ||
-      startMinutes === null ||
-      endMinutes === null ||
-      endMinutes <= startMinutes
+      (assignmentType === 'work' && (startMinutes === null || endMinutes === null || endMinutes <= startMinutes)) ||
+      !breakIsValid
     ) {
       results.push({
+        assignmentType,
         employeeId,
         employeeName,
         userIdentifier,
@@ -542,6 +617,8 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
         dateISO,
         startHour,
         endHour,
+        breakStartHour: breakStartHour || undefined,
+        breakEndHour: breakEndHour || undefined,
         ok: false,
         error: 'Fila invalida. Verifica company, identificador, fecha y horas.'
       });
@@ -551,6 +628,7 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
     const credentials = getCompanyCredentials(companyId);
     if (!credentials) {
       results.push({
+        assignmentType,
         employeeId,
         employeeName,
         userIdentifier,
@@ -558,6 +636,8 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
         dateISO,
         startHour,
         endHour,
+        breakStartHour: breakStartHour || undefined,
+        breakEndHour: breakEndHour || undefined,
         ok: false,
         error: `No existen credenciales configuradas para la company "${companyId}".`
       });
@@ -565,6 +645,9 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
     }
 
     const tokenCacheKey = `company:${companyId}`;
+    let shiftId: string | undefined;
+    let shiftSource: 'existing' | 'created' | undefined;
+    let shiftMessage = '';
 
     try {
       const token = await getTokenForCredentials(tokenCacheKey, credentials.user, credentials.password, companyId);
@@ -574,35 +657,105 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
         shiftsByCompanyId.set(companyId, companyShifts);
       }
 
-      const shiftSignature = `${companyId}|${startHour}|${endHour}|${custom}`;
-      let shiftId = shiftIdCache.get(shiftSignature);
-      let shiftSource: 'existing' | 'created' = 'created';
+      const dayResetKey = `${companyId}|${userIdentifier}|${dateISO}`;
+      if (!preclearedDays.has(dayResetKey)) {
+        let freeShiftId = shiftIdCache.get(`${companyId}|free`);
+        if (!freeShiftId) {
+          const freeShift = findGeoVictoriaFreeShift(companyShifts);
+          if (!freeShift) {
+            throw new Error('No existe un turno "NoShift / No Shift" configurado en GeoVictoria para limpiar el día antes de migrar.');
+          }
+          freeShiftId = freeShift.id;
+          shiftIdCache.set(`${companyId}|free`, freeShiftId);
+        }
+
+        await assignGeoVictoriaPlanning(token, tokenCacheKey, userIdentifier, freeShiftId, dateISO);
+        preclearedDays.add(dayResetKey);
+      }
+
+      const shiftSignature =
+        assignmentType === 'rest'
+          ? `${companyId}|rest`
+          : assignmentType === 'free'
+            ? `${companyId}|free`
+            : `${companyId}|${startHour}|${endHour}|${breakStartHour}|${breakEndHour}`;
+      shiftId = shiftIdCache.get(shiftSignature);
+      shiftSource = 'created';
 
       if (!shiftId) {
-        const existingShift = findMatchingGeoVictoriaShift(companyShifts, startHour, endHour);
+        const existingShift =
+          assignmentType === 'rest'
+            ? findGeoVictoriaRestShift(companyShifts)
+            : assignmentType === 'free'
+              ? findGeoVictoriaFreeShift(companyShifts)
+            : findMatchingGeoVictoriaShift(companyShifts, startHour, endHour, breakStartHour || undefined, breakEndHour || undefined);
         if (existingShift) {
           shiftId = existingShift.id;
           shiftSource = 'existing';
+          shiftMessage = `Se reutilizo el turno existente ${shiftId}.`;
         } else {
-          shiftId = await insertGeoVictoriaShift(token, tokenCacheKey, startHour, endHour, custom);
+          if (assignmentType === 'rest') {
+            throw new Error('No existe un turno de descanso configurado en GeoVictoria para registrar descansos.');
+          }
+          if (assignmentType === 'free') {
+            throw new Error('No existe un turno "NoShift / No Shift" configurado en GeoVictoria para registrar SIN ASIGNAR.');
+          }
+          shiftId = await insertGeoVictoriaShift(
+            token,
+            tokenCacheKey,
+            startHour,
+            endHour,
+            breakStartHour || undefined,
+            breakEndHour || undefined,
+            custom
+          );
           companyShifts.push({
             id: shiftId,
+            type: '',
+            shiftDisplay: '',
             startTime: startHour,
             exitTime: endHour,
-            breakStart: '00:00',
-            breakEnd: '00:00',
+            breakStart: breakStartHour || '00:00',
+            breakEnd: breakEndHour || '00:00',
             breakMinutes: '',
             custom
           });
           shiftSource = 'created';
+          shiftMessage = `Se creo el turno ${shiftId}.`;
         }
         shiftIdCache.set(shiftSignature, shiftId);
       } else {
         shiftSource = 'existing';
+        shiftMessage = `Se reutilizo el turno ${shiftId} desde cache de la migracion actual.`;
+      }
+
+      if (assignmentType === 'free') {
+        results.push({
+          assignmentType,
+          employeeId,
+          employeeName,
+          userIdentifier,
+          companyId,
+          dateISO,
+          startHour,
+          endHour,
+          breakStartHour: breakStartHour || undefined,
+          breakEndHour: breakEndHour || undefined,
+          ok: true,
+          shiftId,
+          shiftSource,
+          shiftOk: true,
+          shiftMessage: shiftMessage || `Se dejo el dia ${dateISO} sin turno en GeoVictoria.`,
+          planningOk: true,
+          planningResponse: 'OK',
+          planningMessage: 'Dia limpiado y dejado sin turno.'
+        });
+        continue;
       }
 
       const planningResponse = await assignGeoVictoriaPlanning(token, tokenCacheKey, userIdentifier, shiftId, dateISO);
       results.push({
+        assignmentType,
         employeeId,
         employeeName,
         userIdentifier,
@@ -610,13 +763,20 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
         dateISO,
         startHour,
         endHour,
+        breakStartHour: breakStartHour || undefined,
+        breakEndHour: breakEndHour || undefined,
         ok: true,
         shiftId,
         shiftSource,
-        planningResponse
+        shiftOk: true,
+        shiftMessage,
+        planningOk: true,
+        planningResponse,
+        planningMessage: planningResponse || 'Planificacion creada correctamente.'
       });
     } catch (error) {
       results.push({
+        assignmentType,
         employeeId,
         employeeName,
         userIdentifier,
@@ -624,7 +784,14 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
         dateISO,
         startHour,
         endHour,
+        breakStartHour: breakStartHour || undefined,
+        breakEndHour: breakEndHour || undefined,
         ok: false,
+        shiftId,
+        shiftSource,
+        shiftOk: Boolean(shiftId),
+        shiftMessage: shiftMessage || undefined,
+        planningOk: false,
         error: error instanceof Error ? error.message : 'Error al migrar turno a GeoVictoria.'
       });
     }

@@ -7,6 +7,12 @@ import {
   CardHeader,
   Checkbox,
   HStack,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalHeader,
+  ModalOverlay,
   Table,
   Tbody,
   Td,
@@ -16,22 +22,38 @@ import {
   Tooltip,
   Tr,
   VStack,
+  useDisclosure,
   useToast
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
-import { FiSend } from 'react-icons/fi';
+import { FiEye, FiSend } from 'react-icons/fi';
 import { migrateGeoVictoriaPlanning, type GeoVictoriaPlanningMigrationResult } from '../api/plannerApi';
+import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
 import { WeekSelector } from '../components/WeekSelector';
 import { useAppStore } from '../store/useAppStore';
 import type { AreaId } from '../types';
-import { buildGeoMigrationRows } from '../utils/geovictoriaMigration';
+import { buildGeoMigrationRows, type GeoMigrationRow } from '../utils/geovictoriaMigration';
 
 function scopedWeekKey(areaId: AreaId, weekId: string): string {
   return `${areaId}::${weekId}`;
 }
 
+type GeoMigrationGroup = {
+  key: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCode: string;
+  companyLabel: string;
+  userIdentifier: string;
+  roleSummary: string;
+  canMigrate: boolean;
+  warnings: string[];
+  rows: GeoMigrationRow[];
+};
+
 export function GeoMigrationPage(): JSX.Element {
   const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const weeks = useAppStore((state) => state.weeks);
@@ -63,12 +85,56 @@ export function GeoMigrationPage(): JSX.Element {
     () => buildGeoMigrationRows(scopedEmployees, scopedRoles, timeSlots, breakConfig, weekPlan),
     [scopedEmployees, scopedRoles, timeSlots, breakConfig, weekPlan]
   );
+  const groups = useMemo<GeoMigrationGroup[]>(() => {
+    const grouped = new Map<string, GeoMigrationGroup>();
 
-  const migratableKeys = useMemo(() => rows.filter((row) => row.canMigrate).map((row) => row.key), [rows]);
+    for (const row of rows) {
+      const key = `${row.employeeId}:${row.companyId}:${row.userIdentifier}`;
+      const current = grouped.get(key);
+      if (current) {
+        current.rows.push(row);
+        current.canMigrate = current.canMigrate && row.canMigrate;
+        current.warnings = Array.from(new Set([...current.warnings, ...row.warnings]));
+        continue;
+      }
+
+      grouped.set(key, {
+        key,
+        employeeId: row.employeeId,
+        employeeName: row.employeeName,
+        employeeCode: row.employeeCode,
+        companyLabel: row.companyLabel,
+        userIdentifier: row.userIdentifier,
+        roleSummary: row.roleName,
+        canMigrate: row.canMigrate,
+        warnings: [...row.warnings],
+        rows: [row]
+      });
+    }
+
+    return Array.from(grouped.values())
+      .map((group) => ({
+        ...group,
+        rows: [...group.rows].sort((a, b) => {
+          const dateOrder = a.dateISO.localeCompare(b.dateISO);
+          if (dateOrder !== 0) return dateOrder;
+          return a.startHour.localeCompare(b.startHour);
+        }),
+        roleSummary: Array.from(new Set(group.rows.map((row) => row.roleName))).join(', ')
+      }))
+      .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  }, [rows]);
+
+  const migratableKeys = useMemo(() => groups.filter((group) => group.canMigrate).map((group) => group.key), [groups]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [isMigrating, setIsMigrating] = useState(false);
   const [migratingKeys, setMigratingKeys] = useState<string[]>([]);
   const [resultByKey, setResultByKey] = useState<Record<string, GeoVictoriaPlanningMigrationResult>>({});
+  const [selectedGroup, setSelectedGroup] = useState<GeoMigrationGroup | null>(null);
+  const selectedEmployee = useMemo(
+    () => scopedEmployees.find((employee) => employee.id === selectedGroup?.employeeId) ?? null,
+    [scopedEmployees, selectedGroup]
+  );
 
   useEffect(() => {
     setSelectedKeys((current) => current.filter((key) => migratableKeys.includes(key)));
@@ -77,9 +143,11 @@ export function GeoMigrationPage(): JSX.Element {
   const allMigratableSelected = migratableKeys.length > 0 && migratableKeys.every((key) => selectedKeys.includes(key));
 
   const handleMigrate = async (keys: string[]): Promise<void> => {
-    const items = rows
-      .filter((row) => keys.includes(row.key) && row.canMigrate)
+    const items = groups
+      .filter((group) => keys.includes(group.key) && group.canMigrate)
+      .flatMap((group) => group.rows)
       .map((row) => ({
+        assignmentType: row.assignmentType,
         employeeId: row.employeeId,
         employeeName: row.employeeName,
         companyId: row.companyId,
@@ -87,6 +155,8 @@ export function GeoMigrationPage(): JSX.Element {
         dateISO: row.dateISO,
         startHour: row.startHour,
         endHour: row.endHour,
+        breakStartHour: row.breakStartHour,
+        breakEndHour: row.breakEndHour,
         custom: row.custom
       }));
 
@@ -104,7 +174,12 @@ export function GeoMigrationPage(): JSX.Element {
       const response = await migrateGeoVictoriaPlanning(items);
       const nextResults = { ...resultByKey };
       for (const result of response.results) {
-        const rowKey = `${result.employeeId}:${result.dateISO}:${result.startHour}:${result.endHour}`;
+        const rowKey =
+          result.assignmentType === 'rest'
+            ? `${result.employeeId}:${result.dateISO}:rest`
+            : result.assignmentType === 'free'
+              ? `${result.employeeId}:${result.dateISO}:free`
+            : `${result.employeeId}:${result.dateISO}:${result.startHour}:${result.endHour}:${result.breakStartHour ?? ''}:${result.breakEndHour ?? ''}`;
         nextResults[rowKey] = result;
       }
       setResultByKey(nextResults);
@@ -133,6 +208,7 @@ export function GeoMigrationPage(): JSX.Element {
             </Text>
             <Text color="gray.600">
               Revisa la semana seleccionada y migra los turnos diarios a GeoVictoria usando la company de cada colaborador.
+              La tabla muestra por separado el resultado del turno y de la planificacion.
             </Text>
           </VStack>
         </CardHeader>
@@ -141,7 +217,7 @@ export function GeoMigrationPage(): JSX.Element {
             <WeekSelector />
             <HStack spacing={3}>
               <Badge colorScheme="blue" variant="subtle" px={3} py={1} rounded="md">
-                Filas: {rows.length}
+                Filas: {groups.length}
               </Badge>
               <Badge colorScheme="green" variant="subtle" px={3} py={1} rounded="md">
                 Migrables: {migratableKeys.length}
@@ -172,7 +248,7 @@ export function GeoMigrationPage(): JSX.Element {
 
       <Card>
         <CardBody>
-          {!rows.length ? (
+          {!groups.length ? (
             <Text color="gray.500">No hay turnos asignados para el area y semana seleccionadas.</Text>
           ) : (
             <Box overflowX="auto">
@@ -188,76 +264,126 @@ export function GeoMigrationPage(): JSX.Element {
                         }}
                       />
                     </Th>
-                    <Th>Fecha</Th>
-                    <Th>Dia</Th>
-                    <Th>Hora</Th>
                     <Th>Colaborador</Th>
                     <Th>Codigo</Th>
                     <Th>Empresa</Th>
-                    <Th>Zona</Th>
                     <Th>Identificador</Th>
-                    <Th>Estado</Th>
+                    <Th>Zona</Th>
+                    <Th>Planificación semanal</Th>
+                    <Th>Turno</Th>
+                    <Th>Planificacion</Th>
                     <Th>Accion</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {rows.map((row) => {
-                    const result = resultByKey[row.key];
-                    const isRowMigrating = migratingKeys.includes(row.key);
+                  {groups.map((group) => {
+                    const groupResults = group.rows.map((row) => resultByKey[row.key]).filter((result) => result !== undefined);
+                    const allRowsMigrated = group.rows.length > 0 && group.rows.every((row) => resultByKey[row.key] !== undefined);
+                    const shiftErrors = groupResults.filter((result) => !result.shiftOk);
+                    const planningErrors = groupResults.filter((result) => !result.planningOk);
+                    const shiftCreated = groupResults.filter((result) => result.shiftOk && result.shiftSource === 'created').length;
+                    const shiftReused = groupResults.filter((result) => result.shiftOk && result.shiftSource === 'existing').length;
+                    const isRowMigrating = migratingKeys.includes(group.key);
                     return (
-                      <Tr key={row.key}>
+                      <Tr key={group.key}>
                         <Td>
                           <Checkbox
-                            isChecked={selectedKeys.includes(row.key)}
-                            isDisabled={!row.canMigrate || isMigrating}
+                            isChecked={selectedKeys.includes(group.key)}
+                            isDisabled={!group.canMigrate || isMigrating}
                             onChange={(event) => {
                               setSelectedKeys((current) =>
-                                event.target.checked ? [...current, row.key] : current.filter((key) => key !== row.key)
+                                event.target.checked ? [...current, group.key] : current.filter((key) => key !== group.key)
                               );
                             }}
                           />
                         </Td>
-                        <Td>{row.dateISO}</Td>
-                        <Td textTransform="capitalize">{row.dayName}</Td>
-                        <Td>{`${row.startHour} - ${row.endHour}`}</Td>
-                        <Td>{row.employeeName}</Td>
-                        <Td>{row.employeeCode}</Td>
-                        <Td>{row.companyLabel}</Td>
-                        <Td>{row.roleName}</Td>
-                        <Td>{row.userIdentifier || '-'}</Td>
+                        <Td>{group.employeeName}</Td>
+                        <Td>{group.employeeCode}</Td>
+                        <Td>{group.companyLabel}</Td>
+                        <Td>{group.userIdentifier || '-'}</Td>
+                        <Td>{group.roleSummary}</Td>
                         <Td>
-                          {result ? (
+                          <VStack align="start" spacing={1}>
+                            {group.rows.map((row) => (
+                              <Box key={row.key}>
+                                <Text fontSize="sm">{row.assignmentType === 'rest' ? `${row.dayName}: Descanso` : `${row.dayName}: ${row.startHour} - ${row.endHour}`}</Text>
+                                {row.assignmentType === 'work' && row.breakStartHour && row.breakEndHour ? (
+                                  <Text fontSize="xs" color="gray.500">
+                                    Break {row.breakStartHour} - {row.breakEndHour}
+                                  </Text>
+                                ) : null}
+                              </Box>
+                            ))}
+                          </VStack>
+                        </Td>
+                        <Td>
+                          {groupResults.length ? (
                             <Tooltip
                               label={
-                                result.error ??
-                                `${result.shiftSource === 'existing' ? 'Turno reutilizado' : 'Turno creado'}${result.planningResponse ? ` | ${result.planningResponse}` : ''}`
+                                shiftErrors.length
+                                  ? shiftErrors.map((result) => result.error ?? result.shiftMessage ?? 'Error al crear turno.').join(' | ')
+                                  : `Creados: ${shiftCreated} | Reutilizados: ${shiftReused}`
                               }
                               hasArrow
                             >
-                              <Badge colorScheme={result.ok ? 'green' : 'red'}>
-                                {result.ok ? (result.shiftSource === 'existing' ? 'Reutilizado' : 'Creado') : 'Error'}
+                              <Badge colorScheme={shiftErrors.length ? 'red' : 'green'}>
+                                {shiftErrors.length ? 'Con errores' : allRowsMigrated ? 'Completado' : 'Parcial'}
                               </Badge>
                             </Tooltip>
-                          ) : row.canMigrate ? (
+                          ) : group.canMigrate ? (
                             <Badge colorScheme="gray">Pendiente</Badge>
                           ) : (
-                            <Tooltip label={row.warnings.join(' ')} hasArrow>
+                            <Tooltip label={group.warnings.join(' ')} hasArrow>
                               <Badge colorScheme="orange">Incompleto</Badge>
                             </Tooltip>
                           )}
                         </Td>
                         <Td>
+                          {groupResults.length ? (
+                            <Tooltip
+                              label={
+                                planningErrors.length
+                                  ? planningErrors.map((result) => result.error ?? result.planningMessage ?? 'Error al crear planificacion.').join(' | ')
+                                  : `Dias enviados: ${groupResults.length}/${group.rows.length}`
+                              }
+                              hasArrow
+                            >
+                              <Badge colorScheme={planningErrors.length ? 'red' : 'green'}>
+                                {planningErrors.length ? 'Con errores' : allRowsMigrated ? 'OK' : 'Parcial'}
+                              </Badge>
+                            </Tooltip>
+                          ) : group.canMigrate ? (
+                            <Badge colorScheme="gray">Pendiente</Badge>
+                          ) : (
+                            <Badge colorScheme="orange">Sin enviar</Badge>
+                          )}
+                        </Td>
+                        <Td>
+                          <HStack spacing={2}>
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              colorScheme="blue"
+                              leftIcon={<FiEye />}
+                              onClick={() => {
+                                setSelectedGroup(group);
+                                onOpen();
+                              }}
+                            >
+                              Ver
+                            </Button>
                           <Button
                             size="xs"
                             colorScheme="teal"
                             variant="outline"
                             leftIcon={<FiSend />}
-                            onClick={() => void handleMigrate([row.key])}
-                            isDisabled={!row.canMigrate}
+                            onClick={() => void handleMigrate([group.key])}
+                            isDisabled={!group.canMigrate}
                             isLoading={isRowMigrating}
                           >
                             Migrar
                           </Button>
+                          </HStack>
                         </Td>
                       </Tr>
                     );
@@ -268,6 +394,43 @@ export function GeoMigrationPage(): JSX.Element {
           )}
         </CardBody>
       </Card>
+
+      <Modal isOpen={isOpen} onClose={onClose} size="6xl" scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            {selectedGroup ? `Planificación semanal: ${selectedGroup.employeeName}` : 'Planificación semanal'}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            {!selectedGroup || !selectedEmployee || !weekPlan ? (
+              <Text color="gray.500">No hay colaborador seleccionado.</Text>
+            ) : (
+              <VStack align="stretch" spacing={4}>
+                <HStack spacing={6} flexWrap="wrap">
+                  <Text fontSize="sm" color="gray.600">
+                    <b>Código:</b> {selectedGroup.employeeCode}
+                  </Text>
+                  <Text fontSize="sm" color="gray.600">
+                    <b>Empresa:</b> {selectedGroup.companyLabel}
+                  </Text>
+                  <Text fontSize="sm" color="gray.600">
+                    <b>Identificador:</b> {selectedGroup.userIdentifier || '-'}
+                  </Text>
+                </HStack>
+                <EmployeeWeekGrid
+                  employee={selectedEmployee}
+                  days={weekPlan.days}
+                  roles={scopedRoles}
+                  timeSlots={timeSlots}
+                  breakConfig={breakConfig}
+                  maxTableHeight="60vh"
+                />
+              </VStack>
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }

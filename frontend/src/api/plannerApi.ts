@@ -57,6 +57,7 @@ export interface GeoVictoriaCompanyGroup {
 }
 
 export interface GeoVictoriaPlanningMigrationItem {
+  assignmentType: 'work' | 'rest' | 'free';
   employeeId: string;
   employeeName: string;
   companyId: string;
@@ -64,6 +65,8 @@ export interface GeoVictoriaPlanningMigrationItem {
   dateISO: string;
   startHour: string;
   endHour: string;
+  breakStartHour?: string;
+  breakEndHour?: string;
   custom: string;
 }
 
@@ -71,7 +74,11 @@ export interface GeoVictoriaPlanningMigrationResult extends GeoVictoriaPlanningM
   ok: boolean;
   shiftId?: string;
   shiftSource?: 'existing' | 'created';
+  shiftOk?: boolean;
+  shiftMessage?: string;
+  planningOk?: boolean;
   planningResponse?: string;
+  planningMessage?: string;
   error?: string;
 }
 

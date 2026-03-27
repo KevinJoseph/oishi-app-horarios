@@ -17,3 +17,9 @@ export function getRestDayLabel(value: number | undefined): string {
   const normalized = normalizeRestDay(value);
   return WEEKDAY_OPTIONS.find((item) => item.value === normalized)?.label ?? 'Domingo';
 }
+
+export function isRestDayForDate(dateISO: string, restDay: number | undefined): boolean {
+  const normalized = normalizeRestDay(restDay);
+  const date = new Date(`${dateISO}T00:00:00`);
+  return date.getDay() === normalized;
+}

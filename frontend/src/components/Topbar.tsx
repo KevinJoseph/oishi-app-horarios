@@ -37,6 +37,9 @@ export function Topbar(): JSX.Element {
   const setSelectedGeoVictoriaCompany = useAuthStore((state) => state.setSelectedGeoVictoriaCompany);
   const hideAreaSelector = location.pathname.startsWith('/employees');
   const [geoVictoriaCompanies, setGeoVictoriaCompanies] = useState<GeoVictoriaCompany[]>([]);
+  const selectableGeoVictoriaCompanies = geoVictoriaCompanies.filter(
+    (company) => company.alias.trim().toLowerCase() !== 'recibo'
+  );
 
   useEffect(() => {
     fetchGeoVictoriaCompanies()
@@ -47,6 +50,14 @@ export function Topbar(): JSX.Element {
         setGeoVictoriaCompanies([]);
       });
   }, []);
+
+  useEffect(() => {
+    if (!selectedGeoVictoriaCompanyId) return;
+    const selectedCompany = selectableGeoVictoriaCompanies.find((company) => company.companyId === selectedGeoVictoriaCompanyId) ?? null;
+    if (!selectedCompany) {
+      setSelectedGeoVictoriaCompany(null, null);
+    }
+  }, [selectedGeoVictoriaCompanyId, selectableGeoVictoriaCompanies, setSelectedGeoVictoriaCompany]);
 
   return (
     <Box bg="white" borderBottomWidth="1px" borderBottomColor="#d8e0ea" px={{ base: 4, md: 8 }} py={4}>
@@ -134,7 +145,7 @@ export function Topbar(): JSX.Element {
                   }}
                 >
                   <option value="">Seleccione una empresa</option>
-                  {geoVictoriaCompanies.map((company) => (
+                  {selectableGeoVictoriaCompanies.map((company) => (
                     <option key={company.companyId} value={company.companyId}>
                       {company.alias} - {company.name}
                     </option>

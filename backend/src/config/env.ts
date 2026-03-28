@@ -34,7 +34,7 @@ function requireTrimmedEnv(name: string, fallback?: string): string {
 }
 
 function parseGeoVictoriaActiveCompanyKeys(): string[] {
-  const raw = requireTrimmedEnv('GEOVICTORIA_ACTIVE_COMPANIES', 'CANETE,RECIBO,CHINCHA,ICA,LINAJE');
+  const raw = requireTrimmedEnv('GEOVICTORIA_ACTIVE_COMPANIES', 'CANETE,RECIBO,CHINCHA,ICA,LINAJE,COMPANY');
   const keys = raw
     .split(',')
     .map((item) => item.trim())

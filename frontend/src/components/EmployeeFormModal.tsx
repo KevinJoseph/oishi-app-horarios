@@ -148,6 +148,11 @@ export function EmployeeFormModal({
   const selectedModuleCompany = selectedCompanyId
     ? companies.find((company) => company.companyId === selectedCompanyId)
     : null;
+  const reciboCompany = companies.find((company) => company.alias === 'Recibo') ?? null;
+  const selectableCompanies = [selectedModuleCompany, reciboCompany].filter(
+    (company, index, array): company is GeoVictoriaCompany =>
+      Boolean(company) && array.findIndex((item) => item?.companyId === company?.companyId) === index
+  );
   const selectedCompany = companies.find((company) => company.alias === companyAlias);
   const selectedReciboGroup = selectedCompany?.groups.find((group) => group.code_centro_costo === reciboGroupCode);
   const requiresReciboGroup = Boolean(selectedCompany?.groups.length);
@@ -184,7 +189,7 @@ export function EmployeeFormModal({
             <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
           </FormControl>
           <FormControl mb={3} isRequired>
-            <FormLabel>Company</FormLabel>
+            <FormLabel>Empresa</FormLabel>
             <Select
               value={companyAlias}
               onChange={(event) => {
@@ -193,7 +198,7 @@ export function EmployeeFormModal({
               }}
             >
               <option value="">Selecciona una empresa</option>
-              {companies.map((company) => (
+              {selectableCompanies.map((company) => (
                 <option key={company.alias} value={company.alias}>
                   {`${company.alias} - ${company.name}`}
                 </option>

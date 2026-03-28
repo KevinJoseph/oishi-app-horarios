@@ -110,7 +110,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // En logout limpiamos cliente aunque el backend falle.
     } finally {
       clearStoredToken();
-      set({ token: null, currentUser: null, initialized: true, loading: false, error: null });
+      setStoredGeoVictoriaCompany(null, null);
+      set({
+        token: null,
+        currentUser: null,
+        selectedGeoVictoriaCompanyId: null,
+        selectedGeoVictoriaCompanyLabel: null,
+        initialized: true,
+        loading: false,
+        error: null
+      });
     }
   }
 }));

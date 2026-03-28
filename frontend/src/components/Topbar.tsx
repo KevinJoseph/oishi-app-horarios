@@ -27,6 +27,10 @@ function getRoleLabel(role: string | undefined): string {
   return 'Lector';
 }
 
+function getCompanyLabel(company: GeoVictoriaCompany): string {
+  return `${company.alias} - ${company.name}`;
+}
+
 export function Topbar(): JSX.Element {
   const location = useLocation();
   const currentUser = useAuthStore((state) => state.currentUser);
@@ -52,12 +56,44 @@ export function Topbar(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (!selectedGeoVictoriaCompanyId) return;
-    const selectedCompany = selectableGeoVictoriaCompanies.find((company) => company.companyId === selectedGeoVictoriaCompanyId) ?? null;
-    if (!selectedCompany) {
-      setSelectedGeoVictoriaCompany(null, null);
+    if (!selectableGeoVictoriaCompanies.length) {
+      return;
     }
-  }, [selectedGeoVictoriaCompanyId, selectableGeoVictoriaCompanies, setSelectedGeoVictoriaCompany]);
+
+    const selectedCompany = selectedGeoVictoriaCompanyId
+      ? selectableGeoVictoriaCompanies.find((company) => company.companyId === selectedGeoVictoriaCompanyId) ?? null
+      : null;
+
+    if (selectedGeoVictoriaCompanyId && !selectedCompany) {
+      setSelectedGeoVictoriaCompany(null, null);
+      return;
+    }
+
+    if (!selectedGeoVictoriaCompanyId) {
+      const defaultCompany =
+        selectableGeoVictoriaCompanies.find((company) => company.alias.trim().toLowerCase() === 'canete') ??
+        selectableGeoVictoriaCompanies[0] ??
+        null;
+
+      if (defaultCompany) {
+        setSelectedGeoVictoriaCompany(defaultCompany.companyId, getCompanyLabel(defaultCompany));
+      }
+
+      return;
+    }
+
+    if (selectedCompany) {
+      const expectedLabel = getCompanyLabel(selectedCompany);
+      if (selectedGeoVictoriaCompanyLabel !== expectedLabel) {
+        setSelectedGeoVictoriaCompany(selectedCompany.companyId, expectedLabel);
+      }
+    }
+  }, [
+    selectedGeoVictoriaCompanyId,
+    selectedGeoVictoriaCompanyLabel,
+    selectableGeoVictoriaCompanies,
+    setSelectedGeoVictoriaCompany
+  ]);
 
   return (
     <Box bg="white" borderBottomWidth="1px" borderBottomColor="#d8e0ea" px={{ base: 4, md: 8 }} py={4}>
@@ -138,10 +174,7 @@ export function Topbar(): JSX.Element {
                   onChange={(event) => {
                     const nextCompanyId = event.target.value || null;
                     const nextCompany = geoVictoriaCompanies.find((company) => company.companyId === nextCompanyId) ?? null;
-                    setSelectedGeoVictoriaCompany(
-                      nextCompanyId,
-                      nextCompany ? `${nextCompany.alias} - ${nextCompany.name}` : null
-                    );
+                    setSelectedGeoVictoriaCompany(nextCompanyId, nextCompany ? getCompanyLabel(nextCompany) : null);
                   }}
                 >
                   <option value="">Seleccione una empresa</option>

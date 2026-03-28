@@ -75,6 +75,16 @@ function normalizeText(value: string | undefined): string {
     .toLowerCase();
 }
 
+function getEmployeeCompanyLabel(employee: Employee): string {
+  if (employee.companyAlias && employee.companyName) {
+    return `${employee.companyAlias} - ${employee.companyName}`;
+  }
+  if (employee.companyName) return employee.companyName;
+  if (employee.companyAlias) return employee.companyAlias;
+  if (employee.groupDescription) return employee.groupDescription;
+  return '-';
+}
+
 export function EmployeesPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -517,7 +527,7 @@ export function EmployeesPage(): JSX.Element {
                     <Td>
                       <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                     </Td>
-                    <Td>{employee.groupDescription ?? '-'}</Td>
+                    <Td>{getEmployeeCompanyLabel(employee)}</Td>
                     <Td>{employee.positionDescription ?? '-'}</Td>
                     <Td>{getAreaLabel(employee.areaId)}</Td>
                     <Td>{employee.contractType ? getWeeklyHoursLabel(employee.weeklyHours) : ''}</Td>

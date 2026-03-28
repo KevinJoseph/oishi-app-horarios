@@ -16,7 +16,8 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
-import type { GeoVictoriaCompany } from '../api/plannerApi';
+import { fetchGeoVictoriaPositions } from '../api/plannerApi';
+import type { GeoVictoriaCompany, GeoVictoriaPosition } from '../api/plannerApi';
 import type { AreaId, Employee, Role } from '../types';
 import { createId } from '../store/useAppStore';
 import { normalizeRestDay, WEEKDAY_OPTIONS } from '../utils/weekdays';
@@ -82,6 +83,9 @@ export function EmployeeFormModal({
   const [email, setEmail] = useState('');
   const [companyAlias, setCompanyAlias] = useState('');
   const [reciboGroupCode, setReciboGroupCode] = useState('');
+  const [positionDescription, setPositionDescription] = useState('');
+  const [positions, setPositions] = useState<GeoVictoriaPosition[]>([]);
+  const [isLoadingPositions, setIsLoadingPositions] = useState(false);
   const [active, setActive] = useState(true);
   const [weeklyHours, setWeeklyHours] = useState('');
   const [contractType, setContractType] = useState<'full-time' | 'part-time' | ''>('');
@@ -117,6 +121,7 @@ export function EmployeeFormModal({
       null;
     setCompanyAlias(editing?.companyAlias ?? selectedModuleCompany?.alias ?? '');
     setReciboGroupCode(matchingReciboGroup?.code_centro_costo ?? editing?.geoVictoriaCostCenterCode ?? '');
+    setPositionDescription(editing?.positionDescription ?? '');
     setActive(editing?.active ?? true);
     setContractType(editing?.contractType ?? '');
     setWeeklyHours(editing?.weeklyHours !== undefined ? String(editing.weeklyHours) : '0');
@@ -133,6 +138,39 @@ export function EmployeeFormModal({
       setMainRoleId('');
     }
   }, [areaId, mainRoleId, roles]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!selectedCompanyId) {
+      setPositions([]);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingPositions(true);
+
+    fetchGeoVictoriaPositions(selectedCompanyId)
+      .then((data) => {
+        if (!isMounted) return;
+        setPositions(data);
+      })
+      .catch((error: unknown) => {
+        if (!isMounted) return;
+        setPositions([]);
+        toast({
+          status: 'error',
+          title: error instanceof Error ? error.message : 'No se pudieron cargar los cargos.'
+        });
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setIsLoadingPositions(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, selectedCompanyId, toast]);
 
   useEffect(() => {
     if (contractType === '') {
@@ -218,6 +256,21 @@ export function EmployeeFormModal({
               </Select>
             </FormControl>
           ) : null}
+          <FormControl mb={3}>
+            <FormLabel>Cargo</FormLabel>
+            <Select
+              value={positionDescription}
+              onChange={(event) => setPositionDescription(event.target.value)}
+              isDisabled={!selectedCompanyId || isLoadingPositions}
+            >
+              <option value="">{isLoadingPositions ? 'Cargando cargos...' : 'Selecciona un cargo'}</option>
+              {positions.map((position) => (
+                <option key={position.Identifier} value={position.PositionDescription}>
+                  {position.PositionDescription}
+                </option>
+              ))}
+            </Select>
+          </FormControl>
           <FormControl mb={3}>
             <FormLabel>Área</FormLabel>
             <Select value={areaId} onChange={(event) => setAreaId(event.target.value as AreaId)}>
@@ -361,7 +414,7 @@ export function EmployeeFormModal({
                   phone: editing?.phone,
                   mainRoleId: mainRoleId || undefined,
                   groupDescription: selectedGroupDescription,
-                  positionDescription: editing?.positionDescription
+                  positionDescription: positionDescription || undefined
                 });
                 if (!result.ok) {
                   toast({

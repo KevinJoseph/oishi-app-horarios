@@ -57,6 +57,12 @@ export interface GeoVictoriaCompanyGroup {
   code_centro_costo: string;
 }
 
+export interface GeoVictoriaPosition {
+  Identifier: string;
+  PositionDescription: string;
+  PositionState: string;
+}
+
 export interface GeoVictoriaPlanningMigrationItem {
   assignmentType: 'work' | 'rest' | 'free';
   employeeId: string;
@@ -94,6 +100,11 @@ export function fetchGeoVictoriaReciboEmployees(): Promise<GeoVictoriaEmployee[]
 
 export function fetchGeoVictoriaCompanies(): Promise<GeoVictoriaCompany[]> {
   return request<GeoVictoriaCompany[]>('/geovictoria/companies');
+}
+
+export function fetchGeoVictoriaPositions(companyId?: string): Promise<GeoVictoriaPosition[]> {
+  const query = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  return request<GeoVictoriaPosition[]>(`/geovictoria/positions${query}`);
 }
 
 export type GeoVictoriaAddUserPayload = {

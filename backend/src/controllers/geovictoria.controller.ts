@@ -24,6 +24,12 @@ interface GeoVictoriaCompanyResponse {
   groups: typeof env.geoVictoriaReciboGroups;
 }
 
+interface GeoVictoriaPosition {
+  Identifier: string;
+  PositionDescription: string;
+  PositionState: string;
+}
+
 interface GeoVictoriaAddUserRequestBody {
   CompanyId?: string;
   companyId?: string;
@@ -469,6 +475,62 @@ export async function getGeoVictoriaEmployeesController(_req: Request, res: Resp
   const data = (await response.json()) as GeoVictoriaUser[];
   const active = data.filter((user) => user.Enabled === '1');
   res.status(200).json(active);
+}
+
+export async function getGeoVictoriaPositionsController(req: Request, res: Response): Promise<void> {
+  const companyId = cleanRequiredText((req.query.companyId as string | undefined) ?? '');
+
+  let tokenCacheKey = 'main';
+  let tokenLabel = 'principal';
+  let credentialsUser = env.geoVictoriaUser;
+  let credentialsPassword = env.geoVictoriaPassword;
+
+  if (companyId) {
+    const credentials = getCompanyCredentials(companyId);
+    if (!credentials) {
+      res.status(400).json({ error: `No existen credenciales configuradas para la company "${companyId}".` });
+      return;
+    }
+    tokenCacheKey = `company:${companyId}`;
+    tokenLabel = companyId;
+    credentialsUser = credentials.user;
+    credentialsPassword = credentials.password;
+  }
+
+  if (!credentialsUser || !credentialsPassword) {
+    res.status(503).json({ error: 'Credenciales de GeoVictoria no configuradas en el servidor.' });
+    return;
+  }
+
+  let token: string;
+  try {
+    token = await getTokenForCredentials(tokenCacheKey, credentialsUser, credentialsPassword, tokenLabel);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error de autenticación con GeoVictoria.';
+    res.status(502).json({ error: message });
+    return;
+  }
+
+  const response = await fetch(env.geoVictoriaPositionListUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({})
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      tokenCache.delete(tokenCacheKey);
+    }
+    res.status(502).json({ error: `Error al consultar cargos en GeoVictoria: ${response.status} ${response.statusText}` });
+    return;
+  }
+
+  const data = (await response.json()) as GeoVictoriaPosition[];
+  const enabled = data.filter((position) => cleanRequiredText(position.PositionState).toLowerCase() === 'enabled');
+  res.status(200).json(enabled);
 }
 
 export async function addGeoVictoriaUserController(req: Request, res: Response): Promise<void> {

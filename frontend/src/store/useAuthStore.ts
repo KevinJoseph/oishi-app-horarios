@@ -42,6 +42,20 @@ type AuthState = {
   logout: () => Promise<void>;
 };
 
+function resolveUserScopedCompany(user: AppUser | null): { companyId: string | null; companyLabel: string | null } {
+  if (!user || user.role === 'administrador') {
+    return {
+      companyId: getStoredGeoVictoriaCompanyId(),
+      companyLabel: getStoredGeoVictoriaCompanyLabel()
+    };
+  }
+
+  return {
+    companyId: user.companyId ?? null,
+    companyLabel: user.companyLabel ?? null
+  };
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   token: getStoredToken(),
   currentUser: null,
@@ -73,7 +87,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const user = await fetchCurrentUser();
-      set({ token, currentUser: user, initialized: true, loading: false, error: null });
+      const scopedCompany = resolveUserScopedCompany(user);
+      setStoredGeoVictoriaCompany(scopedCompany.companyId, scopedCompany.companyLabel);
+      set({
+        token,
+        currentUser: user,
+        selectedGeoVictoriaCompanyId: scopedCompany.companyId,
+        selectedGeoVictoriaCompanyLabel: scopedCompany.companyLabel,
+        initialized: true,
+        loading: false,
+        error: null
+      });
     } catch {
       clearStoredToken();
       set({ token: null, currentUser: null, initialized: true, loading: false, error: 'Sesión expirada.' });
@@ -85,9 +109,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const result = await loginApi({ username, password });
       setStoredToken(result.token);
+      const scopedCompany = resolveUserScopedCompany(result.user);
+      setStoredGeoVictoriaCompany(scopedCompany.companyId, scopedCompany.companyLabel);
       set({
         token: result.token,
         currentUser: result.user,
+        selectedGeoVictoriaCompanyId: scopedCompany.companyId,
+        selectedGeoVictoriaCompanyLabel: scopedCompany.companyLabel,
         initialized: true,
         loading: false,
         error: null

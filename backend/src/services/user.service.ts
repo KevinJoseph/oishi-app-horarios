@@ -32,19 +32,58 @@ function validateUsername(username: string): void {
   }
 }
 
+function normalizeOptionalCompanyId(companyId: string | null | undefined): string | null {
+  const normalized = companyId?.trim() ?? '';
+  return normalized ? normalized : null;
+}
+
+function resolveCompanyLabel(companyId: string | null): string | null {
+  if (!companyId) {
+    return null;
+  }
+
+  const company = env.geoVictoriaCompanies.find((item) => item.companyId === companyId);
+  if (!company) {
+    return null;
+  }
+
+  return `${company.alias} - ${company.name}`;
+}
+
+function validateCompanyAccess(role: UserRole, companyId: string | null): string | null {
+  if (role === 'administrador') {
+    return null;
+  }
+
+  if (!companyId) {
+    throw new HttpError(400, 'Debe seleccionar una empresa para usuarios no administradores.');
+  }
+
+  const exists = env.geoVictoriaCompanies.some((company) => company.companyId === companyId);
+  if (!exists) {
+    throw new HttpError(400, 'La empresa seleccionada no es válida.');
+  }
+
+  return companyId;
+}
+
 export function toPublicUser(user: {
   _id: unknown;
   username: string;
   name: string;
   role: UserRole;
+  companyId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): PublicUser {
+  const companyId = normalizeOptionalCompanyId(user.companyId);
   return {
     id: String(user._id),
     username: user.username,
     name: user.name,
     role: user.role,
+    companyId,
+    companyLabel: resolveCompanyLabel(companyId),
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString()
   };
@@ -64,6 +103,7 @@ export async function ensureDefaultAdminUser(): Promise<void> {
       username: normalizedUsername,
       name: env.defaultAdminName.trim(),
       role: 'administrador',
+      companyId: null,
       passwordHash,
       passwordSalt
     });
@@ -79,6 +119,11 @@ export async function ensureDefaultAdminUser(): Promise<void> {
 
   if (existing.name !== env.defaultAdminName.trim()) {
     existing.name = env.defaultAdminName.trim();
+    changed = true;
+  }
+
+  if ((existing.companyId ?? null) !== null) {
+    existing.companyId = null;
     changed = true;
   }
 
@@ -103,6 +148,7 @@ export async function createUser(payload: CreateUserPayload): Promise<PublicUser
   }
 
   const normalizedUsername = normalizeUsername(payload.username);
+  const normalizedCompanyId = validateCompanyAccess(payload.role, normalizeOptionalCompanyId(payload.companyId));
   const existing = await UserModel.findOne({ username: normalizedUsername }).lean();
   if (existing) {
     throw new HttpError(409, 'Ya existe un usuario con ese nombre de usuario.');
@@ -113,6 +159,7 @@ export async function createUser(payload: CreateUserPayload): Promise<PublicUser
     username: normalizedUsername,
     name: payload.name.trim(),
     role: payload.role,
+    companyId: normalizedCompanyId,
     passwordHash,
     passwordSalt
   });
@@ -153,6 +200,12 @@ export async function updateUser(
     }
 
     user.role = payload.role;
+  }
+
+  if (payload.companyId !== undefined || payload.role !== undefined) {
+    const nextRole = payload.role ?? user.role;
+    const nextCompanyId = payload.companyId !== undefined ? normalizeOptionalCompanyId(payload.companyId) : user.companyId ?? null;
+    user.companyId = validateCompanyAccess(nextRole, nextCompanyId);
   }
 
   if (payload.password !== undefined) {

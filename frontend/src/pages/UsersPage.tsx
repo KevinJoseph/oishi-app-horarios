@@ -22,6 +22,7 @@ import { FiEdit2, FiTrash2 } from 'react-icons/fi';
 import { Navigate } from 'react-router-dom';
 import { ApiError } from '../api/http';
 import { createUser, deleteUser, fetchUsers, updateUser } from '../api/usersApi';
+import { fetchGeoVictoriaCompanies, type GeoVictoriaCompany } from '../api/plannerApi';
 import { UserFormModal } from '../components/UserFormModal';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AppUser } from '../types/auth';
@@ -39,6 +40,8 @@ function normalizeUser(user: Partial<AppUser>): AppUser {
     username: safeText(user.username, ''),
     name: safeText(user.name, 'Sin nombre'),
     role: normalizedRole,
+    companyId: typeof user.companyId === 'string' ? user.companyId : null,
+    companyLabel: typeof user.companyLabel === 'string' ? user.companyLabel : null,
     createdAt: safeText(user.createdAt, new Date(0).toISOString()),
     updatedAt: safeText(user.updatedAt, new Date(0).toISOString())
   };
@@ -56,6 +59,7 @@ export function UsersPage(): JSX.Element {
 
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [companies, setCompanies] = useState<GeoVictoriaCompany[]>([]);
   const [editingUser, setEditingUser] = useState<AppUser | undefined>(undefined);
 
   const loadUsers = async (): Promise<void> => {
@@ -73,6 +77,12 @@ export function UsersPage(): JSX.Element {
 
   useEffect(() => {
     void loadUsers();
+  }, []);
+
+  useEffect(() => {
+    fetchGeoVictoriaCompanies()
+      .then((result) => setCompanies(result.filter((company) => company.alias.trim().toLowerCase() !== 'recibo')))
+      .catch(() => setCompanies([]));
   }, []);
 
   const sortedUsers = useMemo(
@@ -121,6 +131,7 @@ export function UsersPage(): JSX.Element {
                   <Th>Nombre</Th>
                   <Th>Usuario</Th>
                   <Th>Perfil</Th>
+                  <Th>Empresa</Th>
                   <Th>Creado</Th>
                   <Th>Acciones</Th>
                 </Tr>
@@ -142,6 +153,7 @@ export function UsersPage(): JSX.Element {
                         {user.role === 'administrador' ? 'Administrador' : user.role === 'supervisor' ? 'Supervisor' : 'Lector'}
                       </Badge>
                     </Td>
+                    <Td>{user.companyLabel ?? 'Todas'}</Td>
                     <Td>{new Date(user.createdAt).toLocaleDateString()}</Td>
                     <Td>
                       <HStack>
@@ -197,6 +209,7 @@ export function UsersPage(): JSX.Element {
         isOpen={isOpen}
         onClose={onClose}
         editingUser={editingUser}
+        companies={companies}
         onSubmit={async (payload) => {
           try {
             if (editingUser) {
@@ -211,6 +224,7 @@ export function UsersPage(): JSX.Element {
                 name: payload.name,
                 username: payload.username,
                 role: payload.role,
+                companyId: payload.companyId,
                 password: payload.password
               });
               toast({ status: 'success', title: 'Usuario creado.' });

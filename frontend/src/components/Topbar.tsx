@@ -40,6 +40,7 @@ export function Topbar(): JSX.Element {
   const selectedGeoVictoriaCompanyLabel = useAuthStore((state) => state.selectedGeoVictoriaCompanyLabel);
   const setSelectedGeoVictoriaCompany = useAuthStore((state) => state.setSelectedGeoVictoriaCompany);
   const hideAreaSelector = location.pathname.startsWith('/employees');
+  const canSwitchCompany = currentUser?.role === 'administrador';
   const [geoVictoriaCompanies, setGeoVictoriaCompanies] = useState<GeoVictoriaCompany[]>([]);
   const selectableGeoVictoriaCompanies = geoVictoriaCompanies.filter(
     (company) => company.alias.trim().toLowerCase() !== 'recibo'
@@ -56,7 +57,23 @@ export function Topbar(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (!selectableGeoVictoriaCompanies.length) {
+    if (!selectableGeoVictoriaCompanies.length || !currentUser) {
+      return;
+    }
+
+    if (currentUser.role !== 'administrador') {
+      const forcedCompanyId = currentUser.companyId ?? null;
+      const forcedCompany = forcedCompanyId
+        ? selectableGeoVictoriaCompanies.find((company) => company.companyId === forcedCompanyId) ?? null
+        : null;
+      const forcedLabel = forcedCompany ? getCompanyLabel(forcedCompany) : currentUser.companyLabel ?? null;
+
+      if (
+        selectedGeoVictoriaCompanyId !== forcedCompanyId ||
+        selectedGeoVictoriaCompanyLabel !== forcedLabel
+      ) {
+        setSelectedGeoVictoriaCompany(forcedCompanyId, forcedLabel);
+      }
       return;
     }
 
@@ -91,6 +108,7 @@ export function Topbar(): JSX.Element {
   }, [
     selectedGeoVictoriaCompanyId,
     selectedGeoVictoriaCompanyLabel,
+    currentUser,
     selectableGeoVictoriaCompanies,
     setSelectedGeoVictoriaCompany
   ]);
@@ -171,13 +189,14 @@ export function Topbar(): JSX.Element {
                 <Select
                   size="sm"
                   value={selectedGeoVictoriaCompanyId ?? ''}
+                  isDisabled={!canSwitchCompany}
                   onChange={(event) => {
                     const nextCompanyId = event.target.value || null;
                     const nextCompany = geoVictoriaCompanies.find((company) => company.companyId === nextCompanyId) ?? null;
                     setSelectedGeoVictoriaCompany(nextCompanyId, nextCompany ? getCompanyLabel(nextCompany) : null);
                   }}
                 >
-                  <option value="">Seleccione una empresa</option>
+                  <option value="">{canSwitchCompany ? 'Seleccione una empresa' : 'Empresa asignada'}</option>
                   {selectableGeoVictoriaCompanies.map((company) => (
                     <option key={company.companyId} value={company.companyId}>
                       {company.alias} - {company.name}

@@ -14,28 +14,34 @@ import {
   ModalHeader,
   ModalOverlay,
   Select,
-  Text
+  Text,
+  useToast
 } from '@chakra-ui/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import type { AppUser, UserRole } from '../types/auth';
+import type { GeoVictoriaCompany } from '../api/plannerApi';
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   editingUser?: AppUser;
+  companies: GeoVictoriaCompany[];
   onSubmit: (payload: {
     username: string;
     name: string;
     role: UserRole;
     password?: string;
+    companyId?: string | null;
   }) => Promise<void>;
 };
 
-export function UserFormModal({ isOpen, onClose, editingUser, onSubmit }: Props): JSX.Element {
+export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmit }: Props): JSX.Element {
+  const toast = useToast();
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<UserRole>('lector');
+  const [companyId, setCompanyId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -44,6 +50,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, onSubmit }: Props)
     setUsername(editingUser?.username ?? '');
     setName(editingUser?.name ?? '');
     setRole(editingUser?.role ?? 'lector');
+    setCompanyId(editingUser?.companyId ?? '');
     setPassword('');
     setShowPassword(false);
     setSubmitting(false);
@@ -57,10 +64,48 @@ export function UserFormModal({ isOpen, onClose, editingUser, onSubmit }: Props)
 
   const isEditing = Boolean(editingUser);
 
+  const handleSubmit = async (event?: FormEvent<HTMLDivElement>): Promise<void> => {
+    event?.preventDefault();
+
+    if (!name.trim()) {
+      toast({ status: 'error', title: 'El nombre es obligatorio.' });
+      return;
+    }
+
+    if (!username.trim()) {
+      toast({ status: 'error', title: 'El usuario es obligatorio.' });
+      return;
+    }
+
+    if (!isEditing && password.trim().length < 6) {
+      toast({ status: 'error', title: 'La contraseña debe tener al menos 6 caracteres.' });
+      return;
+    }
+
+    if (role !== 'administrador' && !companyId.trim()) {
+      toast({ status: 'error', title: 'Debe seleccionar una empresa.' });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        name: name.trim(),
+        username: username.trim(),
+        role,
+        companyId: role === 'administrador' ? null : companyId.trim(),
+        password: password.trim() ? password : undefined
+      });
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalOverlay />
-      <ModalContent as="form" autoComplete="off">
+      <ModalContent as="form" autoComplete="off" onSubmit={(event) => void handleSubmit(event)}>
         <ModalHeader>{isEditing ? 'Editar usuario' : 'Nuevo usuario'}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
@@ -85,6 +130,22 @@ export function UserFormModal({ isOpen, onClose, editingUser, onSubmit }: Props)
               <option value="lector">Lector</option>
             </Select>
           </FormControl>
+          <FormControl isRequired={role !== 'administrador'} mb={3} isDisabled={role === 'administrador'}>
+            <FormLabel>Empresa</FormLabel>
+            <Select value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
+              <option value="">{role === 'administrador' ? 'Acceso a todas las empresas' : 'Seleccione una empresa'}</option>
+              {companies.map((company) => (
+                <option key={company.companyId} value={company.companyId}>
+                  {company.alias} - {company.name}
+                </option>
+              ))}
+            </Select>
+            {role !== 'administrador' ? (
+              <Text mt={1} fontSize="xs" color="gray.500">
+                Este usuario quedará limitado a la empresa seleccionada.
+              </Text>
+            ) : null}
+          </FormControl>
           <FormControl isRequired={!isEditing}>
             <FormLabel>{isEditing ? 'Nueva contraseña (opcional)' : 'Contraseña'}</FormLabel>
             <InputGroup>
@@ -99,6 +160,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, onSubmit }: Props)
               />
               <InputRightElement>
                 <Button
+                  type="button"
                   aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   variant="ghost"
                   size="sm"
@@ -120,29 +182,10 @@ export function UserFormModal({ isOpen, onClose, editingUser, onSubmit }: Props)
         </ModalBody>
         <ModalFooter>
           <HStack>
-            <Button variant="ghost" onClick={onClose}>
+            <Button type="button" variant="ghost" onClick={onClose}>
               Cancelar
             </Button>
-            <Button
-              isLoading={submitting}
-              onClick={async () => {
-                if (!name.trim() || !username.trim()) return;
-                if (!isEditing && password.trim().length < 6) return;
-
-                setSubmitting(true);
-                try {
-                  await onSubmit({
-                    name: name.trim(),
-                    username: username.trim(),
-                    role,
-                    password: password.trim() ? password : undefined
-                  });
-                  onClose();
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-            >
+            <Button type="submit" isLoading={submitting}>
               Guardar
             </Button>
           </HStack>

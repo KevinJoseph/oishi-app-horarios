@@ -5,6 +5,8 @@ export type AppUser = {
   username: string;
   name: string;
   role: UserRole;
+  companyId: string | null;
+  companyLabel: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -19,6 +21,7 @@ export type CreateUserPayload = {
   name: string;
   role: UserRole;
   password: string;
+  companyId?: string | null;
 };
 
 export type UpdateUserPayload = {
@@ -26,4 +29,5 @@ export type UpdateUserPayload = {
   name?: string;
   role?: UserRole;
   password?: string;
+  companyId?: string | null;
 };

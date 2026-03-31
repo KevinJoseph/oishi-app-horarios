@@ -6,6 +6,7 @@ export type UserDocument = {
   username: string;
   name: string;
   role: UserRole;
+  companyId: string | null;
   passwordHash: string;
   passwordSalt: string;
   createdAt: Date;
@@ -17,6 +18,7 @@ const UserSchema = new Schema<UserDocument>(
     username: { type: String, required: true, unique: true, index: true, lowercase: true, trim: true },
     name: { type: String, required: true, trim: true },
     role: { type: String, required: true, enum: ['administrador', 'supervisor', 'lector'] },
+    companyId: { type: String, default: null, trim: true },
     passwordHash: { type: String, required: true },
     passwordSalt: { type: String, required: true }
   },

@@ -25,12 +25,42 @@ function validateUsername(username) {
         throw new HttpError(400, 'El usuario debe tener al menos 3 caracteres.');
     }
 }
+function normalizeOptionalCompanyId(companyId) {
+    const normalized = companyId?.trim() ?? '';
+    return normalized ? normalized : null;
+}
+function resolveCompanyLabel(companyId) {
+    if (!companyId) {
+        return null;
+    }
+    const company = env.geoVictoriaCompanies.find((item) => item.companyId === companyId);
+    if (!company) {
+        return null;
+    }
+    return `${company.alias} - ${company.name}`;
+}
+function validateCompanyAccess(role, companyId) {
+    if (role === 'administrador') {
+        return null;
+    }
+    if (!companyId) {
+        throw new HttpError(400, 'Debe seleccionar una empresa para usuarios no administradores.');
+    }
+    const exists = env.geoVictoriaCompanies.some((company) => company.companyId === companyId);
+    if (!exists) {
+        throw new HttpError(400, 'La empresa seleccionada no es válida.');
+    }
+    return companyId;
+}
 export function toPublicUser(user) {
+    const companyId = normalizeOptionalCompanyId(user.companyId);
     return {
         id: String(user._id),
         username: user.username,
         name: user.name,
         role: user.role,
+        companyId,
+        companyLabel: resolveCompanyLabel(companyId),
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString()
     };
@@ -47,6 +77,7 @@ export async function ensureDefaultAdminUser() {
             username: normalizedUsername,
             name: env.defaultAdminName.trim(),
             role: 'administrador',
+            companyId: null,
             passwordHash,
             passwordSalt
         });
@@ -59,6 +90,10 @@ export async function ensureDefaultAdminUser() {
     }
     if (existing.name !== env.defaultAdminName.trim()) {
         existing.name = env.defaultAdminName.trim();
+        changed = true;
+    }
+    if ((existing.companyId ?? null) !== null) {
+        existing.companyId = null;
         changed = true;
     }
     if (changed) {
@@ -78,6 +113,7 @@ export async function createUser(payload) {
         throw new HttpError(400, 'Rol inválido.');
     }
     const normalizedUsername = normalizeUsername(payload.username);
+    const normalizedCompanyId = validateCompanyAccess(payload.role, normalizeOptionalCompanyId(payload.companyId));
     const existing = await UserModel.findOne({ username: normalizedUsername }).lean();
     if (existing) {
         throw new HttpError(409, 'Ya existe un usuario con ese nombre de usuario.');
@@ -87,6 +123,7 @@ export async function createUser(payload) {
         username: normalizedUsername,
         name: payload.name.trim(),
         role: payload.role,
+        companyId: normalizedCompanyId,
         passwordHash,
         passwordSalt
     });
@@ -116,6 +153,11 @@ export async function updateUser(userId, payload, actorUserId) {
             }
         }
         user.role = payload.role;
+    }
+    if (payload.companyId !== undefined || payload.role !== undefined) {
+        const nextRole = payload.role ?? user.role;
+        const nextCompanyId = payload.companyId !== undefined ? normalizeOptionalCompanyId(payload.companyId) : user.companyId ?? null;
+        user.companyId = validateCompanyAccess(nextRole, nextCompanyId);
     }
     if (payload.password !== undefined) {
         validatePassword(payload.password);

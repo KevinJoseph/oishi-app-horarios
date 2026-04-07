@@ -8,8 +8,10 @@ export type GeoMigrationRow = {
   employeeId: string;
   employeeName: string;
   employeeCode: string;
+  companyAlias?: string;
   companyId: string;
   companyLabel: string;
+  costCenterCode?: string;
   userIdentifier: string;
   dateISO: string;
   dayName: string;
@@ -33,12 +35,12 @@ function parseTimeToMinutes(value: string): number | null {
 }
 
 function buildCompanyLabel(employee: Employee): string {
-  const moduleCompanyAlias = employee.moduleCompanyAlias ?? employee.companyAlias;
-  const moduleCompanyName = employee.moduleCompanyName ?? employee.companyName;
-  if (moduleCompanyAlias && moduleCompanyName) {
-    return `${moduleCompanyAlias} - ${moduleCompanyName}`;
+  const companyAlias = employee.companyAlias;
+  const companyName = employee.companyName;
+  if (companyAlias && companyName) {
+    return `${companyAlias} - ${companyName}`;
   }
-  return moduleCompanyName ?? moduleCompanyAlias ?? '-';
+  return companyName ?? companyAlias ?? '-';
 }
 
 export function buildGeoMigrationRows(
@@ -84,8 +86,11 @@ export function buildGeoMigrationRows(
       const flushCurrentSegment = (): void => {
         if (!currentSegment) return;
         const warnings: string[] = [];
-        if (!(employee.moduleCompanyId ?? employee.companyId)) warnings.push('Sin company asignada.');
+        if (!employee.companyId) warnings.push('Sin company asignada.');
         if (!employee.identityDocument) warnings.push('Sin DNI.');
+        if ((employee.companyAlias ?? '').trim().toLowerCase() === 'recibo' && !employee.geoVictoriaCostCenterCode?.trim()) {
+          warnings.push('Sin centro de costo de Recibo.');
+        }
 
         const companyLabel = buildCompanyLabel(employee);
         rows.push({
@@ -94,8 +99,10 @@ export function buildGeoMigrationRows(
           employeeId: employee.id,
           employeeName: employee.name,
           employeeCode: employee.code ?? '-',
-          companyId: employee.moduleCompanyId ?? employee.companyId ?? '',
+          companyAlias: employee.companyAlias,
+          companyId: employee.companyId ?? '',
           companyLabel,
+          costCenterCode: employee.geoVictoriaCostCenterCode,
           userIdentifier: employee.identityDocument?.trim() ?? '',
           dateISO: day.dateISO,
           dayName: day.dayName,
@@ -209,8 +216,11 @@ export function buildGeoMigrationRows(
 
       if (employeeRestDay && !hasWorkAssignments) {
         const warnings: string[] = [];
-        if (!(employee.moduleCompanyId ?? employee.companyId)) warnings.push('Sin company asignada.');
+        if (!employee.companyId) warnings.push('Sin company asignada.');
         if (!employee.identityDocument) warnings.push('Sin DNI.');
+        if ((employee.companyAlias ?? '').trim().toLowerCase() === 'recibo' && !employee.geoVictoriaCostCenterCode?.trim()) {
+          warnings.push('Sin centro de costo de Recibo.');
+        }
 
         rows.push({
           key: `${employee.id}:${day.dateISO}:rest`,
@@ -218,8 +228,10 @@ export function buildGeoMigrationRows(
           employeeId: employee.id,
           employeeName: employee.name,
           employeeCode: employee.code ?? '-',
-          companyId: employee.moduleCompanyId ?? employee.companyId ?? '',
+          companyAlias: employee.companyAlias,
+          companyId: employee.companyId ?? '',
           companyLabel: buildCompanyLabel(employee),
+          costCenterCode: employee.geoVictoriaCostCenterCode,
           userIdentifier: employee.identityDocument?.trim() ?? '',
           dateISO: day.dateISO,
           dayName: day.dayName,
@@ -232,8 +244,11 @@ export function buildGeoMigrationRows(
         });
       } else if (!hasAnyAssignments && !hasWorkAssignments) {
         const warnings: string[] = [];
-        if (!(employee.moduleCompanyId ?? employee.companyId)) warnings.push('Sin company asignada.');
+        if (!employee.companyId) warnings.push('Sin company asignada.');
         if (!employee.identityDocument) warnings.push('Sin DNI.');
+        if ((employee.companyAlias ?? '').trim().toLowerCase() === 'recibo' && !employee.geoVictoriaCostCenterCode?.trim()) {
+          warnings.push('Sin centro de costo de Recibo.');
+        }
 
         rows.push({
           key: `${employee.id}:${day.dateISO}:free`,
@@ -241,8 +256,10 @@ export function buildGeoMigrationRows(
           employeeId: employee.id,
           employeeName: employee.name,
           employeeCode: employee.code ?? '-',
-          companyId: employee.moduleCompanyId ?? employee.companyId ?? '',
+          companyAlias: employee.companyAlias,
+          companyId: employee.companyId ?? '',
           companyLabel: buildCompanyLabel(employee),
+          costCenterCode: employee.geoVictoriaCostCenterCode,
           userIdentifier: employee.identityDocument?.trim() ?? '',
           dateISO: day.dateISO,
           dayName: day.dayName,

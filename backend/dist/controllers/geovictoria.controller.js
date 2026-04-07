@@ -114,6 +114,9 @@ function getCompanyCredentials(companyId) {
     const credentials = env.geoVictoriaCredentialsByCompanyId[companyId];
     return credentials ?? null;
 }
+function getCompanyAliasById(companyId) {
+    return env.geoVictoriaCompanies.find((company) => company.companyId === companyId)?.alias ?? '';
+}
 async function insertGeoVictoriaShift(token, tokenCacheKey, startHour, endHour, breakStartHour, breakEndHour, custom) {
     const payload = {
         StartHour: startHour,
@@ -456,7 +459,9 @@ export async function migrateGeoVictoriaPlanningController(req, res) {
         const employeeId = cleanRequiredText(item.employeeId);
         const employeeName = cleanRequiredText(item.employeeName);
         const companyId = cleanRequiredText(item.companyId);
+        const companyAlias = cleanRequiredText(item.companyAlias) || getCompanyAliasById(companyId);
         const userIdentifier = cleanRequiredText(item.userIdentifier);
+        const costCenterCode = cleanRequiredText(item.costCenterCode);
         const dateISO = cleanRequiredText(item.dateISO);
         const startHour = cleanRequiredText(item.startHour);
         const endHour = cleanRequiredText(item.endHour);
@@ -476,10 +481,12 @@ export async function migrateGeoVictoriaPlanningController(req, res) {
                 endMinutes !== null &&
                 breakStartMinutes >= startMinutes &&
                 breakEndMinutes <= endMinutes);
+        const isReciboCompany = companyAlias.toUpperCase() === 'RECIBO';
         if (!employeeId ||
             !employeeName ||
             !companyId ||
             !userIdentifier ||
+            (isReciboCompany && !costCenterCode) ||
             !isValidDateISO(dateISO) ||
             (assignmentType === 'work' && (startMinutes === null || endMinutes === null || endMinutes <= startMinutes)) ||
             !breakIsValid) {
@@ -495,11 +502,19 @@ export async function migrateGeoVictoriaPlanningController(req, res) {
                 breakStartHour: breakStartHour || undefined,
                 breakEndHour: breakEndHour || undefined,
                 ok: false,
-                error: 'Fila invalida. Verifica company, identificador, fecha y horas.'
+                error: 'Fila invalida. Verifica company, identificador, centro de costo, fecha y horas.'
             });
             continue;
         }
-        const credentials = getCompanyCredentials(companyId);
+        const credentials = isReciboCompany
+            ? env.geoVictoriaReciboUser && env.geoVictoriaReciboPassword
+                ? {
+                    companyId,
+                    user: env.geoVictoriaReciboUser,
+                    password: env.geoVictoriaReciboPassword
+                }
+                : null
+            : getCompanyCredentials(companyId);
         if (!credentials) {
             results.push({
                 assignmentType,
@@ -517,7 +532,7 @@ export async function migrateGeoVictoriaPlanningController(req, res) {
             });
             continue;
         }
-        const tokenCacheKey = `company:${companyId}`;
+        const tokenCacheKey = isReciboCompany ? 'recibo' : `company:${companyId}`;
         let shiftId;
         let shiftSource;
         let shiftMessage = '';

@@ -57,7 +57,6 @@ export function GeoMigrationPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
-  const selectedGeoVictoriaCompanyLabel = useAuthStore((state) => state.selectedGeoVictoriaCompanyLabel);
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const weeks = useAppStore((state) => state.weeks);
@@ -82,8 +81,7 @@ export function GeoMigrationPage(): JSX.Element {
       employees.filter(
         (employee) =>
           (employee.areaId ?? 'salon') === currentAreaId &&
-          (!selectedGeoVictoriaCompanyId ||
-            (employee.moduleCompanyId ?? employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
+          (!selectedGeoVictoriaCompanyId || (employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
       ),
     [employees, currentAreaId, selectedGeoVictoriaCompanyId]
   );
@@ -99,11 +97,9 @@ export function GeoMigrationPage(): JSX.Element {
     const grouped = new Map<string, GeoMigrationGroup>();
 
     for (const row of rows) {
-      const effectiveCompanyId = selectedGeoVictoriaCompanyId ?? row.companyId;
-      const effectiveCompanyLabel = selectedGeoVictoriaCompanyLabel ?? row.companyLabel;
-      const effectiveWarnings = selectedGeoVictoriaCompanyId
-        ? row.warnings.filter((warning) => warning !== 'Sin company asignada.')
-        : row.warnings;
+      const effectiveCompanyId = row.companyId;
+      const effectiveCompanyLabel = row.companyLabel;
+      const effectiveWarnings = row.warnings;
       const effectiveCanMigrate = Boolean(effectiveCompanyId) && effectiveWarnings.length === 0;
       const key = `${row.employeeId}:${effectiveCompanyId}:${row.userIdentifier}`;
       const current = grouped.get(key);
@@ -167,13 +163,15 @@ export function GeoMigrationPage(): JSX.Element {
         assignmentType: row.assignmentType,
         employeeId: row.employeeId,
         employeeName: row.employeeName,
-        companyId: selectedGeoVictoriaCompanyId ?? row.companyId,
+        companyId: row.companyId,
+        companyAlias: row.companyAlias,
         userIdentifier: row.userIdentifier,
         dateISO: row.dateISO,
         startHour: row.startHour,
         endHour: row.endHour,
         breakStartHour: row.breakStartHour,
         breakEndHour: row.breakEndHour,
+        costCenterCode: row.costCenterCode,
         custom: row.custom
       }));
 
@@ -240,9 +238,9 @@ export function GeoMigrationPage(): JSX.Element {
                 <Badge colorScheme="green" variant="subtle" px={3} py={1} rounded="md">
                   Migrables: {migratableKeys.length}
                 </Badge>
-                {selectedGeoVictoriaCompanyLabel ? (
+                {selectedGeoVictoriaCompanyId ? (
                   <Badge colorScheme="purple" variant="subtle" px={3} py={1} rounded="md">
-                    Destino: {selectedGeoVictoriaCompanyLabel}
+                    Filtro empresa activo
                   </Badge>
                 ) : null}
                 <Button

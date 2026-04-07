@@ -88,12 +88,14 @@ export interface GeoVictoriaPlanningMigrationItem {
   employeeId: string;
   employeeName: string;
   companyId: string;
+  companyAlias?: string;
   userIdentifier: string;
   dateISO: string;
   startHour: string;
   endHour: string;
   breakStartHour?: string;
   breakEndHour?: string;
+  costCenterCode?: string;
   custom: string;
 }
 

@@ -96,6 +96,15 @@ export function EmployeeFormModal({
     () => roles.filter((role) => (role.areaId ?? 'salon') === areaId),
     [roles, areaId]
   );
+  const selectedModuleCompany = selectedCompanyId
+    ? companies.find((company) => company.companyId === selectedCompanyId)
+    : null;
+  const reciboCompany = companies.find((company) => company.alias === 'Recibo') ?? null;
+  const selectableCompanies = [selectedModuleCompany, reciboCompany].filter(
+    (company, index, array): company is GeoVictoriaCompany =>
+      Boolean(company) && array.findIndex((item) => item?.companyId === company?.companyId) === index
+  );
+  const selectedCompany = companies.find((company) => company.alias === companyAlias);
 
   useEffect(() => {
     const initialArea = (editing
@@ -183,15 +192,6 @@ export function EmployeeFormModal({
   const trimmedLastName = lastName.trim();
   const trimmedIdentityDocument = identityDocument.trim();
   const trimmedEmail = email.trim();
-  const selectedModuleCompany = selectedCompanyId
-    ? companies.find((company) => company.companyId === selectedCompanyId)
-    : null;
-  const reciboCompany = companies.find((company) => company.alias === 'Recibo') ?? null;
-  const selectableCompanies = [selectedModuleCompany, reciboCompany].filter(
-    (company, index, array): company is GeoVictoriaCompany =>
-      Boolean(company) && array.findIndex((item) => item?.companyId === company?.companyId) === index
-  );
-  const selectedCompany = companies.find((company) => company.alias === companyAlias);
   const selectedReciboGroup = selectedCompany?.groups.find((group) => group.code_centro_costo === reciboGroupCode);
   const requiresReciboGroup = Boolean(selectedCompany?.groups.length);
   const hasRequiredErrors = {

@@ -133,6 +133,11 @@ function employeeModuleCompanyId(employee: Pick<Employee, 'moduleCompanyId' | 'c
   return employee.moduleCompanyId ?? employee.companyId ?? '';
 }
 
+function employeeAffectsPlanning(employee: Employee | undefined): boolean {
+  if (!employee || !employee.active) return false;
+  return Boolean(employee.mainRoleId && (employee.weeklyHours ?? 0) > 0);
+}
+
 function buildAutoWeekPlanForEmployee(
   plan: WeekPlan,
   employeeId: string,
@@ -908,7 +913,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         : [...state.employees, normalizedEmployee];
 
       const planningChanged =
-        !previous ||
+        employeeAffectsPlanning(previous) !== employeeAffectsPlanning(normalizedEmployee) ||
         previous.mainRoleId !== normalizedEmployee.mainRoleId ||
         previous.weeklyHours !== normalizedEmployee.weeklyHours ||
         previous.restDay !== normalizedEmployee.restDay ||
@@ -976,7 +981,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           : [...employees, normalizedEmployee];
 
         const planningChanged =
-          !previous ||
+          employeeAffectsPlanning(previous) !== employeeAffectsPlanning(normalizedEmployee) ||
           previous.mainRoleId !== normalizedEmployee.mainRoleId ||
           previous.weeklyHours !== normalizedEmployee.weeklyHours ||
           previous.restDay !== normalizedEmployee.restDay ||

@@ -914,12 +914,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       const planningChanged =
         employeeAffectsPlanning(previous) !== employeeAffectsPlanning(normalizedEmployee) ||
-        previous.mainRoleId !== normalizedEmployee.mainRoleId ||
-        previous.weeklyHours !== normalizedEmployee.weeklyHours ||
-        previous.restDay !== normalizedEmployee.restDay ||
-        previous.contractType !== normalizedEmployee.contractType ||
-        previous.shiftType !== normalizedEmployee.shiftType ||
-        previous.active !== normalizedEmployee.active;
+        previous?.mainRoleId !== normalizedEmployee.mainRoleId ||
+        previous?.weeklyHours !== normalizedEmployee.weeklyHours ||
+        previous?.restDay !== normalizedEmployee.restDay ||
+        previous?.contractType !== normalizedEmployee.contractType ||
+        previous?.shiftType !== normalizedEmployee.shiftType ||
+        previous?.active !== normalizedEmployee.active;
 
       if (!planningChanged) {
         return { employees };
@@ -982,12 +982,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         const planningChanged =
           employeeAffectsPlanning(previous) !== employeeAffectsPlanning(normalizedEmployee) ||
-          previous.mainRoleId !== normalizedEmployee.mainRoleId ||
-          previous.weeklyHours !== normalizedEmployee.weeklyHours ||
-          previous.restDay !== normalizedEmployee.restDay ||
-          previous.contractType !== normalizedEmployee.contractType ||
-          previous.shiftType !== normalizedEmployee.shiftType ||
-          previous.active !== normalizedEmployee.active;
+          previous?.mainRoleId !== normalizedEmployee.mainRoleId ||
+          previous?.weeklyHours !== normalizedEmployee.weeklyHours ||
+          previous?.restDay !== normalizedEmployee.restDay ||
+          previous?.contractType !== normalizedEmployee.contractType ||
+          previous?.shiftType !== normalizedEmployee.shiftType ||
+          previous?.active !== normalizedEmployee.active;
 
         if (planningChanged) {
           const areaId = (normalizedEmployee.areaId ?? previous?.areaId ?? state.currentAreaId) as AreaId;

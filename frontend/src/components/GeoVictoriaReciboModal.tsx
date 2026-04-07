@@ -43,6 +43,7 @@ export function GeoVictoriaReciboModal({
   const toast = useToast();
   const employees = useAppStore((state) => state.employees);
   const batchUpsertEmployees = useAppStore((state) => state.batchUpsertEmployees);
+  const flushPersistence = useAppStore((state) => state.flushPersistence);
 
   const [users, setUsers] = useState<GeoVictoriaEmployee[]>([]);
   const [loading, setLoading] = useState(false);
@@ -99,7 +100,7 @@ export function GeoVictoriaReciboModal({
     );
   };
 
-  const handleImport = (): void => {
+  const handleImport = async (): Promise<void> => {
     if (selected.size === 0) return;
     if (!selectedCompany) {
       toast({
@@ -173,6 +174,17 @@ export function GeoVictoriaReciboModal({
     }
 
     batchUpsertEmployees(toUpsert);
+
+    const persistence = await flushPersistence();
+    if (!persistence.ok) {
+      toast({
+        status: 'error',
+        title: persistence.error ?? 'No se pudo guardar la importación en el servidor.'
+      });
+      setImporting(false);
+      return;
+    }
+
     toast({
       status: 'success',
       title: `Importación completada en ${selectedCompany.name}: ${created} nuevos, ${updated} actualizados.`

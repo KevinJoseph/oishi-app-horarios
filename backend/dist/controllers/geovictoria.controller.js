@@ -157,6 +157,29 @@ async function insertGeoVictoriaShift(token, tokenCacheKey, startHour, endHour, 
     }
     return rawText.replace(/^"|"$/g, '');
 }
+async function resolveGeoVictoriaPositionId(token, tokenCacheKey, positionDescription) {
+    const normalizedTarget = cleanRequiredText(positionDescription).toLowerCase();
+    if (!normalizedTarget)
+        return undefined;
+    const response = await fetch(env.geoVictoriaPositionListUrl, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+    });
+    if (!response.ok) {
+        if (response.status === 401) {
+            tokenCache.delete(tokenCacheKey);
+        }
+        return undefined;
+    }
+    const data = (await response.json());
+    const match = data.find((position) => cleanRequiredText(position.PositionState).toLowerCase() === 'enabled' &&
+        cleanRequiredText(position.PositionDescription).toLowerCase() === normalizedTarget);
+    return match?.Identifier ? cleanRequiredText(match.Identifier) : undefined;
+}
 async function listGeoVictoriaShifts(token, tokenCacheKey) {
     const response = await fetch(env.geoVictoriaShiftListUrl, {
         method: 'POST',
@@ -379,6 +402,7 @@ export async function addGeoVictoriaUserController(req, res) {
     const name = cleanRequiredText(body.Name ?? body.name);
     const lastName = cleanRequiredText(body.LastName ?? body.lastName);
     const costCenterCode = cleanRequiredText(body.CostCenterCode ?? body.costCenterCode);
+    const positionDescription = cleanRequiredText(body.PositionDescription ?? body.positionDescription);
     if (!companyId || !identifier || !email || !name || !lastName || !costCenterCode) {
         res
             .status(400)
@@ -399,20 +423,24 @@ export async function addGeoVictoriaUserController(req, res) {
         res.status(502).json({ error: message });
         return;
     }
+    const positionId = await resolveGeoVictoriaPositionId(token, `company:${companyId}`, positionDescription);
+    const userPayload = {
+        Identifier: identifier,
+        Email: email,
+        Name: name,
+        LastName: lastName,
+        Lastname: lastName,
+        CostCenterCode: costCenterCode,
+        Enabled: '1',
+        ...(positionId ? { PositionId: positionId } : {})
+    };
     const response = await fetch(env.geoVictoriaUserAddUrl, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            Identifier: identifier,
-            Email: email,
-            Name: name,
-            LastName: lastName,
-            CostCenterCode: costCenterCode,
-            Enabled: '1'
-        })
+        body: JSON.stringify(userPayload)
     });
     const rawText = await response.text();
     let parsedBody = null;
@@ -424,9 +452,47 @@ export async function addGeoVictoriaUserController(req, res) {
             parsedBody = rawText;
         }
     }
+    const parsedMessage = extractGeoVictoriaMessage(parsedBody);
+    const userAlreadyExists = typeof parsedBody === 'object' &&
+        parsedBody !== null &&
+        'Success' in parsedBody &&
+        parsedBody.Success === false &&
+        /already exists|ya existe/i.test(parsedMessage || '');
+    if (userAlreadyExists) {
+        const editResponse = await fetch(env.geoVictoriaUserEditUrl, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(userPayload)
+        });
+        const editRawText = await editResponse.text();
+        let editParsedBody = null;
+        if (editRawText) {
+            try {
+                editParsedBody = JSON.parse(editRawText);
+            }
+            catch {
+                editParsedBody = editRawText;
+            }
+        }
+        if (!editResponse.ok) {
+            if (editResponse.status === 401) {
+                tokenCache.delete(`company:${companyId}`);
+            }
+            res.status(502).json({
+                error: extractGeoVictoriaMessage(editParsedBody) || `Error al actualizar usuario en GeoVictoria: ${editResponse.status} ${editResponse.statusText}`
+            });
+            return;
+        }
+        const editMessage = extractGeoVictoriaMessage(editParsedBody) || 'Usuario actualizado correctamente en GeoVictoria.';
+        res.status(200).json({ message: editMessage });
+        return;
+    }
     if (typeof parsedBody === 'object' && parsedBody !== null && 'Success' in parsedBody && parsedBody.Success === false) {
         res.status(409).json({
-            error: extractGeoVictoriaMessage(parsedBody) || 'GeoVictoria rechazó la creación del usuario.'
+            error: parsedMessage || 'GeoVictoria rechazó la creación del usuario.'
         });
         return;
     }

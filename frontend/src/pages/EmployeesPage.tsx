@@ -210,6 +210,7 @@ export function EmployeesPage(): JSX.Element {
     Name: string;
     LastName: string;
     CostCenterCode: string;
+    PositionDescription?: string;
     Enabled: string;
   } => {
     const firstName = employee.firstName?.trim() ?? '';
@@ -235,6 +236,7 @@ export function EmployeesPage(): JSX.Element {
         employee.moduleCompanyRuc?.trim() ??
         company?.ruc?.trim() ??
         '',
+      PositionDescription: employee.positionDescription?.trim() || undefined,
       Enabled: '1'
     };
   };

@@ -136,6 +136,7 @@ export type GeoVictoriaAddUserPayload = {
   Name: string;
   LastName: string;
   CostCenterCode: string;
+  PositionDescription?: string;
   Enabled: string;
 };
 

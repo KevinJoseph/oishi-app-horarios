@@ -1,4 +1,28 @@
-import { Badge, Box, Button, Card, CardBody, Flex, Heading, HStack, Select, SimpleGrid, Text, VStack, useToast } from '@chakra-ui/react';
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  CardBody,
+  Flex,
+  FormControl,
+  FormLabel,
+  Heading,
+  HStack,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  Select,
+  SimpleGrid,
+  Text,
+  VStack,
+  useDisclosure,
+  useToast
+} from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
 import { DayGrid } from '../components/DayGrid';
 import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
@@ -6,11 +30,12 @@ import { WeekSelector } from '../components/WeekSelector';
 import { WeeklyByWeeksOverviewContent } from './WeeklyByWeeksOverviewPage';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { downloadWeeklyGridPdf, downloadWeeklyOverviewPdf } from '../utils/pdf';
-import type { AreaId } from '../types';
+import { downloadEmployeeWeekPdf, downloadWeeklyGridPdf, downloadWeeklyOverviewPdf } from '../utils/pdf';
+import type { AreaId, Employee } from '../types';
 
 export function WeeklyOverviewPage(): JSX.Element {
   const toast = useToast();
+  const { isOpen: isPersonalPdfModalOpen, onOpen: openPersonalPdfModal, onClose: closePersonalPdfModal } = useDisclosure();
   const allEmployees = useAppStore((state) => state.employees);
   const allRoles = useAppStore((state) => state.roles);
   const currentAreaId = useAppStore((state) => state.currentAreaId);
@@ -47,6 +72,8 @@ export function WeeklyOverviewPage(): JSX.Element {
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [viewMode, setViewMode] = useState<'personal' | 'weeks' | 'grid'>('grid');
+  const [personalPdfMode, setPersonalPdfMode] = useState<'single' | 'all'>('single');
+  const [selectedEmployeeIdForPdf, setSelectedEmployeeIdForPdf] = useState<string>('');
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
   const currentWeekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
   const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
@@ -84,6 +111,113 @@ export function WeeklyOverviewPage(): JSX.Element {
     }
     return summary;
   }, [assignedHoursByEmployee, employees]);
+  const selectedEmployeeForPdf = useMemo(
+    () => activeEmployees.find((employee) => employee.id === selectedEmployeeIdForPdf) ?? null,
+    [activeEmployees, selectedEmployeeIdForPdf]
+  );
+
+  useEffect(() => {
+    if (!activeEmployees.length) {
+      setSelectedEmployeeIdForPdf('');
+      return;
+    }
+
+    setSelectedEmployeeIdForPdf((currentSelected) =>
+      activeEmployees.some((employee) => employee.id === currentSelected) ? currentSelected : activeEmployees[0].id
+    );
+  }, [activeEmployees]);
+
+  const buildPdfPayload = () => {
+    if (!currentWeek || !currentWeekPlan) return null;
+    return {
+      employees,
+      roles,
+      timeSlots,
+      breakConfig,
+      week: currentWeek,
+      weekPlan: currentWeekPlan,
+      isValidated: currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false,
+      validatedByName: currentWeekAudit?.validatedByName ?? null
+    };
+  };
+
+  const exportPersonalPdf = (mode: 'single' | 'all', employee?: Employee | null) => {
+    const payload = buildPdfPayload();
+    if (!payload) {
+      toast({ status: 'warning', title: 'No hay planificación para exportar.' });
+      return;
+    }
+
+    if (mode === 'single') {
+      if (!employee) {
+        toast({ status: 'warning', title: 'Selecciona un colaborador para exportar.' });
+        return;
+      }
+      downloadEmployeeWeekPdf({
+        employee,
+        roles,
+        timeSlots,
+        breakConfig,
+        week: payload.week,
+        weekPlan: payload.weekPlan,
+        isValidated: payload.isValidated,
+        validatedByName: payload.validatedByName
+      });
+      toast({ status: 'success', title: `PDF generado para ${employee.name}.` });
+      return;
+    }
+
+    downloadWeeklyOverviewPdf(payload);
+    toast({ status: 'success', title: 'PDF de todos los colaboradores generado.' });
+  };
+
+  const handlePdfExport = () => {
+    if (!currentWeek || !currentWeekPlan) {
+      toast({ status: 'warning', title: 'No hay planificación para exportar.' });
+      return;
+    }
+
+    if (viewMode === 'personal') {
+      openPersonalPdfModal();
+      return;
+    }
+
+    try {
+      setIsExportingPdf(true);
+      const payload = buildPdfPayload();
+      if (!payload) {
+        toast({ status: 'warning', title: 'No hay planificación para exportar.' });
+        return;
+      }
+
+      if (viewMode === 'grid') {
+        downloadWeeklyGridPdf(payload);
+        toast({ status: 'success', title: 'PDF del modo Grid generado.' });
+      } else {
+        downloadWeeklyOverviewPdf(payload);
+        toast({ status: 'success', title: 'PDF de vista general generado.' });
+      }
+    } catch {
+      toast({
+        status: 'error',
+        title: viewMode === 'grid' ? 'No se pudo generar el PDF del modo Grid.' : 'No se pudo generar el PDF de vista general.'
+      });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleConfirmPersonalPdfExport = () => {
+    try {
+      setIsExportingPdf(true);
+      exportPersonalPdf(personalPdfMode, selectedEmployeeForPdf);
+      closePersonalPdfModal();
+    } catch {
+      toast({ status: 'error', title: 'No se pudo generar el PDF del modo Personal.' });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   return (
     <Box>
@@ -113,39 +247,7 @@ export function WeeklyOverviewPage(): JSX.Element {
                       variant="outline"
                       isLoading={isExportingPdf}
                       isDisabled={!currentWeek || !currentWeekPlan}
-                      onClick={() => {
-                        if (!currentWeek || !currentWeekPlan) {
-                          toast({ status: 'warning', title: 'No hay planificación para exportar.' });
-                          return;
-                        }
-                        try {
-                          setIsExportingPdf(true);
-                          const payload = {
-                            employees,
-                            roles,
-                            timeSlots,
-                            breakConfig,
-                            week: currentWeek,
-                            weekPlan: currentWeekPlan,
-                            isValidated: currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false,
-                            validatedByName: currentWeekAudit?.validatedByName ?? null
-                          };
-                          if (viewMode === 'grid') {
-                            downloadWeeklyGridPdf(payload);
-                            toast({ status: 'success', title: 'PDF del modo Grid generado.' });
-                          } else {
-                            downloadWeeklyOverviewPdf(payload);
-                            toast({ status: 'success', title: 'PDF de vista general generado.' });
-                          }
-                        } catch {
-                          toast({
-                            status: 'error',
-                            title: viewMode === 'grid' ? 'No se pudo generar el PDF del modo Grid.' : 'No se pudo generar el PDF de vista general.'
-                          });
-                        } finally {
-                          setIsExportingPdf(false);
-                        }
-                      }}
+                      onClick={handlePdfExport}
                     >
                       PDF
                     </Button>
@@ -218,6 +320,48 @@ export function WeeklyOverviewPage(): JSX.Element {
           })}
         </VStack>
       )}
+
+      <Modal isOpen={isPersonalPdfModalOpen} onClose={closePersonalPdfModal} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Exportar PDF Personal</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <FormControl>
+                <FormLabel>Tipo de exportación</FormLabel>
+                <Select value={personalPdfMode} onChange={(event) => setPersonalPdfMode(event.target.value as 'single' | 'all')}>
+                  <option value="single">Solo un colaborador</option>
+                  <option value="all">Todos los colaboradores</option>
+                </Select>
+              </FormControl>
+
+              {personalPdfMode === 'single' ? (
+                <FormControl>
+                  <FormLabel>Colaborador</FormLabel>
+                  <Select value={selectedEmployeeIdForPdf} onChange={(event) => setSelectedEmployeeIdForPdf(event.target.value)}>
+                    {activeEmployees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.name}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              ) : null}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <HStack spacing={3}>
+              <Button variant="ghost" onClick={closePersonalPdfModal}>
+                Cancelar
+              </Button>
+              <Button colorScheme="teal" onClick={handleConfirmPersonalPdfExport} isLoading={isExportingPdf}>
+                Generar PDF
+              </Button>
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }

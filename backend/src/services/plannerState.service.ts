@@ -4,6 +4,7 @@ import {
   AREA_IDS,
   type AreaId,
   type PlannerStatePayload,
+  type PlannerStatePartialUpdatePayload,
   type ValidationRequirements,
   type ValidationRequirementsUpdatePayload,
   type WeekConfigurationById,
@@ -360,6 +361,51 @@ export async function replacePlannerState(payload: PlannerStatePayload): Promise
   }
 
   return mapUnknownState(updated);
+}
+
+export async function updatePlannerStatePartial(
+  payload: PlannerStatePartialUpdatePayload
+): Promise<PlannerStatePayload> {
+  const current = await getOrCreatePlannerState();
+
+  const nextState: PlannerStatePayload = {
+    ...current,
+    employees: payload.employees ?? current.employees,
+    roles: payload.roles ?? current.roles,
+    weeks: payload.weeks ?? current.weeks,
+    weekPlans: { ...current.weekPlans },
+    weekAuditById: { ...current.weekAuditById },
+    weekConfigById: { ...current.weekConfigById },
+    validatedWeekIds: [...current.validatedWeekIds]
+  };
+
+  for (const entry of payload.weekEntries ?? []) {
+    if (!entry.weekId?.trim()) continue;
+
+    if (entry.weekPlan) {
+      nextState.weekPlans[entry.weekId] = entry.weekPlan;
+    }
+
+    if (entry.weekAudit) {
+      nextState.weekAuditById[entry.weekId] = entry.weekAudit;
+    }
+
+    if (entry.weekConfig) {
+      nextState.weekConfigById[entry.weekId] = entry.weekConfig;
+    }
+
+    if (typeof entry.validated === 'boolean') {
+      const alreadyValidated = nextState.validatedWeekIds.includes(entry.weekId);
+      if (entry.validated && !alreadyValidated) {
+        nextState.validatedWeekIds.push(entry.weekId);
+      }
+      if (!entry.validated && alreadyValidated) {
+        nextState.validatedWeekIds = nextState.validatedWeekIds.filter((value) => value !== entry.weekId);
+      }
+    }
+  }
+
+  return replacePlannerState(nextState);
 }
 
 export async function updateValidationRequirements(

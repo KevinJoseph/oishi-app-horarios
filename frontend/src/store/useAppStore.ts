@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { addMonths, addWeeks, formatISO, parseISO } from 'date-fns';
-import { fetchPlannerState, resetPlannerState as resetPlannerStateApi, savePlannerState } from '../api/plannerApi';
+import {
+  fetchPlannerState,
+  resetPlannerState as resetPlannerStateApi,
+  savePlannerState,
+  savePlannerStatePartial
+} from '../api/plannerApi';
 import { loadSeedState, normalizePlannerState } from '../data/seed';
 import { buildEmptyWeekPlan, buildWeekFromStartDate } from '../data/mocks';
 import { AREA_IDS } from '../types';
@@ -50,6 +55,13 @@ type UpdateEmployeeDayByHoursInput = {
 };
 
 type PersistableState = ReturnType<typeof loadSeedState>;
+
+type PersistenceScope = {
+  employees?: boolean;
+  roles?: boolean;
+  weeks?: boolean;
+  currentWeek?: boolean;
+};
 
 type AppState = PersistableState & {
   currentWeekStartDateISO: string;
@@ -627,6 +639,15 @@ function getSelectedScopedWeekId(state: Pick<PersistableState, 'weeks' | 'curren
   return toScopedWeekId(state.currentAreaId, currentWeek.id);
 }
 
+function getSelectedScopedWeekIdForArea(
+  state: Pick<PersistableState, 'weeks'> & { currentWeekStartDateISO: string },
+  areaId: AreaId
+): string | null {
+  const currentWeek = state.weeks.find((week) => week.startDateISO === state.currentWeekStartDateISO);
+  if (!currentWeek) return null;
+  return toScopedWeekId(areaId, currentWeek.id);
+}
+
 function getConfigurationTargetWeekIds(state: PersistableState & { currentWeekStartDateISO: string }, areaId: AreaId): Set<string> {
   const scopedWeekId = getSelectedScopedWeekId({ ...state, currentAreaId: areaId });
   if (!scopedWeekId) return new Set<string>();
@@ -679,8 +700,36 @@ function toPersistableState(state: AppState): PersistableState {
 }
 
 let persistInFlight = false;
-let persistQueued = false;
 let persistWaiters: Array<() => void> = [];
+let pendingPersistence: Required<PersistenceScope> & { weekIds: Set<string> } = {
+  employees: false,
+  roles: false,
+  weeks: false,
+  currentWeek: false,
+  weekIds: new Set<string>()
+};
+
+function hasPendingPersistence(): boolean {
+  return (
+    pendingPersistence.employees ||
+    pendingPersistence.roles ||
+    pendingPersistence.weeks ||
+    pendingPersistence.weekIds.size > 0
+  );
+}
+
+function queuePersistenceScope(get: () => AppState, scope: PersistenceScope): void {
+  if (scope.employees) pendingPersistence.employees = true;
+  if (scope.roles) pendingPersistence.roles = true;
+  if (scope.weeks) pendingPersistence.weeks = true;
+  if (scope.currentWeek) {
+    const scopedWeekId = getSelectedScopedWeekId(get());
+    if (scopedWeekId) {
+      pendingPersistence.currentWeek = true;
+      pendingPersistence.weekIds.add(scopedWeekId);
+    }
+  }
+}
 
 async function flushPersistQueue(get: () => AppState, set: (partial: Partial<AppState>) => void): Promise<void> {
   if (persistInFlight) {
@@ -691,54 +740,43 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
   }
   persistInFlight = true;
   try {
-    while (persistQueued) {
-      persistQueued = false;
+    while (hasPendingPersistence()) {
       const stateSnapshot = get();
-      const snapshot = toPersistableState(stateSnapshot);
+      const queuedWeekIds = [...pendingPersistence.weekIds];
+      const scope = {
+        employees: pendingPersistence.employees,
+        roles: pendingPersistence.roles,
+        weeks: pendingPersistence.weeks,
+        currentWeek: pendingPersistence.currentWeek
+      };
+      pendingPersistence = {
+        employees: false,
+        roles: false,
+        weeks: false,
+        currentWeek: false,
+        weekIds: new Set<string>()
+      };
+
+      const payload = {
+        ...(scope.employees ? { employees: stateSnapshot.employees } : {}),
+        ...(scope.roles ? { roles: stateSnapshot.roles } : {}),
+        ...(scope.weeks ? { weeks: stateSnapshot.weeks } : {}),
+        ...(queuedWeekIds.length > 0
+          ? {
+              weekEntries: queuedWeekIds.map((weekId) => ({
+                weekId,
+                weekPlan: stateSnapshot.weekPlans[weekId],
+                weekAudit: stateSnapshot.weekAuditById[weekId],
+                weekConfig: stateSnapshot.weekConfigById[weekId],
+                validated: stateSnapshot.validatedWeekIds.includes(weekId)
+              }))
+            }
+          : {})
+      };
+
       try {
-        const serverState = await savePlannerState(snapshot);
-        const normalized = normalizePlannerState(serverState);
-        const latestState = get();
-        const preferredWeekStartDateISO =
-          latestState.currentWeekStartDateISO || stateSnapshot.currentWeekStartDateISO || normalized.weeks[0]?.startDateISO || '';
-        const mergedWeeks = mergeWeeks(mergeWeeks(snapshot.weeks, latestState.weeks), normalized.weeks);
-        set({
-          ...normalized,
-          weeks: mergedWeeks,
-          employees: latestState.employees,
-          roles: latestState.roles,
-          validatedWeekIds: latestState.validatedWeekIds,
-          timeSlotsByArea: latestState.timeSlotsByArea,
-          shiftRangesByArea: latestState.shiftRangesByArea,
-          validationRequirementsByArea: latestState.validationRequirementsByArea,
-          breakConfigByArea: latestState.breakConfigByArea,
-          timeSlots: latestState.timeSlotsByArea[latestState.currentAreaId] ?? latestState.timeSlots,
-          shiftRanges: latestState.shiftRangesByArea[latestState.currentAreaId] ?? latestState.shiftRanges,
-          validationRequirements: latestState.validationRequirementsByArea[latestState.currentAreaId] ?? latestState.validationRequirements,
-          breakConfig: latestState.breakConfigByArea[latestState.currentAreaId] ?? latestState.breakConfig,
-          weekConfigById: {
-            ...normalized.weekConfigById,
-            ...latestState.weekConfigById
-          },
-          weekPlans: {
-            ...normalized.weekPlans,
-            ...latestState.weekPlans
-          },
-          weekAuditById: {
-            ...normalized.weekAuditById,
-            ...latestState.weekAuditById
-          },
-          currentWeekStartDateISO: resolveCurrentWeekStartDateISO(
-            mergedWeeks,
-            preferredWeekStartDateISO
-          ),
-          currentMonthStartDateISO: monthStartDateISO(
-            parseISO(
-              preferredWeekStartDateISO || mergedWeeks[0]?.startDateISO || formatISO(new Date(), { representation: 'date' })
-            )
-          ),
-          syncError: null
-        });
+        await savePlannerStatePartial(payload);
+        set({ syncError: null });
       } catch (error) {
         set({ syncError: error instanceof Error ? error.message : 'No se pudo sincronizar con el backend.' });
       }
@@ -751,8 +789,8 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
   }
 }
 
-function persistSnapshot(get: () => AppState, set: (partial: Partial<AppState>) => void): void {
-  persistQueued = true;
+function persistSnapshot(get: () => AppState, set: (partial: Partial<AppState>) => void, scope: PersistenceScope): void {
+  queuePersistenceScope(get, scope);
   void flushPersistQueue(get, set);
 }
 
@@ -764,7 +802,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   syncError: null,
 
   flushPersistence: async () => {
-    if (persistQueued || persistInFlight) {
+    if (hasPendingPersistence() || persistInFlight) {
       await flushPersistQueue(get, set);
     }
 
@@ -831,7 +869,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return nextState;
     });
     if (changed) {
-      persistSnapshot(get, set);
+      persistSnapshot(get, set, { weeks: true, currentWeek: true });
     }
   },
   goToAdjacentWeek: (direction) => {
@@ -884,6 +922,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   upsertEmployee: (employee) => {
     let result: { ok: boolean; error?: string } = { ok: true };
+    let shouldPersistCurrentWeek = false;
     set((state) => {
       const previous = state.employees.find((item) => item.id === employee.id);
       const incomingDocument = normalizeIdentityDocument(employee.identityDocument);
@@ -926,6 +965,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       const employeeAreaId = normalizedEmployee.areaId ?? previous?.areaId ?? state.currentAreaId;
+      const selectedScopedWeekId = getSelectedScopedWeekIdForArea(state, employeeAreaId);
+      if (!selectedScopedWeekId) {
+        return { employees };
+      }
+      shouldPersistCurrentWeek = true;
       const weekPlans = rebuildWeekPlansForArea(
         state.weekPlans,
         employees,
@@ -935,7 +979,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         state.weekConfigById,
         state.timeSlotsByArea,
         state.shiftRangesByArea,
-        state.breakConfigByArea
+        state.breakConfigByArea,
+        new Set([selectedScopedWeekId])
       );
 
       return {
@@ -946,11 +991,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     });
     if (!result.ok) return result;
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { employees: true, currentWeek: shouldPersistCurrentWeek });
     return result;
   },
 
   batchUpsertEmployees: (incomingList) => {
+    let shouldPersistCurrentWeek = false;
     set((state) => {
       let employees = [...state.employees];
       const planningChangedAreas = new Set<AreaId>();
@@ -1001,6 +1047,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       let weekPlans = state.weekPlans;
       for (const areaId of planningChangedAreas) {
+        const selectedScopedWeekId = getSelectedScopedWeekIdForArea(state, areaId);
+        if (!selectedScopedWeekId) continue;
+        shouldPersistCurrentWeek = true;
         weekPlans = rebuildWeekPlansForArea(
           weekPlans,
           employees,
@@ -1010,7 +1059,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           state.weekConfigById,
           state.timeSlotsByArea,
           state.shiftRangesByArea,
-          state.breakConfigByArea
+          state.breakConfigByArea,
+          new Set([selectedScopedWeekId])
         );
       }
 
@@ -1021,16 +1071,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekAuditById: state.weekAuditById
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { employees: true, currentWeek: shouldPersistCurrentWeek });
   },
 
   deleteEmployee: (employeeId) => {
     set((state) => {
       const employees = state.employees.filter((employee) => employee.id !== employeeId);
-      const weekPlans: Record<string, WeekPlan> = {};
-
-      for (const [weekId, plan] of Object.entries(state.weekPlans)) {
-        weekPlans[weekId] = {
+      const scopedWeekId = getSelectedScopedWeekId(state);
+      if (!scopedWeekId || !state.weekPlans[scopedWeekId]) {
+        return { employees };
+      }
+      const plan = state.weekPlans[scopedWeekId];
+      const weekPlans: Record<string, WeekPlan> = {
+        ...state.weekPlans,
+        [scopedWeekId]: {
           ...plan,
           days: plan.days.map((day) => {
             const assignments = { ...day.assignments };
@@ -1041,20 +1095,29 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
             return { ...day, assignments };
           })
-        };
-      }
+        }
+      };
 
-      return { employees, weekPlans, validatedWeekIds: [], weekAuditById: clearAllWeekValidators(state.weekAuditById) };
+      return {
+        employees,
+        weekPlans,
+        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, scopedWeekId),
+        weekAuditById: clearWeekValidator(state.weekAuditById, scopedWeekId)
+      };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { employees: true, currentWeek: true });
   },
 
   deleteAllEmployees: () => {
     set((state) => {
-      const weekPlans: Record<string, WeekPlan> = {};
-
-      for (const [weekId, plan] of Object.entries(state.weekPlans)) {
-        weekPlans[weekId] = {
+      const scopedWeekId = getSelectedScopedWeekId(state);
+      if (!scopedWeekId || !state.weekPlans[scopedWeekId]) {
+        return { employees: [] };
+      }
+      const plan = state.weekPlans[scopedWeekId];
+      const weekPlans: Record<string, WeekPlan> = {
+        ...state.weekPlans,
+        [scopedWeekId]: {
           ...plan,
           days: plan.days.map((day) => {
             const assignments: typeof day.assignments = {};
@@ -1063,17 +1126,17 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
             return { ...day, assignments };
           })
-        };
-      }
+        }
+      };
 
       return {
         employees: [],
         weekPlans,
-        validatedWeekIds: [],
-        weekAuditById: clearAllWeekValidators(state.weekAuditById)
+        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, scopedWeekId),
+        weekAuditById: clearWeekValidator(state.weekAuditById, scopedWeekId)
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { employees: true, currentWeek: true });
   },
 
   deleteEmployeesByCompany: (companyId) => {
@@ -1088,10 +1151,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       const employees = state.employees.filter((employee) => !idsToDelete.has(employee.id));
-      const weekPlans: Record<string, WeekPlan> = {};
-
-      for (const [weekId, plan] of Object.entries(state.weekPlans)) {
-        weekPlans[weekId] = {
+      const scopedWeekId = getSelectedScopedWeekId(state);
+      if (!scopedWeekId || !state.weekPlans[scopedWeekId]) {
+        return { employees };
+      }
+      const plan = state.weekPlans[scopedWeekId];
+      const weekPlans: Record<string, WeekPlan> = {
+        ...state.weekPlans,
+        [scopedWeekId]: {
           ...plan,
           days: plan.days.map((day) => {
             const assignments = { ...day.assignments };
@@ -1104,17 +1171,17 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
             return { ...day, assignments };
           })
-        };
-      }
+        }
+      };
 
       return {
         employees,
         weekPlans,
-        validatedWeekIds: [],
-        weekAuditById: clearAllWeekValidators(state.weekAuditById)
+        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, scopedWeekId),
+        weekAuditById: clearWeekValidator(state.weekAuditById, scopedWeekId)
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { employees: true, currentWeek: true });
   },
 
   upsertRole: (role) => {
@@ -1136,16 +1203,21 @@ export const useAppStore = create<AppState>((set, get) => ({
         : [...state.roles, normalizedRole];
       return { roles: next, validatedWeekIds: [], weekAuditById: clearAllWeekValidators(state.weekAuditById) };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { roles: true });
     return { ok: true };
   },
 
   deleteRole: (roleId) => {
     set((state) => {
       const roles = state.roles.filter((role) => role.id !== roleId);
-      const weekPlans = { ...state.weekPlans };
-      for (const [weekId, plan] of Object.entries(weekPlans)) {
-        weekPlans[weekId] = {
+      const scopedWeekId = getSelectedScopedWeekId(state);
+      if (!scopedWeekId || !state.weekPlans[scopedWeekId]) {
+        return { roles };
+      }
+      const plan = state.weekPlans[scopedWeekId];
+      const weekPlans = {
+        ...state.weekPlans,
+        [scopedWeekId]: {
           ...plan,
           days: plan.days.map((day) => {
             const assignments = { ...day.assignments };
@@ -1159,11 +1231,16 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
             return { ...day, assignments };
           })
-        };
-      }
-      return { roles, weekPlans, validatedWeekIds: [], weekAuditById: clearAllWeekValidators(state.weekAuditById) };
+        }
+      };
+      return {
+        roles,
+        weekPlans,
+        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, scopedWeekId),
+        weekAuditById: clearWeekValidator(state.weekAuditById, scopedWeekId)
+      };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { roles: true, currentWeek: true });
   },
 
   ensureWeekPlan: (week) => {
@@ -1189,7 +1266,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
 
     if (created) {
-      persistSnapshot(get, set);
+      persistSnapshot(get, set, { weeks: true, currentWeek: true });
     }
   },
 
@@ -1235,7 +1312,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekAuditById: clearWeekValidator(ensureWeekCreator(state.weekAuditById, scopedWeekId, actorName), scopedWeekId)
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -1283,7 +1360,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekAuditById: clearWeekValidator(ensureWeekCreator(state.weekAuditById, scopedWeekId, actorName), scopedWeekId)
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -1362,7 +1439,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekAuditById: clearWeekValidator(ensureWeekCreator(state.weekAuditById, scopedWeekId, actorName), scopedWeekId)
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -1434,7 +1511,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekPlans: rebuiltWeekPlans
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -1488,7 +1565,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekPlans
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -1542,7 +1619,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
     }));
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -1593,7 +1670,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekPlans
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -1632,7 +1709,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -1651,7 +1728,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekConfigById: state.weekConfigById
       };
     });
-    persistSnapshot(get, set);
+    persistSnapshot(get, set, { currentWeek: true });
     return { ok: true };
   }
 }));

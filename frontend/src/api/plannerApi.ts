@@ -1,5 +1,5 @@
 import type { SeedState } from '../data/seed';
-import type { AreaId, ValidationRequirements } from '../types';
+import type { AreaId, ValidationRequirements, Week, WeekAudit, WeekConfigurationSnapshot, WeekPlan } from '../types';
 import { request } from './http';
 
 export function fetchPlannerState(): Promise<SeedState> {
@@ -8,6 +8,26 @@ export function fetchPlannerState(): Promise<SeedState> {
 
 export function savePlannerState(payload: SeedState): Promise<SeedState> {
   return request<SeedState>('/state', {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export type PlannerStatePartialUpdatePayload = {
+  employees?: SeedState['employees'];
+  roles?: SeedState['roles'];
+  weeks?: Week[];
+  weekEntries?: Array<{
+    weekId: string;
+    weekPlan?: WeekPlan;
+    weekAudit?: WeekAudit;
+    weekConfig?: WeekConfigurationSnapshot;
+    validated?: boolean;
+  }>;
+};
+
+export function savePlannerStatePartial(payload: PlannerStatePartialUpdatePayload): Promise<{ ok: true }> {
+  return request<{ ok: true }>('/state/partial', {
     method: 'PUT',
     body: JSON.stringify(payload)
   });

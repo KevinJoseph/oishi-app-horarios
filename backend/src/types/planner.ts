@@ -128,3 +128,18 @@ export type ValidationRequirementsUpdatePayload = {
   areaId: AreaId;
   validationRequirements: ValidationRequirements;
 };
+
+export type PlannerWeekEntryUpdatePayload = {
+  weekId: string;
+  weekPlan?: WeekPlan;
+  weekAudit?: WeekAudit;
+  weekConfig?: WeekConfigurationSnapshot;
+  validated?: boolean;
+};
+
+export type PlannerStatePartialUpdatePayload = {
+  employees?: Employee[];
+  roles?: Role[];
+  weeks?: Week[];
+  weekEntries?: PlannerWeekEntryUpdatePayload[];
+};

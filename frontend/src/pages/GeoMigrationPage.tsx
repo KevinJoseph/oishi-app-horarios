@@ -81,7 +81,9 @@ export function GeoMigrationPage(): JSX.Element {
       employees.filter(
         (employee) =>
           (employee.areaId ?? 'salon') === currentAreaId &&
-          (!selectedGeoVictoriaCompanyId || (employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
+          (!selectedGeoVictoriaCompanyId ||
+            (employee.companyId ?? '') === selectedGeoVictoriaCompanyId ||
+            (employee.companyAlias ?? '').trim().toLowerCase() === 'recibo')
       ),
     [employees, currentAreaId, selectedGeoVictoriaCompanyId]
   );

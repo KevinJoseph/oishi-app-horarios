@@ -141,7 +141,7 @@ export function EmployeeFormModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    if (!selectedCompanyId) {
+    if (!selectedCompany?.companyId) {
       setPositions([]);
       return;
     }
@@ -149,7 +149,7 @@ export function EmployeeFormModal({
     let isMounted = true;
     setIsLoadingPositions(true);
 
-    fetchGeoVictoriaPositions(selectedCompanyId)
+    fetchGeoVictoriaPositions(selectedCompany.companyId)
       .then((data) => {
         if (!isMounted) return;
         setPositions(data);
@@ -170,7 +170,7 @@ export function EmployeeFormModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, selectedCompanyId, toast]);
+  }, [isOpen, selectedCompany?.companyId, toast]);
 
   useEffect(() => {
     if (contractType === '') {
@@ -261,7 +261,7 @@ export function EmployeeFormModal({
             <Select
               value={positionDescription}
               onChange={(event) => setPositionDescription(event.target.value)}
-              isDisabled={!selectedCompanyId || isLoadingPositions}
+              isDisabled={!selectedCompany?.companyId || isLoadingPositions}
             >
               <option value="">{isLoadingPositions ? 'Cargando cargos...' : 'Selecciona un cargo'}</option>
               {positions.map((position) => (

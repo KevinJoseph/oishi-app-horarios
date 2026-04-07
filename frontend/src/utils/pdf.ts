@@ -135,15 +135,145 @@ export function downloadWeeklyGridPdf({
   validatedByName
 }: DownloadWeeklyGridPdfInput): void {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
-  const days = weekPlan.days;
-
-  days.forEach((dayPlan, index) => {
-    if (index > 0) doc.addPage();
-    drawDaySchedulePage(doc, { dayPlan, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName });
+  drawWeeklyGridSinglePage(doc, {
+    dayPlans: weekPlan.days,
+    employees,
+    roles,
+    timeSlots,
+    breakConfig,
+    week,
+    isValidated,
+    validatedByName
   });
 
   const safeWeek = week.label.replace(/[^\w-]+/g, '-');
   doc.save(`vista-grid-${safeWeek}.pdf`);
+}
+
+function drawWeeklyGridSinglePage(
+  doc: jsPDF,
+  input: {
+    dayPlans: DayPlan[];
+    employees: Employee[];
+    roles: Role[];
+    timeSlots: TimeSlot[];
+    breakConfig: BreakConfig;
+    week: Week;
+    isValidated: boolean;
+    validatedByName: string | null;
+  }
+): void {
+  const { dayPlans, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName } = input;
+  const roleColorById = new Map(roles.map((role) => [role.id, role.colorHex]));
+  const activeEmployees = employees.filter((employee) => employee.active);
+  const visibleTimeSlots = getVisibleTimeSlots(timeSlots);
+
+  const marginX = 8;
+  const marginTop = 7;
+  const rowHeight = 3.9;
+  const headerHeight = 4.6;
+  const sectionTitleGap = 3.2;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const contentWidth = pageWidth - marginX * 2;
+  const topRowHeight = headerHeight + visibleTimeSlots.length * rowHeight + sectionTitleGap;
+  const blockGap = 4;
+  const thirdWidth = (contentWidth - blockGap * 2) / 3;
+
+  let y = marginTop;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('Planificacion de Horarios', marginX, y);
+  y += 4.5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text(`Semana: ${week.label}`, marginX, y);
+  y += 3.2;
+  const validationBottomY = drawValidationInfo(doc, marginX, y, isValidated, validatedByName, 7, 3);
+  const topY = validationBottomY + 6;
+  const bottomY = topY + topRowHeight + blockGap;
+
+  const [monday, tuesday, wednesday, thursday, friday, saturday, sunday] = dayPlans;
+
+  if (monday) {
+    drawCompactDayTable(doc, monday, marginX, topY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+  }
+  if (tuesday) {
+    drawCompactDayTable(doc, tuesday, marginX + thirdWidth + blockGap, topY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+  }
+  if (wednesday) {
+    drawCompactDayTable(doc, wednesday, marginX + (thirdWidth + blockGap) * 2, topY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+  }
+  if (thursday) {
+    drawCompactDayTable(doc, thursday, marginX, bottomY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+  }
+  if (friday) {
+    drawCompactDayTable(doc, friday, marginX + thirdWidth + blockGap, bottomY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+  }
+  if (saturday) {
+    drawCompactDayTable(doc, saturday, marginX + (thirdWidth + blockGap) * 2, bottomY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+  }
+  if (sunday) {
+    const sundayY = Math.min(bottomY + topRowHeight + blockGap, pageHeight - (headerHeight + visibleTimeSlots.length * rowHeight + sectionTitleGap) - 8);
+    drawCompactDayTable(doc, sunday, marginX, sundayY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+    drawLegendBottom(doc, roles, marginX + thirdWidth + blockGap + 2, sundayY + 2, thirdWidth * 2 - 2, 7);
+  } else {
+    drawLegendBottom(doc, roles, marginX, bottomY + topRowHeight + 6, contentWidth, 7);
+  }
+}
+
+function drawCompactDayTable(
+  doc: jsPDF,
+  dayPlan: DayPlan,
+  startX: number,
+  startY: number,
+  tableWidth: number,
+  activeEmployees: Employee[],
+  visibleTimeSlots: TimeSlot[],
+  breakConfig: BreakConfig,
+  roleColorById: Map<string, string>,
+  rowHeight: number,
+  headerHeight: number,
+  sectionTitleGap: number
+): void {
+  const firstColumnWidth = Math.min(18, tableWidth * 0.22);
+  const employeeColumnWidth = (tableWidth - firstColumnWidth) / Math.max(activeEmployees.length, 1);
+  const columnWidths = [firstColumnWidth, ...activeEmployees.map(() => employeeColumnWidth)];
+
+  let y = startY;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.text(`${dayPlan.dayName} (${dayPlan.dateISO})`, startX, y);
+  y += sectionTitleGap;
+
+  const headerCells = ['Horario', ...activeEmployees.map((employee) => employee.name)];
+  drawRow(doc, startX, y, headerCells, columnWidths, headerHeight, true, undefined, 5.4, 1);
+  y += headerHeight;
+
+  for (const slot of visibleTimeSlots) {
+    const rowValues = [slot.label];
+    const fillColors: Array<[number, number, number] | null> = [null];
+    for (const employee of activeEmployees) {
+      const assignment = dayPlan.assignments[slot.id]?.[employee.id];
+      const label =
+        !assignment || assignment.roleId === null || assignment.code === 'LIBRE'
+          ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
+            ? 'Descanso'
+            : isTimeSlotInBreak(slot, breakConfig)
+            ? 'Break'
+            : 'SIN ASIGNAR'
+          : assignment.code;
+      rowValues.push(label);
+      if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') {
+        fillColors.push([255, 255, 255]);
+      } else {
+        fillColors.push(tintRoleCellColor(roleColorById.get(assignment.roleId)));
+      }
+    }
+    drawRow(doc, startX, y, rowValues, columnWidths, rowHeight, false, fillColors, 5.3, 0.9);
+    y += rowHeight;
+  }
 }
 
 function drawDaySchedulePage(
@@ -175,7 +305,7 @@ function drawDaySchedulePage(
   let y = marginTop;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text('Planificacion Diaria', marginX, y);
+  doc.text('Planificacion de Horarios', marginX, y);
   y += 6;
 
   doc.setFont('helvetica', 'normal');
@@ -307,11 +437,13 @@ function drawRow(
   columnWidths: number[],
   rowHeight: number,
   isHeader: boolean,
-  fillColors?: Array<[number, number, number] | null>
+  fillColors?: Array<[number, number, number] | null>,
+  fontSize = 9,
+  textOffsetY = 1.2
 ): void {
   let x = startX;
   doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(fontSize);
   for (let index = 0; index < cells.length; index += 1) {
     const width = columnWidths[index] ?? columnWidths[columnWidths.length - 1];
     const fill = fillColors?.[index] ?? null;
@@ -323,7 +455,7 @@ function drawRow(
       doc.rect(x, y, width, rowHeight, 'F');
     }
     doc.rect(x, y, width, rowHeight);
-    doc.text(cells[index] ?? '', x + 2, y + rowHeight / 2 + 1.2, { maxWidth: width - 4 });
+    doc.text(cells[index] ?? '', x + 1.5, y + rowHeight / 2 + textOffsetY, { maxWidth: width - 3 });
     x += width;
   }
 }
@@ -354,27 +486,29 @@ function drawValidationInfo(
   startX: number,
   y: number,
   isValidated: boolean,
-  validatedByName: string | null
+  validatedByName: string | null,
+  fontSize = 10,
+  lineGap = 4
 ): number {
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(fontSize);
   doc.text(`Estado: ${isValidated ? 'VALIDADO' : 'NO VALIDADO'}`, startX, y);
-  y += 4;
+  y += lineGap;
   const validatorName = isValidated && validatedByName ? validatedByName : 'Ninguno';
   doc.text(`Validador Por: ${validatorName}`, startX, y, { maxWidth: 180 });
   return y;
 }
 
-function drawLegendBottom(doc: jsPDF, roles: Role[], startX: number, startY: number, maxWidth: number): void {
+function drawLegendBottom(doc: jsPDF, roles: Role[], startX: number, startY: number, maxWidth: number, fontSize = 9): void {
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(fontSize);
   doc.text('Leyenda de zonas:', startX, startY);
 
   let x = startX;
   let y = startY + 5;
   const endX = startX + maxWidth;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(fontSize);
 
   for (const role of roles) {
     const color = hexToRgb(role.colorHex) ?? [237, 242, 247];

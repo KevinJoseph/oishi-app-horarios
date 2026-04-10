@@ -112,8 +112,8 @@ export function EmployeeFormModal({
   const adminAssignedCompany = adminAssignedCompanyId
     ? companies.find((company) => company.companyId === adminAssignedCompanyId)
     : null;
-  // Recibo no aparece en la lista de empresas de GeoVictoria, se usa directamente solo para administradores
-  const reciboCompany: GeoVictoriaCompany | null = adminAssignedCompanyId ? RECIBO_COMPANY : null;
+  // Recibo no aparece en la lista de empresas de GeoVictoria, se incluye directamente
+  const reciboCompany: GeoVictoriaCompany = RECIBO_COMPANY;
   const selectableCompanies = [selectedModuleCompany, adminAssignedCompany, reciboCompany].filter(
     (company, index, array): company is GeoVictoriaCompany =>
       Boolean(company) && array.findIndex((item) => item?.companyId === company?.companyId) === index

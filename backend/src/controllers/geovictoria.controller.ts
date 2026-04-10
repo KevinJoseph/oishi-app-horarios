@@ -227,6 +227,37 @@ function isReciboCompanyId(companyId: string): boolean {
   return company?.alias.trim().toUpperCase() === 'RECIBO';
 }
 
+async function listGeoVictoriaUsers(token: string, tokenCacheKey: string): Promise<GeoVictoriaUser[]> {
+  const response = await fetch(env.geoVictoriaUserListUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({})
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      tokenCache.delete(tokenCacheKey);
+    }
+    throw new Error(`Error al consultar usuarios en GeoVictoria: ${response.status} ${response.statusText}`);
+  }
+
+  return (await response.json()) as GeoVictoriaUser[];
+}
+
+function geoVictoriaUserExists(users: GeoVictoriaUser[], identifier: string, email: string): boolean {
+  const normalizedIdentifier = cleanRequiredText(identifier);
+  const normalizedEmail = cleanRequiredText(email).toLowerCase();
+
+  return users.some((user) => {
+    const userIdentifier = cleanRequiredText(user.Identifier);
+    const userEmail = cleanRequiredText(user.Email).toLowerCase();
+    return (normalizedIdentifier && userIdentifier === normalizedIdentifier) || (normalizedEmail && userEmail === normalizedEmail);
+  });
+}
+
 function getCompanyAliasById(companyId: string): string {
   return env.geoVictoriaCompanies.find((company) => company.companyId === companyId)?.alias ?? '';
 }
@@ -711,6 +742,22 @@ export async function addGeoVictoriaUserController(req: Request, res: Response):
     /already exists|ya existe/i.test(parsedMessage || '');
 
   if (userAlreadyExists) {
+    let existingUsers: GeoVictoriaUser[];
+    try {
+      existingUsers = await listGeoVictoriaUsers(token, positionCacheKey);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo verificar la existencia del usuario en GeoVictoria.';
+      res.status(502).json({ error: message });
+      return;
+    }
+
+    if (!geoVictoriaUserExists(existingUsers, identifier, email)) {
+      res.status(409).json({
+        error: parsedMessage || 'GeoVictoria indicó que el usuario ya existe, pero no fue encontrado para editar.'
+      });
+      return;
+    }
+
     const editResponse = await fetch(env.geoVictoriaUserEditUrl, {
       method: 'POST',
       headers: {
@@ -732,7 +779,7 @@ export async function addGeoVictoriaUserController(req: Request, res: Response):
 
     if (!editResponse.ok) {
       if (editResponse.status === 401) {
-        tokenCache.delete(`company:${companyId}`);
+        tokenCache.delete(positionCacheKey);
       }
 
       res.status(502).json({

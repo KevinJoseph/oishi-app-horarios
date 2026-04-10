@@ -44,7 +44,8 @@ export function TimeSlotsPage(): JSX.Element {
   const setBreakConfig = useAppStore((state) => state.setBreakConfig);
   const flushPersistence = useAppStore((state) => state.flushPersistence);
   const currentUser = useAuthStore((state) => state.currentUser);
-  const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
+  const canEdit =
+    currentUser?.role === 'super_administrador' || currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
   const currentWeek = useMemo(
     () => weeks.find((week) => week.startDateISO === currentWeekStartDateISO) ?? null,
     [currentWeekStartDateISO, weeks]

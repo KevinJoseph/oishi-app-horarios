@@ -26,15 +26,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { FiAlertTriangle, FiCheckCircle, FiDownload, FiEye, FiXCircle } from 'react-icons/fi';
 import { CellEditorModal } from '../components/CellEditorModal';
 import { DayGrid } from '../components/DayGrid';
+import { WeekSelector } from '../components/WeekSelector';
 import { DayTabs } from '../components/DayTabs';
 import { EmployeeProfileDrawer } from '../components/EmployeeProfileDrawer';
 import { LegendDrawer } from '../components/LegendDrawer';
-import { WeekSelector } from '../components/WeekSelector';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Assignment } from '../types';
 import { isTimeSlotInBreak } from '../utils/breaks';
 import { getCurrentMonday } from '../utils/dates';
+import { isRestDayForDate } from '../utils/weekdays';
 import { downloadDaySchedulePdf } from '../utils/pdf';
 import { getOpeningClosingSummary } from '../utils/summary';
 
@@ -74,14 +75,16 @@ export function PlanningPage(): JSX.Element {
   const updateAssignment = useAppStore((state) => state.updateAssignment);
   const updateEmployeeDayAssignments = useAppStore((state) => state.updateEmployeeDayAssignments);
   const updateEmployeeDayByHours = useAppStore((state) => state.updateEmployeeDayByHours);
+  const setExceptionalRestDay = useAppStore((state) => state.setExceptionalRestDay);
   const validateWeekPlan = useAppStore((state) => state.validateWeekPlan);
   const desvalidateWeekPlan = useAppStore((state) => state.desvalidateWeekPlan);
   const currentUser = useAuthStore((state) => state.currentUser);
   const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
   const isSupervisor = currentUser?.role === 'supervisor';
   const isAdministrator = currentUser?.role === 'administrador';
-  const canEdit = isAdministrator || isSupervisor;
-  const canValidate = isAdministrator || isSupervisor;
+  const isSuperAdministrator = currentUser?.role === 'super_administrador';
+  const canEdit = isSuperAdministrator || isAdministrator || isSupervisor;
+  const canValidate = isSuperAdministrator || isAdministrator || isSupervisor;
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [selectedCell, setSelectedCell] = useState<SelectedCell>(null);
@@ -373,6 +376,7 @@ export function PlanningPage(): JSX.Element {
           </CardBody>
         </Card>
 
+
         {!activeDay ? (
           <Card>
             <CardBody>
@@ -394,6 +398,7 @@ export function PlanningPage(): JSX.Element {
                       roles={roles}
                       timeSlots={timeSlots}
                       breakConfig={breakConfig}
+                      restDayOverrides={currentWeekPlan?.restDayOverrides}
                       employeeHoursById={employeeHoursById}
                       showEmployeeCodeInCells
                       readOnly={!canEditWeek}
@@ -585,9 +590,21 @@ export function PlanningPage(): JSX.Element {
         assignment={selectedCell?.assignment ?? null}
         employeeName={employees.find((employee) => employee.id === selectedCell?.employeeId)?.name}
         roles={roles}
-        onSave={({ assignment, applyToEmployeeDay, dayHours }) => {
+        isCurrentWeek={currentWeek?.startDateISO === currentWorkflowWeekStartDateISO}
+        isNormalRestDay={(() => {
+          if (!activeDay || !selectedCell) return false;
+          const emp = employees.find((e) => e.id === selectedCell.employeeId);
+          return isRestDayForDate(activeDay.dateISO, emp?.restDay);
+        })()}
+        isExceptionalRestDay={(() => {
+          if (!activeDay || !selectedCell || !currentWeekPlan?.restDayOverrides) return false;
+          const override = currentWeekPlan.restDayOverrides[selectedCell.employeeId];
+          if (override === undefined) return false;
+          return new Date(`${activeDay.dateISO}T00:00:00`).getDay() === override;
+        })()}
+        onSave={({ assignment, applyToEmployeeDay, dayHours, exceptionalRestDay }) => {
           if (!canEdit) {
-            toast({ status: 'error', title: 'Perfil lector: solo visualización.' });
+            toast({ status: 'error', title: 'Tu perfil es solo de visualización.' });
             return;
           }
           if (isCurrentWeekValidated) {
@@ -595,6 +612,19 @@ export function PlanningPage(): JSX.Element {
             return;
           }
           if (!selectedCell || !activeDay || !currentWeek) return;
+          // Descanso excepcional: activar o desactivar
+          if (exceptionalRestDay !== undefined) {
+            const result = setExceptionalRestDay({
+              weekId: currentScopedWeekId ?? currentWeek.id,
+              dateISO: activeDay.dateISO,
+              employeeId: selectedCell.employeeId,
+              active: exceptionalRestDay
+            });
+            if (!result.ok) {
+              toast({ status: 'error', title: result.error ?? 'No se pudo guardar.' });
+            }
+            return;
+          }
           let result;
           if (applyToEmployeeDay && dayHours !== undefined) {
             result = updateEmployeeDayByHours({
@@ -662,7 +692,7 @@ export function PlanningPage(): JSX.Element {
                   }
                   toast({
                     status: 'success',
-                    title: isCurrentWeekValidated ? 'Validación quitada.' : 'Planificación validada.'
+                    title: isCurrentWeekValidated ? 'Validación Anulada.' : 'Planificación validada.'
                   });
                   closeValidateModal();
                 }}

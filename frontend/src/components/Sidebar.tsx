@@ -15,7 +15,7 @@ const links = [
 
 export function Sidebar(): JSX.Element {
   const currentUser = useAuthStore((state) => state.currentUser);
-  const isAdmin = currentUser?.role === 'administrador';
+  const isAdmin = currentUser?.role === 'super_administrador';
   const visibleLinks = isAdmin ? links : links.filter((link) => link.to !== '/users');
 
   return (

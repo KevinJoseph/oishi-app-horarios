@@ -7,7 +7,7 @@ function normalizeUsername(value) {
     return value.trim().toLowerCase();
 }
 function validateRole(role) {
-    return role === 'administrador' || role === 'supervisor' || role === 'lector';
+    return role === 'super_administrador' || role === 'administrador' || role === 'supervisor';
 }
 function validatePassword(password) {
     if (password.trim().length < 6) {
@@ -40,11 +40,11 @@ function resolveCompanyLabel(companyId) {
     return `${company.alias} - ${company.name}`;
 }
 function validateCompanyAccess(role, companyId) {
-    if (role === 'administrador') {
+    if (role === 'super_administrador') {
         return null;
     }
     if (!companyId) {
-        throw new HttpError(400, 'Debe seleccionar una empresa para usuarios no administradores.');
+        throw new HttpError(400, 'Debe seleccionar una empresa para usuarios Administrador o Supervisor.');
     }
     const exists = env.geoVictoriaCompanies.some((company) => company.companyId === companyId);
     if (!exists) {
@@ -76,7 +76,7 @@ export async function ensureDefaultAdminUser() {
         await UserModel.create({
             username: normalizedUsername,
             name: env.defaultAdminName.trim(),
-            role: 'administrador',
+            role: 'super_administrador',
             companyId: null,
             passwordHash,
             passwordSalt
@@ -84,8 +84,8 @@ export async function ensureDefaultAdminUser() {
         return;
     }
     let changed = false;
-    if (existing.role !== 'administrador') {
-        existing.role = 'administrador';
+    if (existing.role !== 'super_administrador') {
+        existing.role = 'super_administrador';
         changed = true;
     }
     if (existing.name !== env.defaultAdminName.trim()) {
@@ -134,6 +134,7 @@ export async function updateUser(userId, payload, actorUserId) {
     if (!user) {
         throw new HttpError(404, 'Usuario no encontrado.');
     }
+    let shouldInvalidateSessions = false;
     if (payload.username !== undefined) {
         validateUsername(payload.username);
         user.username = normalizeUsername(payload.username);
@@ -146,18 +147,23 @@ export async function updateUser(userId, payload, actorUserId) {
         if (!validateRole(payload.role)) {
             throw new HttpError(400, 'Rol inválido.');
         }
-        if (user.role === 'administrador' && payload.role !== 'administrador' && String(user._id) === actorUserId) {
-            const admins = await UserModel.countDocuments({ role: 'administrador' });
+        if (user.role === 'super_administrador' && payload.role !== 'super_administrador' && String(user._id) === actorUserId) {
+            const admins = await UserModel.countDocuments({ role: 'super_administrador' });
             if (admins <= 1) {
-                throw new HttpError(400, 'Debe existir al menos un usuario administrador.');
+                throw new HttpError(400, 'Debe existir al menos un usuario Super Administrador.');
             }
         }
         user.role = payload.role;
+        shouldInvalidateSessions = true;
     }
     if (payload.companyId !== undefined || payload.role !== undefined) {
         const nextRole = payload.role ?? user.role;
         const nextCompanyId = payload.companyId !== undefined ? normalizeOptionalCompanyId(payload.companyId) : user.companyId ?? null;
-        user.companyId = validateCompanyAccess(nextRole, nextCompanyId);
+        const validatedCompanyId = validateCompanyAccess(nextRole, nextCompanyId);
+        if ((user.companyId ?? null) !== validatedCompanyId) {
+            shouldInvalidateSessions = true;
+        }
+        user.companyId = validatedCompanyId;
     }
     if (payload.password !== undefined) {
         validatePassword(payload.password);
@@ -174,6 +180,9 @@ export async function updateUser(userId, payload, actorUserId) {
         }
         throw error;
     }
+    if (shouldInvalidateSessions) {
+        await SessionModel.deleteMany({ userId: user._id });
+    }
     return toPublicUser(user.toObject());
 }
 export async function deleteUser(userId, actorUserId) {
@@ -184,10 +193,10 @@ export async function deleteUser(userId, actorUserId) {
     if (String(user._id) === actorUserId) {
         throw new HttpError(400, 'No puedes eliminar tu propio usuario en sesión.');
     }
-    if (user.role === 'administrador') {
-        const admins = await UserModel.countDocuments({ role: 'administrador' });
+    if (user.role === 'super_administrador') {
+        const admins = await UserModel.countDocuments({ role: 'super_administrador' });
         if (admins <= 1) {
-            throw new HttpError(400, 'Debe existir al menos un usuario administrador.');
+            throw new HttpError(400, 'Debe existir al menos un usuario Super Administrador.');
         }
     }
     await UserModel.findByIdAndDelete(userId);

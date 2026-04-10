@@ -10,7 +10,7 @@ function normalizeUsername(value: string): string {
 }
 
 function validateRole(role: string): role is UserRole {
-  return role === 'administrador' || role === 'supervisor' || role === 'lector';
+  return role === 'super_administrador' || role === 'administrador' || role === 'supervisor';
 }
 
 function validatePassword(password: string): void {
@@ -51,12 +51,12 @@ function resolveCompanyLabel(companyId: string | null): string | null {
 }
 
 function validateCompanyAccess(role: UserRole, companyId: string | null): string | null {
-  if (role === 'administrador') {
+  if (role === 'super_administrador') {
     return null;
   }
 
   if (!companyId) {
-    throw new HttpError(400, 'Debe seleccionar una empresa para usuarios no administradores.');
+    throw new HttpError(400, 'Debe seleccionar una empresa para usuarios Administrador o Supervisor.');
   }
 
   const exists = env.geoVictoriaCompanies.some((company) => company.companyId === companyId);
@@ -102,7 +102,7 @@ export async function ensureDefaultAdminUser(): Promise<void> {
     await UserModel.create({
       username: normalizedUsername,
       name: env.defaultAdminName.trim(),
-      role: 'administrador',
+      role: 'super_administrador',
       companyId: null,
       passwordHash,
       passwordSalt
@@ -112,8 +112,8 @@ export async function ensureDefaultAdminUser(): Promise<void> {
 
   let changed = false;
 
-  if (existing.role !== 'administrador') {
-    existing.role = 'administrador';
+  if (existing.role !== 'super_administrador') {
+    existing.role = 'super_administrador';
     changed = true;
   }
 
@@ -177,6 +177,8 @@ export async function updateUser(
     throw new HttpError(404, 'Usuario no encontrado.');
   }
 
+  let shouldInvalidateSessions = false;
+
   if (payload.username !== undefined) {
     validateUsername(payload.username);
     user.username = normalizeUsername(payload.username);
@@ -192,20 +194,25 @@ export async function updateUser(
       throw new HttpError(400, 'Rol inválido.');
     }
 
-    if (user.role === 'administrador' && payload.role !== 'administrador' && String(user._id) === actorUserId) {
-      const admins = await UserModel.countDocuments({ role: 'administrador' });
+    if (user.role === 'super_administrador' && payload.role !== 'super_administrador' && String(user._id) === actorUserId) {
+      const admins = await UserModel.countDocuments({ role: 'super_administrador' });
       if (admins <= 1) {
-        throw new HttpError(400, 'Debe existir al menos un usuario administrador.');
+        throw new HttpError(400, 'Debe existir al menos un usuario Super Administrador.');
       }
     }
 
     user.role = payload.role;
+    shouldInvalidateSessions = true;
   }
 
   if (payload.companyId !== undefined || payload.role !== undefined) {
     const nextRole = payload.role ?? user.role;
     const nextCompanyId = payload.companyId !== undefined ? normalizeOptionalCompanyId(payload.companyId) : user.companyId ?? null;
-    user.companyId = validateCompanyAccess(nextRole, nextCompanyId);
+    const validatedCompanyId = validateCompanyAccess(nextRole, nextCompanyId);
+    if ((user.companyId ?? null) !== validatedCompanyId) {
+      shouldInvalidateSessions = true;
+    }
+    user.companyId = validatedCompanyId;
   }
 
   if (payload.password !== undefined) {
@@ -224,6 +231,10 @@ export async function updateUser(
     throw error;
   }
 
+  if (shouldInvalidateSessions) {
+    await SessionModel.deleteMany({ userId: user._id });
+  }
+
   return toPublicUser(user.toObject());
 }
 
@@ -237,10 +248,10 @@ export async function deleteUser(userId: string, actorUserId: string): Promise<v
     throw new HttpError(400, 'No puedes eliminar tu propio usuario en sesión.');
   }
 
-  if (user.role === 'administrador') {
-    const admins = await UserModel.countDocuments({ role: 'administrador' });
+  if (user.role === 'super_administrador') {
+    const admins = await UserModel.countDocuments({ role: 'super_administrador' });
     if (admins <= 1) {
-      throw new HttpError(400, 'Debe existir al menos un usuario administrador.');
+      throw new HttpError(400, 'Debe existir al menos un usuario Super Administrador.');
     }
   }
 

@@ -61,6 +61,7 @@ type PersistenceScope = {
   roles?: boolean;
   weeks?: boolean;
   currentWeek?: boolean;
+  extraWeekIds?: string[];
 };
 
 type AppState = PersistableState & {
@@ -86,6 +87,7 @@ type AppState = PersistableState & {
   updateAssignment: (input: UpdateAssignmentInput) => { ok: boolean; error?: string };
   updateEmployeeDayAssignments: (input: UpdateEmployeeDayAssignmentsInput) => { ok: boolean; error?: string };
   updateEmployeeDayByHours: (input: UpdateEmployeeDayByHoursInput) => { ok: boolean; error?: string };
+  setExceptionalRestDay: (input: { weekId: string; dateISO: string; employeeId: string; active: boolean }) => { ok: boolean; error?: string };
   validateWeekPlan: (weekId: string, actorName?: string) => { ok: boolean; error?: string };
   desvalidateWeekPlan: (weekId: string) => { ok: boolean; error?: string };
   setPlanningHoursRange: (startHour: number, endHour: number) => { ok: boolean; error?: string };
@@ -231,7 +233,7 @@ function rebuildWeekPlansFromEmployees(
         employee.id,
         employee.mainRoleId as string,
         weeklyHours,
-        normalizeRestDay(employee.restDay),
+        plan.restDayOverrides?.[employee.id] ?? normalizeRestDay(employee.restDay),
         employee.shiftType,
         shiftRanges,
         breakConfig,
@@ -593,11 +595,6 @@ function monthStartDateISO(date: Date): string {
   return formatISO(new Date(date.getFullYear(), date.getMonth(), 1), { representation: 'date' });
 }
 
-function resolveCurrentWeekStartDateISO(weeks: Week[], preferredStartDateISO: string): string {
-  if (!weeks.length) return preferredStartDateISO;
-  const match = weeks.find((week) => week.startDateISO === preferredStartDateISO);
-  return match?.startDateISO ?? preferredStartDateISO ?? weeks[0].startDateISO;
-}
 
 function ensureWeekExists(weeks: Week[], startDateISO: string): { weeks: Week[]; week: Week; created: boolean } {
   const existing = weeks.find((week) => week.startDateISO === startDateISO);
@@ -701,7 +698,7 @@ function toPersistableState(state: AppState): PersistableState {
 
 let persistInFlight = false;
 let persistWaiters: Array<() => void> = [];
-let pendingPersistence: Required<PersistenceScope> & { weekIds: Set<string> } = {
+let pendingPersistence: Omit<Required<PersistenceScope>, 'extraWeekIds'> & { weekIds: Set<string> } = {
   employees: false,
   roles: false,
   weeks: false,
@@ -729,6 +726,20 @@ function queuePersistenceScope(get: () => AppState, scope: PersistenceScope): vo
       pendingPersistence.weekIds.add(scopedWeekId);
     }
   }
+  if (scope.extraWeekIds) {
+    for (const weekId of scope.extraWeekIds) {
+      pendingPersistence.weekIds.add(weekId);
+    }
+  }
+}
+
+function filterWeeksForPersistence(state: AppState): Week[] {
+  const currentWeekISO = getCurrentWeekStartDateISO();
+  const nextWeekISO = formatISO(addWeeks(parseISO(currentWeekISO), 1), { representation: 'date' });
+  const validatedBaseWeekIds = new Set(state.validatedWeekIds.map((id) => baseWeekIdFromScopedWeekId(id)));
+  return state.weeks.filter(
+    (week) => week.startDateISO <= currentWeekISO || validatedBaseWeekIds.has(week.id) || week.startDateISO === nextWeekISO
+  );
 }
 
 async function flushPersistQueue(get: () => AppState, set: (partial: Partial<AppState>) => void): Promise<void> {
@@ -755,21 +766,32 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
         weeks: false,
         currentWeek: false,
         weekIds: new Set<string>()
-      };
+      } as Omit<Required<PersistenceScope>, 'extraWeekIds'> & { weekIds: Set<string> };
 
       const payload = {
         ...(scope.employees ? { employees: stateSnapshot.employees } : {}),
         ...(scope.roles ? { roles: stateSnapshot.roles } : {}),
-        ...(scope.weeks ? { weeks: stateSnapshot.weeks } : {}),
+        ...(scope.weeks ? { weeks: filterWeeksForPersistence(stateSnapshot) } : {}),
         ...(queuedWeekIds.length > 0
           ? {
-              weekEntries: queuedWeekIds.map((weekId) => ({
-                weekId,
-                weekPlan: stateSnapshot.weekPlans[weekId],
-                weekAudit: stateSnapshot.weekAuditById[weekId],
-                weekConfig: stateSnapshot.weekConfigById[weekId],
-                validated: stateSnapshot.validatedWeekIds.includes(weekId)
-              }))
+              weekEntries: queuedWeekIds
+                .filter((weekId) => {
+                  // No persistir planes de semanas futuras no validadas (excepto la siguiente inmediata, ya inicializada)
+                  const baseId = baseWeekIdFromScopedWeekId(weekId);
+                  const week = stateSnapshot.weeks.find((w) => w.id === baseId);
+                  if (!week) return false;
+                  const currentWeekISO = getCurrentWeekStartDateISO();
+                  const nextWeekISO = formatISO(addWeeks(parseISO(currentWeekISO), 1), { representation: 'date' });
+                  if (week.startDateISO > nextWeekISO) return false; // descartar semanas demasiado futuras
+                  return true;
+                })
+                .map((weekId) => ({
+                  weekId,
+                  weekPlan: stateSnapshot.weekPlans[weekId],
+                  weekAudit: stateSnapshot.weekAuditById[weekId],
+                  weekConfig: stateSnapshot.weekConfigById[weekId],
+                  validated: stateSnapshot.validatedWeekIds.includes(weekId)
+                }))
             }
           : {})
       };
@@ -820,17 +842,31 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const remote = await fetchPlannerState();
       const normalized = normalizePlannerState(remote);
+      const todayWeekISO = getCurrentWeekStartDateISO();
+      // Ensure today's week exists in the weeks array
+      const { weeks: weeksWithToday, week: todayWeek } = ensureWeekExists(normalized.weeks, todayWeekISO);
+      // Ensure today's week has a plan for all areas
+      const weekPlans = { ...normalized.weekPlans };
+      const weekAuditById = { ...normalized.weekAuditById };
+      for (const areaId of AREA_IDS) {
+        const scopedId = toScopedWeekId(areaId, todayWeek.id);
+        if (!weekPlans[scopedId]) {
+          const timeSlotIds = (normalized.timeSlotsByArea[areaId] ?? normalized.timeSlots).map((s) => s.id);
+          weekPlans[scopedId] = buildEmptyWeekPlan(
+            todayWeek,
+            normalized.employees.map((e) => e.id),
+            timeSlotIds
+          );
+          weekAuditById[scopedId] = { createdByName: null, validatedByName: null };
+        }
+      }
       set({
         ...normalized,
-        currentWeekStartDateISO: resolveCurrentWeekStartDateISO(
-          normalized.weeks,
-          get().currentWeekStartDateISO || normalized.weeks[0]?.startDateISO || ''
-        ),
-        currentMonthStartDateISO: monthStartDateISO(
-          parseISO(
-            resolveCurrentWeekStartDateISO(normalized.weeks, get().currentWeekStartDateISO || normalized.weeks[0]?.startDateISO || '')
-          )
-        ),
+        weeks: weeksWithToday,
+        weekPlans,
+        weekAuditById,
+        currentWeekStartDateISO: todayWeekISO,
+        currentMonthStartDateISO: monthStartDateISO(parseISO(todayWeekISO)),
         hydrated: true,
         syncError: null
       });
@@ -895,23 +931,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   resetAll: () => {
+    const todayWeekISO = getCurrentWeekStartDateISO();
     set({
       ...seeded,
-      currentWeekStartDateISO: seeded.weeks[0]?.startDateISO ?? '',
-      currentMonthStartDateISO: monthStartDateISO(parseISO(seeded.weeks[0]?.startDateISO ?? formatISO(new Date(), { representation: 'date' })))
+      currentWeekStartDateISO: todayWeekISO,
+      currentMonthStartDateISO: monthStartDateISO(parseISO(todayWeekISO))
     });
     void resetPlannerStateApi()
       .then((fresh) => {
         const normalized = normalizePlannerState(fresh);
         set({
           ...normalized,
-          currentWeekStartDateISO: resolveCurrentWeekStartDateISO(
-            normalized.weeks,
-            seeded.weeks[0]?.startDateISO ?? normalized.weeks[0]?.startDateISO ?? ''
-          ),
-          currentMonthStartDateISO: monthStartDateISO(
-            parseISO(seeded.weeks[0]?.startDateISO ?? normalized.weeks[0]?.startDateISO ?? formatISO(new Date(), { representation: 'date' }))
-          ),
+          currentWeekStartDateISO: todayWeekISO,
+          currentMonthStartDateISO: monthStartDateISO(parseISO(todayWeekISO)),
           syncError: null
         });
       })
@@ -1674,6 +1706,45 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { ok: true };
   },
 
+  setExceptionalRestDay: ({ weekId, dateISO, employeeId, active }) => {
+    const stateSnapshot = get();
+    const scopedWeekId = resolveScopedWeekId(stateSnapshot.currentAreaId, weekId);
+    if (stateSnapshot.validatedWeekIds.includes(scopedWeekId)) {
+      return { ok: false, error: 'La semana validada está en solo lectura.' };
+    }
+    if (!isWeekUnlockedForPlanning(stateSnapshot.weeks, stateSnapshot.validatedWeekIds, scopedWeekId)) {
+      return { ok: false, error: 'No se puede modificar esta semana.' };
+    }
+    const dayNumber = parseISODateToDay(dateISO);
+    set((state) => {
+      const plan = state.weekPlans[scopedWeekId];
+      if (!plan) return {};
+      const restDayOverrides = { ...(plan.restDayOverrides ?? {}) };
+      if (active) {
+        restDayOverrides[employeeId] = dayNumber;
+      } else {
+        delete restDayOverrides[employeeId];
+      }
+      // Al activar: limpiar todas las celdas del nuevo día de descanso para ese colaborador
+      const days = plan.days.map((day) => {
+        if (!active || parseISODateToDay(day.dateISO) !== dayNumber) return day;
+        const assignments = { ...day.assignments };
+        for (const slotId of Object.keys(assignments)) {
+          assignments[slotId] = { ...(assignments[slotId] ?? {}), [employeeId]: { roleId: null, code: 'LIBRE' } };
+        }
+        return { ...day, assignments };
+      });
+      return {
+        weekPlans: {
+          ...state.weekPlans,
+          [scopedWeekId]: { ...plan, days, restDayOverrides }
+        }
+      };
+    });
+    persistSnapshot(get, set, { currentWeek: true });
+    return { ok: true };
+  },
+
   validateWeekPlan: (weekId, actorName) => {
     if (!weekId.trim()) {
       return { ok: false, error: 'Semana inválida para validar.' };
@@ -1694,22 +1765,67 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (!isWeekUnlockedForPlanning(state.weeks, state.validatedWeekIds, scopedWeekId)) return {};
       const auditWithCreator = ensureWeekCreator(state.weekAuditById, scopedWeekId, actorName);
       const currentAudit = auditWithCreator[scopedWeekId] ?? { createdByName: null, validatedByName: null };
-      return {
-        validatedWeekIds: [...state.validatedWeekIds, scopedWeekId],
-        weekAuditById: {
-          ...auditWithCreator,
-          [scopedWeekId]: {
-            ...currentAudit,
-            validatedByName: actorName?.trim() || 'No registrado'
+
+      // Inicializar la semana siguiente para todas las áreas con la configuración actual
+      const baseWeekId = baseWeekIdFromScopedWeekId(scopedWeekId);
+      const currentWeek = state.weeks.find((w) => w.id === baseWeekId);
+      let nextWeeks = state.weeks;
+      let nextWeekPlans = { ...state.weekPlans };
+      const nextWeekAuditById: typeof state.weekAuditById = {
+        ...auditWithCreator,
+        [scopedWeekId]: {
+          ...currentAudit,
+          validatedByName: actorName?.trim() || 'No registrado'
+        }
+      };
+
+      if (currentWeek) {
+        const nextStartISO = formatISO(addWeeks(parseISO(currentWeek.startDateISO), 1), { representation: 'date' });
+        const existResult = ensureWeekExists(state.weeks, nextStartISO);
+        nextWeeks = existResult.weeks;
+        const nextWeek = existResult.week;
+
+        for (const areaId of AREA_IDS) {
+          const nextScopedId = toScopedWeekId(areaId, nextWeek.id);
+          if (!nextWeekPlans[nextScopedId]) {
+            const weekConfig = getWeekConfigurationSnapshot(state, toScopedWeekId(areaId, baseWeekId));
+            nextWeekPlans[nextScopedId] = buildEmptyWeekPlan(
+              nextWeek,
+              state.employees.map((e) => e.id),
+              weekConfig.timeSlots.map((s) => s.id)
+            );
+            nextWeekAuditById[nextScopedId] = { createdByName: null, validatedByName: null };
           }
-        },
+        }
+      }
+
+      return {
+        weeks: nextWeeks,
+        validatedWeekIds: [...state.validatedWeekIds, scopedWeekId],
+        weekAuditById: nextWeekAuditById,
         weekConfigById: {
           ...state.weekConfigById,
           [scopedWeekId]: getWeekConfigurationSnapshot(state, scopedWeekId)
-        }
+        },
+        weekPlans: nextWeekPlans
       };
     });
-    persistSnapshot(get, set, { currentWeek: true });
+
+    // Persistir la semana actual validada + la semana siguiente inicializada (todas las áreas)
+    const stateAfterValidation = get();
+    const baseWeekIdAfter = baseWeekIdFromScopedWeekId(resolveScopedWeekId(stateAfterValidation.currentAreaId, weekId));
+    const validatedWeek = stateAfterValidation.weeks.find((w) => w.id === baseWeekIdAfter);
+    const nextWeekExtraIds: string[] = [];
+    if (validatedWeek) {
+      const nextStartISO = formatISO(addWeeks(parseISO(validatedWeek.startDateISO), 1), { representation: 'date' });
+      const nextWeek = stateAfterValidation.weeks.find((w) => w.startDateISO === nextStartISO);
+      if (nextWeek) {
+        for (const areaId of AREA_IDS) {
+          nextWeekExtraIds.push(toScopedWeekId(areaId, nextWeek.id));
+        }
+      }
+    }
+    persistSnapshot(get, set, { currentWeek: true, weeks: true, extraWeekIds: nextWeekExtraIds });
     return { ok: true };
   },
 

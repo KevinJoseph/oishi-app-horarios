@@ -22,9 +22,10 @@ import { useAuthStore } from '../store/useAuthStore';
 import { AreaSelector } from './AreaSelector';
 
 function getRoleLabel(role: string | undefined): string {
+  if (role === 'super_administrador') return 'Super Administrador';
   if (role === 'administrador') return 'Administrador';
   if (role === 'supervisor') return 'Supervisor';
-  return 'Lector';
+  return 'Usuario';
 }
 
 function getCompanyLabel(company: GeoVictoriaCompany): string {
@@ -40,7 +41,7 @@ export function Topbar(): JSX.Element {
   const selectedGeoVictoriaCompanyLabel = useAuthStore((state) => state.selectedGeoVictoriaCompanyLabel);
   const setSelectedGeoVictoriaCompany = useAuthStore((state) => state.setSelectedGeoVictoriaCompany);
   const hideAreaSelector = location.pathname.startsWith('/employees');
-  const canSwitchCompany = currentUser?.role === 'administrador';
+  const canSwitchCompany = currentUser?.role === 'super_administrador';
   const [geoVictoriaCompanies, setGeoVictoriaCompanies] = useState<GeoVictoriaCompany[]>([]);
   const selectableGeoVictoriaCompanies = geoVictoriaCompanies.filter(
     (company) => company.alias.trim().toLowerCase() !== 'recibo'
@@ -61,7 +62,7 @@ export function Topbar(): JSX.Element {
       return;
     }
 
-    if (currentUser.role !== 'administrador') {
+    if (currentUser.role !== 'super_administrador') {
       const forcedCompanyId = currentUser.companyId ?? null;
       const forcedCompany = forcedCompanyId
         ? selectableGeoVictoriaCompanies.find((company) => company.companyId === forcedCompanyId) ?? null

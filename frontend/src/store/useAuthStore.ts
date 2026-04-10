@@ -43,7 +43,7 @@ type AuthState = {
 };
 
 function resolveUserScopedCompany(user: AppUser | null): { companyId: string | null; companyLabel: string | null } {
-  if (!user || user.role === 'administrador') {
+  if (!user || user.role === 'super_administrador') {
     return {
       companyId: getStoredGeoVictoriaCompanyId(),
       companyLabel: getStoredGeoVictoriaCompanyLabel()

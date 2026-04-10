@@ -125,7 +125,8 @@ export function EmployeesPage(): JSX.Element {
   const currentUser = useAuthStore((state) => state.currentUser);
   const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
   const selectedGeoVictoriaCompanyLabel = useAuthStore((state) => state.selectedGeoVictoriaCompanyLabel);
-  const canEdit = currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
+  const canEdit =
+    currentUser?.role === 'super_administrador' || currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
 
   const [editing, setEditing] = useState<Employee | undefined>(undefined);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);

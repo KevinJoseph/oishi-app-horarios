@@ -21,6 +21,7 @@ type Props = {
   roles: Role[];
   timeSlots: TimeSlot[];
   breakConfig: BreakConfig;
+  restDayOverrides?: Record<string, number>;
   employeeHoursById?: Record<string, EmployeeHoursSummary>;
   onCellClick?: (payload: CellPayload) => void;
   onEmployeeClick?: (employeeId: string) => void;
@@ -37,6 +38,7 @@ export function DayGrid({
   roles,
   timeSlots,
   breakConfig,
+  restDayOverrides,
   employeeHoursById,
   onCellClick,
   onEmployeeClick,
@@ -123,7 +125,8 @@ export function DayGrid({
                   const assignment = dayPlan.assignments[slot.id]?.[employee.id] ?? { roleId: null, code: 'LIBRE' };
                   const role = assignment.roleId ? roleById.get(assignment.roleId) : undefined;
                   const isBreakSlot = assignment.roleId === null && isTimeSlotInBreak(slot, breakConfig);
-                  const isRestDay = assignment.roleId === null && isRestDayForDate(dayPlan.dateISO, employee.restDay);
+                  const effectiveRestDay = restDayOverrides?.[employee.id] ?? employee.restDay;
+                  const isRestDay = assignment.roleId === null && isRestDayForDate(dayPlan.dateISO, effectiveRestDay);
                   return (
                     <Box as="td" key={employee.id} p={0}>
                       <AssignmentCell

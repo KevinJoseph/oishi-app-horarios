@@ -33,7 +33,9 @@ function safeText(value: unknown, fallback = ''): string {
 
 function normalizeUser(user: Partial<AppUser>): AppUser {
   const normalizedRole =
-    user.role === 'administrador' || user.role === 'supervisor' || user.role === 'lector' ? user.role : 'lector';
+    user.role === 'super_administrador' || user.role === 'administrador' || user.role === 'supervisor'
+      ? user.role
+      : 'supervisor';
 
   return {
     id: safeText(user.id, ''),
@@ -51,7 +53,7 @@ export function UsersPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const currentUser = useAuthStore((state) => state.currentUser);
-  const canManageUsers = currentUser?.role === 'administrador';
+  const canManageUsers = currentUser?.role === 'super_administrador';
 
   if (!canManageUsers) {
     return <Navigate to="/planning" replace />;
@@ -149,11 +151,23 @@ export function UsersPage(): JSX.Element {
                     </Td>
                     <Td>{user.username}</Td>
                     <Td>
-                      <Badge colorScheme={user.role === 'administrador' ? 'green' : user.role === 'supervisor' ? 'blue' : 'gray'}>
-                        {user.role === 'administrador' ? 'Administrador' : user.role === 'supervisor' ? 'Supervisor' : 'Lector'}
+                      <Badge
+                        colorScheme={
+                          user.role === 'super_administrador'
+                            ? 'purple'
+                            : user.role === 'administrador'
+                              ? 'green'
+                              : 'blue'
+                        }
+                      >
+                        {user.role === 'super_administrador'
+                          ? 'Super Administrador'
+                          : user.role === 'administrador'
+                            ? 'Administrador'
+                            : 'Supervisor'}
                       </Badge>
                     </Td>
-                    <Td>{user.companyLabel ?? 'Todas'}</Td>
+                    <Td>{user.companyLabel ?? 'Todas las empresas'}</Td>
                     <Td>{new Date(user.createdAt).toLocaleDateString()}</Td>
                     <Td>
                       <HStack>

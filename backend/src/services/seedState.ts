@@ -177,30 +177,15 @@ function formatWeekLabel(startDate: Date): string {
 
 function buildWeeks(): Week[] {
   const monday = getCurrentMonday();
-  const weekStarts = Array.from({ length: 4 }).map((_, index) => addDays(monday, index * 7));
-  const weekLabels = ['Semana actual', 'Semana siguiente', 'En 2 semanas', 'En 3 semanas'];
-  return [
-    {
-      id: 'week-current',
-      label: `${weekLabels[0]} (${formatWeekLabel(weekStarts[0])})`,
-      startDateISO: toISODate(weekStarts[0])
-    },
-    {
-      id: 'week-next',
-      label: `${weekLabels[1]} (${formatWeekLabel(weekStarts[1])})`,
-      startDateISO: toISODate(weekStarts[1])
-    },
-    {
-      id: 'week-plus-2',
-      label: `${weekLabels[2]} (${formatWeekLabel(weekStarts[2])})`,
-      startDateISO: toISODate(weekStarts[2])
-    },
-    {
-      id: 'week-plus-3',
-      label: `${weekLabels[3]} (${formatWeekLabel(weekStarts[3])})`,
-      startDateISO: toISODate(weekStarts[3])
-    }
-  ];
+  return Array.from({ length: 2 }).map((_, index) => {
+    const start = addDays(monday, index * 7);
+    const startDateISO = toISODate(start);
+    return {
+      id: `week-${startDateISO}`,
+      label: formatWeekLabel(start),
+      startDateISO
+    };
+  });
 }
 
 function buildEmptyWeekPlan(week: Week, employeeIds: string[], timeSlotIds: string[]): WeekPlan {

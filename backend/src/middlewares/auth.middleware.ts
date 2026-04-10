@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { findSessionUserByToken } from '../services/auth.service.js';
+import type { PublicUser } from '../types/auth.js';
 
 function extractBearerToken(request: Request): string | null {
   const authorization = request.headers.authorization;
@@ -31,14 +32,22 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
+export function isSuperAdmin(user: PublicUser | null | undefined): boolean {
+  return user?.role === 'super_administrador';
+}
+
+export function canWritePlanning(user: PublicUser | null | undefined): boolean {
+  return user?.role === 'super_administrador' || user?.role === 'administrador' || user?.role === 'supervisor';
+}
+
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.authUser) {
     res.status(401).json({ error: 'No autenticado.' });
     return;
   }
 
-  if (req.authUser.role !== 'administrador') {
-    res.status(403).json({ error: 'No autorizado. Se requiere perfil administrador.' });
+  if (!isSuperAdmin(req.authUser)) {
+    res.status(403).json({ error: 'No autorizado. Se requiere perfil Super Administrador.' });
     return;
   }
 
@@ -51,8 +60,10 @@ export function requirePlannerWrite(req: Request, res: Response, next: NextFunct
     return;
   }
 
-  if (req.authUser.role !== 'administrador' && req.authUser.role !== 'supervisor') {
-    res.status(403).json({ error: 'No autorizado. Se requiere perfil administrador o supervisor.' });
+  if (!canWritePlanning(req.authUser)) {
+    res
+      .status(403)
+      .json({ error: 'No autorizado. Se requiere perfil Super Administrador, Administrador o Supervisor.' });
     return;
   }
 

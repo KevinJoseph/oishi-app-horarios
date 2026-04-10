@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import { isSuperAdmin } from '../middlewares/auth.middleware.js';
 function cleanRequiredText(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
@@ -285,8 +286,29 @@ export async function getGeoVictoriaReciboEmployeesController(_req, res) {
     const active = data.filter((user) => user.Enabled === '1');
     res.status(200).json(active);
 }
-export async function getGeoVictoriaCompaniesController(_req, res) {
-    const companies = env.geoVictoriaCompanies.map((company) => ({
+function resolveAuthorizedCompanyId(req, requestedCompanyId) {
+    const normalizedRequestedCompanyId = cleanRequiredText(requestedCompanyId ?? '');
+    const authUser = req.authUser;
+    if (!authUser) {
+        return null;
+    }
+    if (isSuperAdmin(authUser)) {
+        return normalizedRequestedCompanyId || null;
+    }
+    const assignedCompanyId = cleanRequiredText(authUser.companyId ?? '');
+    if (!assignedCompanyId) {
+        return null;
+    }
+    if (!normalizedRequestedCompanyId || normalizedRequestedCompanyId === assignedCompanyId) {
+        return assignedCompanyId;
+    }
+    return '__forbidden__';
+}
+export async function getGeoVictoriaCompaniesController(req, res) {
+    const companiesSource = isSuperAdmin(req.authUser)
+        ? env.geoVictoriaCompanies
+        : env.geoVictoriaCompanies.filter((company) => company.companyId === req.authUser?.companyId);
+    const companies = companiesSource.map((company) => ({
         alias: company.alias,
         name: company.name,
         ruc: company.ruc,
@@ -295,8 +317,12 @@ export async function getGeoVictoriaCompaniesController(_req, res) {
     }));
     res.status(200).json(companies);
 }
-export async function getGeoVictoriaEmployeesController(_req, res) {
-    const companyId = cleanRequiredText(_req.query.companyId ?? '');
+export async function getGeoVictoriaEmployeesController(req, res) {
+    const companyId = resolveAuthorizedCompanyId(req, req.query.companyId);
+    if (companyId === '__forbidden__') {
+        res.status(403).json({ error: 'No autorizado para consultar otra empresa.' });
+        return;
+    }
     let tokenCacheKey = 'main';
     let tokenLabel = 'principal';
     let credentialsUser = env.geoVictoriaUser;
@@ -346,7 +372,11 @@ export async function getGeoVictoriaEmployeesController(_req, res) {
     res.status(200).json(active);
 }
 export async function getGeoVictoriaPositionsController(req, res) {
-    const companyId = cleanRequiredText(req.query.companyId ?? '');
+    const companyId = resolveAuthorizedCompanyId(req, req.query.companyId);
+    if (companyId === '__forbidden__') {
+        res.status(403).json({ error: 'No autorizado para consultar otra empresa.' });
+        return;
+    }
     let tokenCacheKey = 'main';
     let tokenLabel = 'principal';
     let credentialsUser = env.geoVictoriaUser;
@@ -396,7 +426,11 @@ export async function getGeoVictoriaPositionsController(req, res) {
 }
 export async function addGeoVictoriaUserController(req, res) {
     const body = (req.body ?? {});
-    const companyId = cleanRequiredText(body.CompanyId ?? body.companyId);
+    const companyId = resolveAuthorizedCompanyId(req, body.CompanyId ?? body.companyId);
+    if (companyId === '__forbidden__') {
+        res.status(403).json({ error: 'No autorizado para registrar usuarios en otra empresa.' });
+        return;
+    }
     const identifier = cleanRequiredText(body.Identifier ?? body.identifier);
     const email = cleanRequiredText(body.Email ?? body.email);
     const name = cleanRequiredText(body.Name ?? body.name);

@@ -40,7 +40,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
   const toast = useToast();
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<UserRole>('lector');
+  const [role, setRole] = useState<UserRole>('supervisor');
   const [companyId, setCompanyId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,7 +49,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
   useEffect(() => {
     setUsername(editingUser?.username ?? '');
     setName(editingUser?.name ?? '');
-    setRole(editingUser?.role ?? 'lector');
+    setRole(editingUser?.role ?? 'supervisor');
     setCompanyId(editingUser?.companyId ?? '');
     setPassword('');
     setShowPassword(false);
@@ -82,7 +82,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
       return;
     }
 
-    if (role !== 'administrador' && !companyId.trim()) {
+    if (role !== 'super_administrador' && !companyId.trim()) {
       toast({ status: 'error', title: 'Debe seleccionar una empresa.' });
       return;
     }
@@ -93,7 +93,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
         name: name.trim(),
         username: username.trim(),
         role,
-        companyId: role === 'administrador' ? null : companyId.trim(),
+        companyId: role === 'super_administrador' ? null : companyId.trim(),
         password: password.trim() ? password : undefined
       });
       onClose();
@@ -125,22 +125,24 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
           <FormControl isRequired mb={3}>
             <FormLabel>Perfil</FormLabel>
             <Select value={role} onChange={(event) => setRole(event.target.value as UserRole)}>
+              <option value="super_administrador">Super Administrador</option>
               <option value="administrador">Administrador</option>
               <option value="supervisor">Supervisor</option>
-              <option value="lector">Lector</option>
             </Select>
           </FormControl>
-          <FormControl isRequired={role !== 'administrador'} mb={3} isDisabled={role === 'administrador'}>
+          <FormControl isRequired={role !== 'super_administrador'} mb={3} isDisabled={role === 'super_administrador'}>
             <FormLabel>Empresa</FormLabel>
             <Select value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
-              <option value="">{role === 'administrador' ? 'Acceso a todas las empresas' : 'Seleccione una empresa'}</option>
+              <option value="">
+                {role === 'super_administrador' ? 'Acceso a todas las empresas' : 'Seleccione una empresa'}
+              </option>
               {companies.map((company) => (
                 <option key={company.companyId} value={company.companyId}>
                   {company.alias} - {company.name}
                 </option>
               ))}
             </Select>
-            {role !== 'administrador' ? (
+            {role !== 'super_administrador' ? (
               <Text mt={1} fontSize="xs" color="gray.500">
                 Este usuario quedará limitado a la empresa seleccionada.
               </Text>

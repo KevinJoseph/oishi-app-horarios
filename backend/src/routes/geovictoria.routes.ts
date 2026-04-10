@@ -11,9 +11,9 @@ import { requireAdmin, requireAuth, requirePlannerWrite } from '../middlewares/a
 
 export const geoVictoriaRouter = Router();
 
-geoVictoriaRouter.get('/geovictoria/employees', requireAuth, requireAdmin, getGeoVictoriaEmployeesController);
-geoVictoriaRouter.get('/geovictoria/positions', requireAuth, requireAdmin, getGeoVictoriaPositionsController);
+geoVictoriaRouter.get('/geovictoria/employees', requireAuth, requirePlannerWrite, getGeoVictoriaEmployeesController);
+geoVictoriaRouter.get('/geovictoria/positions', requireAuth, requirePlannerWrite, getGeoVictoriaPositionsController);
 geoVictoriaRouter.get('/geovictoria/recibo-employees', requireAuth, requireAdmin, getGeoVictoriaReciboEmployeesController);
 geoVictoriaRouter.get('/geovictoria/companies', requireAuth, getGeoVictoriaCompaniesController);
-geoVictoriaRouter.post('/geovictoria/users', requireAuth, requireAdmin, addGeoVictoriaUserController);
+geoVictoriaRouter.post('/geovictoria/users', requireAuth, requirePlannerWrite, addGeoVictoriaUserController);
 geoVictoriaRouter.post('/geovictoria/planning/migrate', requireAuth, requirePlannerWrite, migrateGeoVictoriaPlanningController);

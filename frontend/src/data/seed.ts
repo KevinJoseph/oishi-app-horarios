@@ -16,7 +16,7 @@ import type {
   WeekAudit,
   WeekPlan
 } from '../types';
-import { buildWeekLabel, formatDayNameEs } from '../utils/dates';
+import { buildWeekLabel, formatDayNameEs, getCurrentWeekStartDateISO } from '../utils/dates';
 
 const AREA_IDS: AreaId[] = ['salon', 'cocina', 'oficina', 'produccion'];
 const DEFAULT_AREA_ID: AreaId = 'salon';
@@ -221,7 +221,8 @@ function normalizeWeekPlan(weekStartDateISO: string, sourcePlan: WeekPlan | unde
 
   return {
     weekId: sourcePlan?.weekId ?? '',
-    days
+    days,
+    ...(sourcePlan?.restDayOverrides ? { restDayOverrides: sourcePlan.restDayOverrides } : {})
   };
 }
 
@@ -235,15 +236,30 @@ export function normalizePlannerState(input: SeedState): SeedState {
     }));
   const weekPlans: Record<string, WeekPlan> = {};
 
+  const currentWeekISO = getCurrentWeekStartDateISO();
+  // Pre-calcular validatedWeekIds para limpiar semanas futuras
+  const rawValidatedWeekIds = (input.validatedWeekIds ?? []) as string[];
+
   for (const week of normalizedWeeks) {
     for (const areaId of AREA_IDS) {
       const scopedKey = scopedWeekKey(areaId, week.id);
       const legacyKey = areaId === DEFAULT_AREA_ID ? week.id : '';
       const sourcePlan = input.weekPlans[scopedKey] ?? (legacyKey ? input.weekPlans[legacyKey] : undefined);
-      const normalized = normalizeWeekPlan(week.startDateISO, sourcePlan);
+
+      // Semanas futuras no validadas: mostrar siempre vacías (sin asignar)
+      const isFutureWeek = week.startDateISO > currentWeekISO;
+      const normalizedScopedKey = scopedKey.includes('::') ? scopedKey : scopedWeekKey(DEFAULT_AREA_ID, scopedKey);
+      const isValidated = rawValidatedWeekIds.some((id) => {
+        const normalized = id.includes('::') ? id : scopedWeekKey(DEFAULT_AREA_ID, id);
+        return normalized === normalizedScopedKey;
+      });
+
+      const planSource = isFutureWeek && !isValidated ? undefined : sourcePlan;
+      const normalized = normalizeWeekPlan(week.startDateISO, planSource);
       weekPlans[scopedKey] = {
         weekId: normalized.weekId || week.id,
-        days: normalized.days
+        days: normalized.days,
+        ...(normalized.restDayOverrides && !isFutureWeek ? { restDayOverrides: normalized.restDayOverrides } : {})
       };
     }
   }

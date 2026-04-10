@@ -254,7 +254,11 @@ function geoVictoriaUserExists(users: GeoVictoriaUser[], identifier: string, ema
   return users.some((user) => {
     const userIdentifier = cleanRequiredText(user.Identifier);
     const userEmail = cleanRequiredText(user.Email).toLowerCase();
-    return (normalizedIdentifier && userIdentifier === normalizedIdentifier) || (normalizedEmail && userEmail === normalizedEmail);
+    if (normalizedIdentifier) {
+      return userIdentifier === normalizedIdentifier;
+    }
+
+    return normalizedEmail && userEmail === normalizedEmail;
   });
 }
 
@@ -789,6 +793,13 @@ export async function addGeoVictoriaUserController(req: Request, res: Response):
     }
 
     const editMessage = extractGeoVictoriaMessage(editParsedBody) || 'Usuario actualizado correctamente en GeoVictoria.';
+    if (/not been found|no ha sido encontrado|no existe/i.test(editMessage)) {
+      res.status(409).json({
+        error: editMessage
+      });
+      return;
+    }
+
     res.status(200).json({ message: editMessage });
     return;
   }

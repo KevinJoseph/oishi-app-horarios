@@ -142,7 +142,10 @@ function geoVictoriaUserExists(users, identifier, email) {
     return users.some((user) => {
         const userIdentifier = cleanRequiredText(user.Identifier);
         const userEmail = cleanRequiredText(user.Email).toLowerCase();
-        return (normalizedIdentifier && userIdentifier === normalizedIdentifier) || (normalizedEmail && userEmail === normalizedEmail);
+        if (normalizedIdentifier) {
+            return userIdentifier === normalizedIdentifier;
+        }
+        return normalizedEmail && userEmail === normalizedEmail;
     });
 }
 function getCompanyAliasById(companyId) {
@@ -580,6 +583,12 @@ export async function addGeoVictoriaUserController(req, res) {
             return;
         }
         const editMessage = extractGeoVictoriaMessage(editParsedBody) || 'Usuario actualizado correctamente en GeoVictoria.';
+        if (/not been found|no ha sido encontrado|no existe/i.test(editMessage)) {
+            res.status(409).json({
+                error: editMessage
+            });
+            return;
+        }
         res.status(200).json({ message: editMessage });
         return;
     }

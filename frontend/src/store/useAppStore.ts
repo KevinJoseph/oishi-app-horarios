@@ -959,8 +959,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       const previous = state.employees.find((item) => item.id === employee.id);
       const incomingDocument = normalizeIdentityDocument(employee.identityDocument);
       const previousDocument = normalizeIdentityDocument(previous?.identityDocument);
+      const incomingEmail = (employee.email ?? '').trim().toLowerCase();
+      const previousEmail = (previous?.email ?? '').trim().toLowerCase();
       const incomingModuleCompanyId = employeeModuleCompanyId(employee);
       const shouldValidateIdentityDocument = !previous || incomingDocument !== previousDocument;
+      const shouldValidateEmail = Boolean(incomingEmail) && (!previous || incomingEmail !== previousEmail);
       if (shouldValidateIdentityDocument && incomingDocument) {
         const duplicated = state.employees.some(
           (item) =>
@@ -970,6 +973,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         );
         if (duplicated) {
           result = { ok: false, error: 'Ya existe un colaborador con el mismo Documento de Identidad (DNI).' };
+          return {};
+        }
+      }
+      if (shouldValidateEmail) {
+        const duplicatedEmail = state.employees.some(
+          (item) => item.id !== employee.id && (item.email ?? '').trim().toLowerCase() === incomingEmail
+        );
+        if (duplicatedEmail) {
+          result = { ok: false, error: 'Ya existe un colaborador con el mismo correo electrónico.' };
           return {};
         }
       }

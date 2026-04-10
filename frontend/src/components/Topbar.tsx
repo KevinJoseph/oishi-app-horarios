@@ -41,11 +41,19 @@ export function Topbar(): JSX.Element {
   const selectedGeoVictoriaCompanyLabel = useAuthStore((state) => state.selectedGeoVictoriaCompanyLabel);
   const setSelectedGeoVictoriaCompany = useAuthStore((state) => state.setSelectedGeoVictoriaCompany);
   const hideAreaSelector = location.pathname.startsWith('/employees');
-  const canSwitchCompany = currentUser?.role === 'super_administrador' || currentUser?.role === 'supervisor';
+  const canSwitchCompany =
+    currentUser?.role === 'super_administrador' ||
+    currentUser?.role === 'supervisor' ||
+    currentUser?.role === 'administrador';
   const [geoVictoriaCompanies, setGeoVictoriaCompanies] = useState<GeoVictoriaCompany[]>([]);
-  const selectableGeoVictoriaCompanies = geoVictoriaCompanies.filter(
-    (company) => company.alias.trim().toLowerCase() !== 'recibo'
-  );
+  const selectableGeoVictoriaCompanies = geoVictoriaCompanies.filter((company) => {
+    const isRecibo = company.alias.trim().toLowerCase() === 'recibo';
+    if (currentUser?.role === 'administrador') {
+      // Admin sees their assigned company + Recibo
+      return isRecibo || company.companyId === currentUser.companyId;
+    }
+    return !isRecibo;
+  });
 
   useEffect(() => {
     fetchGeoVictoriaCompanies()
@@ -63,17 +71,27 @@ export function Topbar(): JSX.Element {
     }
 
     if (currentUser.role === 'administrador') {
-      const forcedCompanyId = currentUser.companyId ?? null;
-      const forcedCompany = forcedCompanyId
-        ? selectableGeoVictoriaCompanies.find((company) => company.companyId === forcedCompanyId) ?? null
-        : null;
-      const forcedLabel = forcedCompany ? getCompanyLabel(forcedCompany) : currentUser.companyLabel ?? null;
+      const allowedIds = new Set(selectableGeoVictoriaCompanies.map((c) => c.companyId));
 
-      if (
-        selectedGeoVictoriaCompanyId !== forcedCompanyId ||
-        selectedGeoVictoriaCompanyLabel !== forcedLabel
-      ) {
-        setSelectedGeoVictoriaCompany(forcedCompanyId, forcedLabel);
+      // If already on a valid selection (their company or Recibo), keep it and just sync the label
+      if (selectedGeoVictoriaCompanyId && allowedIds.has(selectedGeoVictoriaCompanyId)) {
+        const currentCompany = selectableGeoVictoriaCompanies.find((c) => c.companyId === selectedGeoVictoriaCompanyId);
+        const expectedLabel = currentCompany ? getCompanyLabel(currentCompany) : null;
+        if (selectedGeoVictoriaCompanyLabel !== expectedLabel) {
+          setSelectedGeoVictoriaCompany(selectedGeoVictoriaCompanyId, expectedLabel);
+        }
+        return;
+      }
+
+      // Otherwise default to their assigned company
+      const defaultCompanyId = currentUser.companyId ?? null;
+      const defaultCompany = defaultCompanyId
+        ? selectableGeoVictoriaCompanies.find((c) => c.companyId === defaultCompanyId) ?? null
+        : null;
+      const defaultLabel = defaultCompany ? getCompanyLabel(defaultCompany) : currentUser.companyLabel ?? null;
+
+      if (selectedGeoVictoriaCompanyId !== defaultCompanyId || selectedGeoVictoriaCompanyLabel !== defaultLabel) {
+        setSelectedGeoVictoriaCompany(defaultCompanyId, defaultLabel);
       }
       return;
     }

@@ -30,7 +30,7 @@ import { WeekSelector } from '../components/WeekSelector';
 import { DayTabs } from '../components/DayTabs';
 import { EmployeeProfileDrawer } from '../components/EmployeeProfileDrawer';
 import { LegendDrawer } from '../components/LegendDrawer';
-import { useAppStore } from '../store/useAppStore';
+import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Assignment } from '../types';
 import { isTimeSlotInBreak } from '../utils/breaks';
@@ -108,8 +108,8 @@ export function PlanningPage(): JSX.Element {
   );
   const currentWeek = weeks.find((week) => week.startDateISO === currentWeekStartDateISO);
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
-  const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
-  const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
+  const currentWeekAudit = getWeekAuditForCompany(weekAuditById, currentScopedWeekId, selectedGeoVictoriaCompanyId);
+  const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
   const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
   const validationRequirements = effectiveWeekConfig?.validationRequirements ?? areaValidationRequirements;
@@ -120,7 +120,11 @@ export function PlanningPage(): JSX.Element {
     [currentWorkflowWeekStartDateISO, weeks]
   );
   const workflowScopedWeekId = workflowWeek ? scopedWeekKey(currentAreaId, workflowWeek.id) : null;
-  const isWorkflowWeekValidated = workflowScopedWeekId ? validatedWeekIds.includes(workflowScopedWeekId) : false;
+  const isWorkflowWeekValidated = isWeekValidatedForCompany(
+    validatedWeekIds,
+    workflowScopedWeekId,
+    selectedGeoVictoriaCompanyId
+  );
   const isSelectedNextWorkflowWeek = useMemo(() => {
     if (!currentWeek) return false;
     return differenceInCalendarWeeks(new Date(currentWeek.startDateISO), new Date(currentWorkflowWeekStartDateISO), {
@@ -139,8 +143,8 @@ export function PlanningPage(): JSX.Element {
 
     const previousWeek = orderedWeeks[currentIndex - 1];
     const previousScopedWeekId = scopedWeekKey(currentAreaId, previousWeek.id);
-    return validatedWeekIds.includes(previousScopedWeekId);
-  }, [canEdit, currentAreaId, currentWeek, currentWorkflowWeekStartDateISO, isCurrentWeekValidated, validatedWeekIds, weeks]);
+    return isWeekValidatedForCompany(validatedWeekIds, previousScopedWeekId, selectedGeoVictoriaCompanyId);
+  }, [canEdit, currentAreaId, currentWeek, currentWorkflowWeekStartDateISO, isCurrentWeekValidated, selectedGeoVictoriaCompanyId, validatedWeekIds, weeks]);
   useEffect(() => {
     if (currentWeek) ensureWeekPlan(currentWeek);
   }, [currentWeek, currentAreaId, ensureWeekPlan]);
@@ -336,7 +340,11 @@ export function PlanningPage(): JSX.Element {
                         timeSlots,
                         breakConfig,
                         week: currentWeek,
-                        isValidated: currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false,
+                        isValidated: isWeekValidatedForCompany(
+                          validatedWeekIds,
+                          currentScopedWeekId,
+                          selectedGeoVictoriaCompanyId
+                        ),
                         validatedByName: currentWeekAudit?.validatedByName ?? null
                       });
                       toast({ status: 'success', title: `PDF generado para ${activeDay.dayName}.` });

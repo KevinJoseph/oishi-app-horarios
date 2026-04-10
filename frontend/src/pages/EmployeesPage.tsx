@@ -30,7 +30,7 @@ import { FiEdit2, FiFileText, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, 
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { GeoVictoriaReciboModal } from '../components/GeoVictoriaReciboModal';
 import { fetchGeoVictoriaCompanies, fetchGeoVictoriaEmployees, type GeoVictoriaCompany, sendEmployeeToGeoVictoria } from '../api/plannerApi';
-import { useAppStore } from '../store/useAppStore';
+import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Employee } from '../types';
 import { downloadEmployeeWeekPdf } from '../utils/pdf';
@@ -156,8 +156,8 @@ export function EmployeesPage(): JSX.Element {
   );
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
   const currentWeekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
-  const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
-  const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
+  const currentWeekAudit = getWeekAuditForCompany(weekAuditById, currentScopedWeekId, selectedGeoVictoriaCompanyId);
+  const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
   const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
   const companyScopedEmployees = useMemo(() => {
@@ -268,7 +268,7 @@ export function EmployeesPage(): JSX.Element {
         timeSlots,
         week: currentWeek,
         weekPlan: currentWeekPlan,
-        isValidated: currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false,
+        isValidated: isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId),
         validatedByName: currentWeekAudit?.validatedByName ?? null
       });
       toast({

@@ -22,7 +22,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { WeekSelector } from '../components/WeekSelector';
 import type { ValidationRequirements } from '../types';
-import { useAppStore } from '../store/useAppStore';
+import { isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 
 export function TimeSlotsPage(): JSX.Element {
@@ -44,6 +44,7 @@ export function TimeSlotsPage(): JSX.Element {
   const setBreakConfig = useAppStore((state) => state.setBreakConfig);
   const flushPersistence = useAppStore((state) => state.flushPersistence);
   const currentUser = useAuthStore((state) => state.currentUser);
+  const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
   const canEdit =
     currentUser?.role === 'super_administrador' || currentUser?.role === 'administrador' || currentUser?.role === 'supervisor';
   const currentWeek = useMemo(
@@ -52,7 +53,7 @@ export function TimeSlotsPage(): JSX.Element {
   );
   const currentScopedWeekId = currentWeek ? `${currentAreaId}::${currentWeek.id}` : null;
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
-  const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
+  const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
   const shiftRanges = effectiveWeekConfig?.shiftRanges ?? areaShiftRanges;
   const validationRequirements = effectiveWeekConfig?.validationRequirements ?? areaValidationRequirements;

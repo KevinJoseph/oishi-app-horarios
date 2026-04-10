@@ -44,6 +44,14 @@ function scopedWeekKey(areaId: AreaId, weekId: string): string {
   return `${areaId}::${weekId}`;
 }
 
+function normalizeValidationWeekKey(rawKey: string): string {
+  const companyMarkerIndex = rawKey.indexOf('::company:');
+  const baseKey = companyMarkerIndex >= 0 ? rawKey.slice(0, companyMarkerIndex) : rawKey;
+  const companySuffix = companyMarkerIndex >= 0 ? rawKey.slice(companyMarkerIndex) : '';
+  const normalizedBaseKey = baseKey.includes('::') ? baseKey : scopedWeekKey(DEFAULT_AREA_ID, baseKey);
+  return `${normalizedBaseKey}${companySuffix}`;
+}
+
 function normalizeRolesByArea(roles: Role[]): Role[] {
   return roles.map((role) => ({
     ...role,
@@ -250,8 +258,8 @@ export function normalizePlannerState(input: SeedState): SeedState {
       const isFutureWeek = week.startDateISO > currentWeekISO;
       const normalizedScopedKey = scopedKey.includes('::') ? scopedKey : scopedWeekKey(DEFAULT_AREA_ID, scopedKey);
       const isValidated = rawValidatedWeekIds.some((id) => {
-        const normalized = id.includes('::') ? id : scopedWeekKey(DEFAULT_AREA_ID, id);
-        return normalized === normalizedScopedKey;
+        const normalized = normalizeValidationWeekKey(id);
+        return normalized === normalizedScopedKey || normalized.startsWith(`${normalizedScopedKey}::company:`);
       });
 
       const planSource = isFutureWeek && !isValidated ? undefined : sourcePlan;
@@ -303,12 +311,11 @@ export function normalizePlannerState(input: SeedState): SeedState {
   } satisfies BreakConfigByArea;
   const knownWeekIds = new Set(normalizedWeeks.map((week) => week.id));
   const validatedWeekIds = (input.validatedWeekIds ?? [])
-    .map((key) => {
-      if (key.includes('::')) return key;
-      return scopedWeekKey(DEFAULT_AREA_ID, key);
-    })
+    .map((key) => normalizeValidationWeekKey(key))
     .filter((key) => {
-      const [areaId, weekId] = key.split('::');
+      const companyMarkerIndex = key.indexOf('::company:');
+      const baseKey = companyMarkerIndex >= 0 ? key.slice(0, companyMarkerIndex) : key;
+      const [areaId, weekId] = baseKey.split('::');
       return AREA_IDS.includes(areaId as AreaId) && knownWeekIds.has(weekId);
     });
   const weekAuditById: Record<string, WeekAudit> = {};
@@ -320,6 +327,15 @@ export function normalizePlannerState(input: SeedState): SeedState {
       const legacyKey = areaId === DEFAULT_AREA_ID ? week.id : '';
       weekAuditById[scopedKey] = sanitizeWeekAudit(inputWeekAuditById[scopedKey] ?? (legacyKey ? inputWeekAuditById[legacyKey] : undefined));
     }
+  }
+  for (const [rawKey, value] of Object.entries(inputWeekAuditById)) {
+    const normalizedKey = normalizeValidationWeekKey(rawKey);
+    const companyMarkerIndex = normalizedKey.indexOf('::company:');
+    if (companyMarkerIndex < 0) continue;
+    const baseKey = normalizedKey.slice(0, companyMarkerIndex);
+    const [areaId, weekId] = baseKey.split('::');
+    if (!AREA_IDS.includes(areaId as AreaId) || !knownWeekIds.has(weekId)) continue;
+    weekAuditById[normalizedKey] = sanitizeWeekAudit(value);
   }
   const weekConfigById: WeekConfigurationById = {};
   const knownScopedWeekIds = new Set<string>();

@@ -28,7 +28,7 @@ import { DayGrid } from '../components/DayGrid';
 import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
 import { WeekSelector } from '../components/WeekSelector';
 import { WeeklyByWeeksOverviewContent } from './WeeklyByWeeksOverviewPage';
-import { useAppStore } from '../store/useAppStore';
+import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { downloadEmployeeWeekPdf, downloadWeeklyGridPdf, downloadWeeklyOverviewPdf } from '../utils/pdf';
 import type { AreaId, Employee } from '../types';
@@ -39,6 +39,7 @@ export function WeeklyOverviewPage(): JSX.Element {
   const allEmployees = useAppStore((state) => state.employees);
   const allRoles = useAppStore((state) => state.roles);
   const currentAreaId = useAppStore((state) => state.currentAreaId);
+  const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
   const areaTimeSlots = useAppStore((state) => state.timeSlotsByArea[state.currentAreaId] ?? state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
@@ -48,7 +49,6 @@ export function WeeklyOverviewPage(): JSX.Element {
   const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
   const areaBreakConfig = useAppStore((state) => state.breakConfigByArea[state.currentAreaId] ?? state.breakConfig);
   const ensureWeekPlan = useAppStore((state) => state.ensureWeekPlan);
-  const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
 
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const employees = useMemo(
@@ -76,8 +76,8 @@ export function WeeklyOverviewPage(): JSX.Element {
   const [selectedEmployeeIdForPdf, setSelectedEmployeeIdForPdf] = useState<string>('');
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
   const currentWeekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
-  const currentWeekAudit = currentScopedWeekId ? weekAuditById[currentScopedWeekId] : undefined;
-  const isCurrentWeekValidated = currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false;
+  const currentWeekAudit = getWeekAuditForCompany(weekAuditById, currentScopedWeekId, selectedGeoVictoriaCompanyId);
+  const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
   const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
   const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
@@ -136,7 +136,7 @@ export function WeeklyOverviewPage(): JSX.Element {
       breakConfig,
       week: currentWeek,
       weekPlan: currentWeekPlan,
-      isValidated: currentScopedWeekId ? validatedWeekIds.includes(currentScopedWeekId) : false,
+      isValidated: isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId),
       validatedByName: currentWeekAudit?.validatedByName ?? null
     };
   };

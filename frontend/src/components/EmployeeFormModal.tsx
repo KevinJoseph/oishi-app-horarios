@@ -22,6 +22,14 @@ import type { AreaId, Employee, Role } from '../types';
 import { createId } from '../store/useAppStore';
 import { normalizeRestDay, WEEKDAY_OPTIONS } from '../utils/weekdays';
 
+const RECIBO_COMPANY: GeoVictoriaCompany = {
+  alias: 'Recibo',
+  name: 'OISHI RESTAURANTE(Recibo)',
+  companyId: '2a8M03DV5w6g5gBak-4uA',
+  ruc: '20230809234717',
+  groups: []
+};
+
 function normalizeGroupValue(value: string | undefined): string {
   return (value ?? '')
     .normalize('NFD')
@@ -39,6 +47,7 @@ type Props = {
   companies: GeoVictoriaCompany[];
   currentAreaId: AreaId;
   selectedCompanyId?: string | null;
+  adminAssignedCompanyId?: string | null;
   onSave: (employee: Employee) => { ok: boolean; error?: string };
 };
 
@@ -73,6 +82,7 @@ export function EmployeeFormModal({
   companies,
   currentAreaId,
   selectedCompanyId,
+  adminAssignedCompanyId,
   onSave
 }: Props): JSX.Element {
   const toast = useToast();
@@ -99,8 +109,12 @@ export function EmployeeFormModal({
   const selectedModuleCompany = selectedCompanyId
     ? companies.find((company) => company.companyId === selectedCompanyId)
     : null;
-  const reciboCompany = companies.find((company) => company.alias === 'Recibo') ?? null;
-  const selectableCompanies = [selectedModuleCompany, reciboCompany].filter(
+  const adminAssignedCompany = adminAssignedCompanyId
+    ? companies.find((company) => company.companyId === adminAssignedCompanyId)
+    : null;
+  // Recibo no aparece en la lista de empresas de GeoVictoria, se usa directamente solo para administradores
+  const reciboCompany: GeoVictoriaCompany | null = adminAssignedCompanyId ? RECIBO_COMPANY : null;
+  const selectableCompanies = [selectedModuleCompany, adminAssignedCompany, reciboCompany].filter(
     (company, index, array): company is GeoVictoriaCompany =>
       Boolean(company) && array.findIndex((item) => item?.companyId === company?.companyId) === index
   );

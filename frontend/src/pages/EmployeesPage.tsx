@@ -632,6 +632,7 @@ export function EmployeesPage(): JSX.Element {
         companies={companies}
         currentAreaId={currentAreaId}
         selectedCompanyId={selectedGeoVictoriaCompanyId}
+        adminAssignedCompanyId={currentUser?.role === 'administrador' ? currentUser.companyId ?? null : null}
         onSave={(employee) => {
           if (!canEdit) return { ok: false, error: 'No tienes permisos para guardar colaboradores.' };
           return upsertEmployee({

@@ -76,12 +76,21 @@ function normalizeText(value: string | undefined): string {
 }
 
 function getEmployeeCompanyLabel(employee: Employee): string {
-  if (employee.companyAlias && employee.companyName) {
-    return `${employee.companyAlias} - ${employee.companyName}`;
+  const companyLabel =
+    (employee.companyAlias && employee.companyName && `${employee.companyAlias} - ${employee.companyName}`) ||
+    employee.companyName ||
+    employee.companyAlias ||
+    (employee.moduleCompanyAlias && employee.moduleCompanyName && `${employee.moduleCompanyAlias} - ${employee.moduleCompanyName}`) ||
+    employee.moduleCompanyName ||
+    employee.moduleCompanyAlias ||
+    '';
+  const groupLabel = employee.geoVictoriaGroupName || employee.groupDescription || '';
+
+  if (companyLabel && groupLabel) {
+    return `${companyLabel} - ${groupLabel}`;
   }
-  if (employee.companyName) return employee.companyName;
-  if (employee.companyAlias) return employee.companyAlias;
-  if (employee.groupDescription) return employee.groupDescription;
+  if (companyLabel) return companyLabel;
+  if (groupLabel) return groupLabel;
   return '-';
 }
 

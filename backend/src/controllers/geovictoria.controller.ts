@@ -222,6 +222,11 @@ function getCompanyCredentials(companyId: string): { companyId: string; user: st
   return credentials ?? null;
 }
 
+function isReciboCompanyId(companyId: string): boolean {
+  const company = env.geoVictoriaCompanies.find((item) => item.companyId === companyId);
+  return company?.alias.trim().toUpperCase() === 'RECIBO';
+}
+
 function getCompanyAliasById(companyId: string): string {
   return env.geoVictoriaCompanies.find((company) => company.companyId === companyId)?.alias ?? '';
 }
@@ -632,27 +637,41 @@ export async function addGeoVictoriaUserController(req: Request, res: Response):
     return;
   }
 
-  const credentials = getCompanyCredentials(companyId);
-  if (!credentials) {
-    res.status(400).json({ error: `No existen credenciales configuradas para la company "${companyId}".` });
-    return;
+  const isRecibo = isReciboCompanyId(companyId);
+  if (isRecibo) {
+    const validReciboGroup = env.geoVictoriaReciboGroups.some((group) => group.code_centro_costo === costCenterCode);
+    if (!validReciboGroup) {
+      res.status(400).json({ error: 'El centro de costo enviado no corresponde a un grupo válido de Recibo.' });
+      return;
+    }
   }
 
   let token: string;
   try {
-    token = await getTokenForCredentials(
-      `company:${companyId}`,
-      credentials.user,
-      credentials.password,
-      companyId
-    );
+    if (isRecibo) {
+      token = await getReciboToken();
+    } else {
+      const credentials = getCompanyCredentials(companyId);
+      if (!credentials) {
+        res.status(400).json({ error: `No existen credenciales configuradas para la company "${companyId}".` });
+        return;
+      }
+
+      token = await getTokenForCredentials(
+        `company:${companyId}`,
+        credentials.user,
+        credentials.password,
+        companyId
+      );
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error de autenticación con GeoVictoria.';
     res.status(502).json({ error: message });
     return;
   }
 
-  const positionId = await resolveGeoVictoriaPositionId(token, `company:${companyId}`, positionDescription);
+  const positionCacheKey = isRecibo ? 'recibo' : `company:${companyId}`;
+  const positionId = await resolveGeoVictoriaPositionId(token, positionCacheKey, positionDescription);
   const userPayload = {
     Identifier: identifier,
     Email: email,

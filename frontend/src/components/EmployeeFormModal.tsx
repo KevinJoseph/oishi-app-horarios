@@ -112,13 +112,19 @@ export function EmployeeFormModal({
   const adminAssignedCompany = adminAssignedCompanyId
     ? companies.find((company) => company.companyId === adminAssignedCompanyId)
     : null;
-  // Recibo no aparece en la lista de empresas de GeoVictoria, se incluye directamente
-  const reciboCompany: GeoVictoriaCompany = RECIBO_COMPANY;
+  // Preferir la empresa Recibo que llega desde la API porque contiene los grupos configurados.
+  const reciboCompany: GeoVictoriaCompany =
+    companies.find((company) => company.alias.trim().toLowerCase() === 'recibo') ?? RECIBO_COMPANY;
   const selectableCompanies = [selectedModuleCompany, adminAssignedCompany, reciboCompany].filter(
     (company, index, array): company is GeoVictoriaCompany =>
       Boolean(company) && array.findIndex((item) => item?.companyId === company?.companyId) === index
   );
-  const selectedCompany = companies.find((company) => company.alias === companyAlias);
+  const selectedCompany =
+    selectableCompanies.find((company) => company.alias === companyAlias) ??
+    selectableCompanies.find(
+      (company) => company.companyId === editing?.companyId || company.companyId === editing?.moduleCompanyId
+    ) ??
+    null;
 
   useEffect(() => {
     const initialArea = (editing
@@ -133,7 +139,11 @@ export function EmployeeFormModal({
     const selectedModuleCompany = selectedCompanyId
       ? companies.find((company) => company.companyId === selectedCompanyId)
       : null;
-    const editingCompanyAlias = editing?.companyAlias ?? selectedModuleCompany?.alias ?? '';
+    const editingCompanyAlias =
+      editing?.companyAlias ??
+      editing?.moduleCompanyAlias ??
+      selectedModuleCompany?.alias ??
+      '';
     const editingCompany = companies.find((company) => company.alias === editingCompanyAlias);
     const normalizedEditingGroupName = normalizeGroupValue(
       editing?.geoVictoriaGroupName ?? editing?.groupDescription
@@ -142,7 +152,7 @@ export function EmployeeFormModal({
       editingCompany?.groups.find((group) => group.code_centro_costo === (editing?.geoVictoriaCostCenterCode ?? '')) ??
       editingCompany?.groups.find((group) => normalizeGroupValue(group.name) === normalizedEditingGroupName) ??
       null;
-    setCompanyAlias(editing?.companyAlias ?? selectedModuleCompany?.alias ?? '');
+    setCompanyAlias(editing?.companyAlias ?? editing?.moduleCompanyAlias ?? selectedModuleCompany?.alias ?? '');
     setReciboGroupCode(matchingReciboGroup?.code_centro_costo ?? editing?.geoVictoriaCostCenterCode ?? '');
     setPositionDescription(editing?.positionDescription ?? '');
     setActive(editing?.active ?? true);

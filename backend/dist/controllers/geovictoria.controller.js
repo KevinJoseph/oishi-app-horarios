@@ -115,6 +115,10 @@ function getCompanyCredentials(companyId) {
     const credentials = env.geoVictoriaCredentialsByCompanyId[companyId];
     return credentials ?? null;
 }
+function isReciboCompanyId(companyId) {
+    const company = env.geoVictoriaCompanies.find((item) => item.companyId === companyId);
+    return company?.alias.trim().toUpperCase() === 'RECIBO';
+}
 function getCompanyAliasById(companyId) {
     return env.geoVictoriaCompanies.find((company) => company.companyId === companyId)?.alias ?? '';
 }
@@ -443,21 +447,35 @@ export async function addGeoVictoriaUserController(req, res) {
             .json({ error: 'CompanyId, Identifier, Email, Name, LastName y CostCenterCode son obligatorios para enviar a GeoVictoria.' });
         return;
     }
-    const credentials = getCompanyCredentials(companyId);
-    if (!credentials) {
-        res.status(400).json({ error: `No existen credenciales configuradas para la company "${companyId}".` });
-        return;
+    const isRecibo = isReciboCompanyId(companyId);
+    if (isRecibo) {
+        const validReciboGroup = env.geoVictoriaReciboGroups.some((group) => group.code_centro_costo === costCenterCode);
+        if (!validReciboGroup) {
+            res.status(400).json({ error: 'El centro de costo enviado no corresponde a un grupo válido de Recibo.' });
+            return;
+        }
     }
     let token;
     try {
-        token = await getTokenForCredentials(`company:${companyId}`, credentials.user, credentials.password, companyId);
+        if (isRecibo) {
+            token = await getReciboToken();
+        }
+        else {
+            const credentials = getCompanyCredentials(companyId);
+            if (!credentials) {
+                res.status(400).json({ error: `No existen credenciales configuradas para la company "${companyId}".` });
+                return;
+            }
+            token = await getTokenForCredentials(`company:${companyId}`, credentials.user, credentials.password, companyId);
+        }
     }
     catch (err) {
         const message = err instanceof Error ? err.message : 'Error de autenticación con GeoVictoria.';
         res.status(502).json({ error: message });
         return;
     }
-    const positionId = await resolveGeoVictoriaPositionId(token, `company:${companyId}`, positionDescription);
+    const positionCacheKey = isRecibo ? 'recibo' : `company:${companyId}`;
+    const positionId = await resolveGeoVictoriaPositionId(token, positionCacheKey, positionDescription);
     const userPayload = {
         Identifier: identifier,
         Email: email,

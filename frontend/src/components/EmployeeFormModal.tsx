@@ -245,11 +245,9 @@ export function EmployeeFormModal({
           <FormControl mb={3} isRequired>
             <FormLabel>DNI</FormLabel>
             <Input value={identityDocument} onChange={(event) => setIdentityDocument(event.target.value)} />
-            {!editing ? (
-              <FormLabel mt={1} mb={0} fontSize="xs" fontWeight="400" color="gray.500">
-                (*) Si cambias DNI se creará un nuevo usuario GEOVICTORIA
-              </FormLabel>
-            ) : null}
+            <FormLabel mt={1} mb={0} fontSize="xs" fontWeight="400" color="gray.500">
+              (*) Si cambias DNI se creará un nuevo usuario GEOVICTORIA
+            </FormLabel>
           </FormControl>
           <FormControl mb={3} isRequired>
             <FormLabel>Email</FormLabel>

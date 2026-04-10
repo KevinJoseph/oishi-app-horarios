@@ -82,7 +82,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
       return;
     }
 
-    if (role !== 'super_administrador' && !companyId.trim()) {
+    if (role === 'administrador' && !companyId.trim()) {
       toast({ status: 'error', title: 'Debe seleccionar una empresa.' });
       return;
     }
@@ -93,7 +93,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
         name: name.trim(),
         username: username.trim(),
         role,
-        companyId: role === 'super_administrador' ? null : companyId.trim(),
+        companyId: role === 'administrador' ? companyId.trim() : null,
         password: password.trim() ? password : undefined
       });
       onClose();
@@ -130,11 +130,11 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
               <option value="supervisor">Supervisor</option>
             </Select>
           </FormControl>
-          <FormControl isRequired={role !== 'super_administrador'} mb={3} isDisabled={role === 'super_administrador'}>
+          <FormControl isRequired={role === 'administrador'} mb={3} isDisabled={role !== 'administrador'}>
             <FormLabel>Empresa</FormLabel>
             <Select value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
               <option value="">
-                {role === 'super_administrador' ? 'Acceso a todas las empresas' : 'Seleccione una empresa'}
+                {role === 'administrador' ? 'Seleccione una empresa' : 'Acceso a todas las empresas'}
               </option>
               {companies.map((company) => (
                 <option key={company.companyId} value={company.companyId}>
@@ -142,7 +142,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
                 </option>
               ))}
             </Select>
-            {role !== 'super_administrador' ? (
+            {role === 'administrador' ? (
               <Text mt={1} fontSize="xs" color="gray.500">
                 Este usuario quedará limitado a la empresa seleccionada.
               </Text>

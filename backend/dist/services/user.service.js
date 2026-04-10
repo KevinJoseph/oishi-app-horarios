@@ -40,11 +40,11 @@ function resolveCompanyLabel(companyId) {
     return `${company.alias} - ${company.name}`;
 }
 function validateCompanyAccess(role, companyId) {
-    if (role === 'super_administrador') {
+    if (role === 'super_administrador' || role === 'supervisor') {
         return null;
     }
     if (!companyId) {
-        throw new HttpError(400, 'Debe seleccionar una empresa para usuarios Administrador o Supervisor.');
+        throw new HttpError(400, 'Debe seleccionar una empresa para usuarios Administrador.');
     }
     const exists = env.geoVictoriaCompanies.some((company) => company.companyId === companyId);
     if (!exists) {

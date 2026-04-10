@@ -292,7 +292,7 @@ function resolveAuthorizedCompanyId(req, requestedCompanyId) {
     if (!authUser) {
         return null;
     }
-    if (isSuperAdmin(authUser)) {
+    if (isSuperAdmin(authUser) || authUser.role === 'supervisor') {
         return normalizedRequestedCompanyId || null;
     }
     const assignedCompanyId = cleanRequiredText(authUser.companyId ?? '');
@@ -305,7 +305,7 @@ function resolveAuthorizedCompanyId(req, requestedCompanyId) {
     return '__forbidden__';
 }
 export async function getGeoVictoriaCompaniesController(req, res) {
-    const companiesSource = isSuperAdmin(req.authUser)
+    const companiesSource = isSuperAdmin(req.authUser) || req.authUser?.role === 'supervisor'
         ? env.geoVictoriaCompanies
         : env.geoVictoriaCompanies.filter((company) => company.companyId === req.authUser?.companyId);
     const companies = companiesSource.map((company) => ({

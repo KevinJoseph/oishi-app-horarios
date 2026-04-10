@@ -84,7 +84,7 @@ export function PlanningPage(): JSX.Element {
   const isAdministrator = currentUser?.role === 'administrador';
   const isSuperAdministrator = currentUser?.role === 'super_administrador';
   const canEdit = isSuperAdministrator || isAdministrator || isSupervisor;
-  const canValidate = isSuperAdministrator || isAdministrator || isSupervisor;
+  const canValidate = isSuperAdministrator || isSupervisor;
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [selectedCell, setSelectedCell] = useState<SelectedCell>(null);

@@ -511,6 +511,11 @@ function resolveAuthorizedCompanyId(req: Request, requestedCompanyId: string | u
     return assignedCompanyId;
   }
 
+  // Los administradores también pueden consultar Recibo
+  if (isReciboCompanyId(normalizedRequestedCompanyId)) {
+    return normalizedRequestedCompanyId;
+  }
+
   return '__forbidden__';
 }
 
@@ -604,15 +609,26 @@ export async function getGeoVictoriaPositionsController(req: Request, res: Respo
   let credentialsPassword = env.geoVictoriaPassword;
 
   if (companyId) {
-    const credentials = getCompanyCredentials(companyId);
-    if (!credentials) {
-      res.status(400).json({ error: `No existen credenciales configuradas para la company "${companyId}".` });
-      return;
+    if (isReciboCompanyId(companyId)) {
+      if (!env.geoVictoriaReciboUser || !env.geoVictoriaReciboPassword) {
+        res.status(503).json({ error: 'Credenciales de GeoVictoria Recibo no configuradas en el servidor.' });
+        return;
+      }
+      tokenCacheKey = 'recibo';
+      tokenLabel = 'Recibo';
+      credentialsUser = env.geoVictoriaReciboUser;
+      credentialsPassword = env.geoVictoriaReciboPassword;
+    } else {
+      const credentials = getCompanyCredentials(companyId);
+      if (!credentials) {
+        res.status(400).json({ error: `No existen credenciales configuradas para la company "${companyId}".` });
+        return;
+      }
+      tokenCacheKey = `company:${companyId}`;
+      tokenLabel = companyId;
+      credentialsUser = credentials.user;
+      credentialsPassword = credentials.password;
     }
-    tokenCacheKey = `company:${companyId}`;
-    tokenLabel = companyId;
-    credentialsUser = credentials.user;
-    credentialsPassword = credentials.password;
   }
 
   if (!credentialsUser || !credentialsPassword) {

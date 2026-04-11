@@ -115,7 +115,7 @@ export function RolesPage(): JSX.Element {
               <Thead>
                 <Tr>
                   <Th>Color</Th>
-                  <Th>Nombre</Th>
+                  <Th>Zona de Área</Th>
                   <Th>Códigos de Zonas</Th>
                   <Th>Acciones</Th>
                 </Tr>

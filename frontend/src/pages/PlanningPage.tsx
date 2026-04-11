@@ -78,6 +78,7 @@ export function PlanningPage(): JSX.Element {
   const setExceptionalRestDay = useAppStore((state) => state.setExceptionalRestDay);
   const validateWeekPlan = useAppStore((state) => state.validateWeekPlan);
   const desvalidateWeekPlan = useAppStore((state) => state.desvalidateWeekPlan);
+  const flushPersistence = useAppStore((state) => state.flushPersistence);
   const currentUser = useAuthStore((state) => state.currentUser);
   const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
   const isSupervisor = currentUser?.role === 'supervisor';
@@ -90,6 +91,8 @@ export function PlanningPage(): JSX.Element {
   const [selectedCell, setSelectedCell] = useState<SelectedCell>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const validationToastId = 'planning-validation-save';
 
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const employees = useMemo(
@@ -686,25 +689,54 @@ export function PlanningPage(): JSX.Element {
               </Button>
               <Button
                 colorScheme={isCurrentWeekValidated ? 'orange' : 'green'}
-                onClick={() => {
+                onClick={async () => {
                   if (!currentWeek) return;
-                  const result = isCurrentWeekValidated
-                    ? desvalidateWeekPlan(currentScopedWeekId ?? currentWeek.id)
-                    : validateWeekPlan(currentScopedWeekId ?? currentWeek.id, currentUser?.name);
-                  if (!result.ok) {
-                    toast({
-                      status: 'error',
-                      title: result.error ?? (isCurrentWeekValidated ? 'No se pudo quitar la validación.' : 'No se pudo validar la planificación.')
-                    });
-                    return;
-                  }
+                  if (isValidating) return;
+                  setIsValidating(true);
                   toast({
-                    status: 'success',
-                    title: isCurrentWeekValidated ? 'Validación Anulada.' : 'Planificación validada.'
+                    id: validationToastId,
+                    status: 'info',
+                    title: 'Guardando validación...',
+                    duration: null,
+                    isClosable: false
                   });
-                  closeValidateModal();
+                  try {
+                    const result = isCurrentWeekValidated
+                      ? desvalidateWeekPlan(currentScopedWeekId ?? currentWeek.id)
+                      : validateWeekPlan(currentScopedWeekId ?? currentWeek.id, currentUser?.name);
+                    if (!result.ok) {
+                      toast.close(validationToastId);
+                      toast({
+                        status: 'error',
+                        title:
+                          result.error ??
+                          (isCurrentWeekValidated ? 'No se pudo quitar la validación.' : 'No se pudo validar la planificación.')
+                      });
+                      return;
+                    }
+
+                    const persisted = await flushPersistence();
+                    toast.close(validationToastId);
+                    if (!persisted.ok) {
+                      toast({
+                        status: 'error',
+                        title: persisted.error ?? 'No se pudo guardar la validación.'
+                      });
+                      return;
+                    }
+
+                    toast({
+                      status: 'success',
+                      title: isCurrentWeekValidated ? 'Validación anulada.' : 'Planificación validada.'
+                    });
+                    closeValidateModal();
+                  } finally {
+                    toast.close(validationToastId);
+                    setIsValidating(false);
+                  }
                 }}
-                isDisabled={!currentWeek}
+                isDisabled={!currentWeek || isValidating}
+                isLoading={isValidating}
               >
                 {isCurrentWeekValidated ? 'Confirmar retorno' : 'Confirmar validación'}
               </Button>

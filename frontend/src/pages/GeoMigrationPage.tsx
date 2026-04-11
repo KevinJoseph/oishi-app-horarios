@@ -13,6 +13,7 @@ import {
   ModalContent,
   ModalHeader,
   ModalOverlay,
+  ModalFooter,
   Table,
   Tbody,
   Td,

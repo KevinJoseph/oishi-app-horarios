@@ -26,6 +26,7 @@ export type Employee = {
   contractType?: 'full-time' | 'part-time';
   shiftType?: 'day' | 'night';
   mainRoleId?: string;
+  mainRoleCode?: string;
   notes?: string;
   phone?: string;
   groupDescription?: string;

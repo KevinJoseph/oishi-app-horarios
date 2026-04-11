@@ -107,10 +107,13 @@ export function EmployeeFormModal({
   const [shiftType, setShiftType] = useState<'day' | 'night'>('day');
   const [restDay, setRestDay] = useState('0');
   const [mainRoleId, setMainRoleId] = useState('');
+  const [mainRoleCode, setMainRoleCode] = useState('');
   const filteredRoles = useMemo(
     () => roles.filter((role) => (role.areaId ?? 'salon') === areaId),
     [roles, areaId]
   );
+  const selectedRole = useMemo(() => roles.find((role) => role.id === mainRoleId) ?? null, [roles, mainRoleId]);
+  const codeOptions = selectedRole?.validCodes ?? [];
   const selectedModuleCompany = selectedCompanyId
     ? companies.find((company) => company.companyId === selectedCompanyId)
     : null;
@@ -166,16 +169,32 @@ export function EmployeeFormModal({
     setShiftType(editing?.shiftType ?? 'day');
     setRestDay(String(normalizeRestDay(editing?.restDay)));
     setMainRoleId(editing?.mainRoleId ?? '');
+    setMainRoleCode(
+      editing?.mainRoleCode ??
+        roles.find((role) => role.id === editing?.mainRoleId)?.validCodes[0] ??
+        ''
+    );
   }, [editing, isOpen, roles, currentAreaId, selectedCompanyId, companies]);
 
   useEffect(() => {
-    if (!mainRoleId) return;
-    const selectedRole = roles.find((role) => role.id === mainRoleId);
-    if (!selectedRole) return;
+    if (!mainRoleId) {
+      setMainRoleCode('');
+      return;
+    }
+    if (!selectedRole) {
+      setMainRoleId('');
+      setMainRoleCode('');
+      return;
+    }
     if ((selectedRole.areaId ?? 'salon') !== areaId) {
       setMainRoleId('');
+      setMainRoleCode('');
+      return;
     }
-  }, [areaId, mainRoleId, roles]);
+    if (!codeOptions.includes(mainRoleCode)) {
+      setMainRoleCode(codeOptions[0] ?? '');
+    }
+  }, [areaId, codeOptions, mainRoleCode, mainRoleId, selectedRole]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -323,6 +342,21 @@ export function EmployeeFormModal({
               ))}
             </Select>
           </FormControl>
+          <FormControl mb={3}>
+            <FormLabel>Código de zona</FormLabel>
+            <Select
+              value={mainRoleCode}
+              onChange={(event) => setMainRoleCode(event.target.value)}
+              isDisabled={!selectedRole}
+            >
+              <option value="">{selectedRole ? 'Selecciona un código' : 'Primero elige una zona'}</option>
+              {codeOptions.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </Select>
+          </FormControl>
           <HStack mb={3} align="flex-start" spacing={3}>
             <FormControl flex="1">
               <FormLabel>Tipo de jornada</FormLabel>
@@ -445,6 +479,7 @@ export function EmployeeFormModal({
                   notes: editing?.notes,
                   phone: editing?.phone,
                   mainRoleId: mainRoleId || undefined,
+                  mainRoleCode: mainRoleId ? mainRoleCode || undefined : undefined,
                   groupDescription: selectedGroupDescription,
                   positionDescription: positionDescription || undefined
                 });

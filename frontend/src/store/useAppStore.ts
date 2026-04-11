@@ -184,6 +184,7 @@ function buildAutoWeekPlanForEmployee(
   plan: WeekPlan,
   employeeId: string,
   roleId: string,
+  preferredRoleCode: string | undefined,
   weeklyHours: number,
   restDay: number,
   shiftType: Employee['shiftType'],
@@ -193,7 +194,7 @@ function buildAutoWeekPlanForEmployee(
   roles: Role[]
 ): WeekPlan {
   const role = roles.find((item) => item.id === roleId);
-  const code = role?.validCodes[0];
+  const code = (preferredRoleCode && role?.validCodes.includes(preferredRoleCode) ? preferredRoleCode : role?.validCodes[0])?.trim();
   if (!code) return clearEmployeeFromWeekPlan(plan, employeeId, timeSlots);
 
   const assignableSlots = getAssignableTimeSlots(timeSlots);
@@ -260,6 +261,7 @@ function rebuildWeekPlansFromEmployees(
         plan,
         employee.id,
         employee.mainRoleId as string,
+        employee.mainRoleCode,
         weeklyHours,
         plan.restDayOverrides?.[employee.id] ?? normalizeRestDay(employee.restDay),
         employee.shiftType,
@@ -1037,7 +1039,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       const normalizedEmployee: Employee = {
         ...employee,
         restDay: normalizeRestDay(employee.restDay),
-        code: employee.code ?? previous?.code ?? getNextEmployeeCode(state.employees)
+        code: employee.code ?? previous?.code ?? getNextEmployeeCode(state.employees),
+        mainRoleCode:
+          employee.mainRoleCode ??
+          previous?.mainRoleCode ??
+          state.roles.find((role) => role.id === employee.mainRoleId)?.validCodes[0]
       };
       const exists = Boolean(previous);
       const employees = exists
@@ -1047,6 +1053,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const planningChanged =
         employeeAffectsPlanning(previous) !== employeeAffectsPlanning(normalizedEmployee) ||
         previous?.mainRoleId !== normalizedEmployee.mainRoleId ||
+        previous?.mainRoleCode !== normalizedEmployee.mainRoleCode ||
         previous?.weeklyHours !== normalizedEmployee.weeklyHours ||
         previous?.restDay !== normalizedEmployee.restDay ||
         previous?.contractType !== normalizedEmployee.contractType ||
@@ -1112,7 +1119,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         const normalizedEmployee: Employee = {
           ...employee,
           restDay: normalizeRestDay(employee.restDay),
-          code: employee.code ?? previous?.code ?? getNextEmployeeCode(employees)
+          code: employee.code ?? previous?.code ?? getNextEmployeeCode(employees),
+          mainRoleCode:
+            employee.mainRoleCode ??
+            previous?.mainRoleCode ??
+            state.roles.find((role) => role.id === employee.mainRoleId)?.validCodes[0]
         };
         const exists = Boolean(previous);
         employees = exists
@@ -1122,6 +1133,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const planningChanged =
           employeeAffectsPlanning(previous) !== employeeAffectsPlanning(normalizedEmployee) ||
           previous?.mainRoleId !== normalizedEmployee.mainRoleId ||
+          previous?.mainRoleCode !== normalizedEmployee.mainRoleCode ||
           previous?.weeklyHours !== normalizedEmployee.weeklyHours ||
           previous?.restDay !== normalizedEmployee.restDay ||
           previous?.contractType !== normalizedEmployee.contractType ||

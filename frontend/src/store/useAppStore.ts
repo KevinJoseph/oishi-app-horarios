@@ -1294,7 +1294,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const next = exists
         ? state.roles.map((item) => (item.id === role.id ? normalizedRole : item))
         : [...state.roles, normalizedRole];
-      return { roles: next, validatedWeekIds: [], weekAuditById: clearAllWeekValidators(state.weekAuditById) };
+      return { roles: next };
     });
     persistSnapshot(get, set, { roles: true });
     return { ok: true };

@@ -135,7 +135,7 @@ export function DayGrid({
                         labelOverride={
                           assignment.roleId
                             ? showEmployeeCodeInCells
-                              ? employee.code ?? employee.name
+                              ? assignment.code
                               : undefined
                             : isRestDay
                               ? 'Descanso'

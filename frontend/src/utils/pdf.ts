@@ -240,6 +240,7 @@ function drawCompactDayTable(
   const firstColumnWidth = Math.min(18, tableWidth * 0.22);
   const employeeColumnWidth = (tableWidth - firstColumnWidth) / Math.max(activeEmployees.length, 1);
   const columnWidths = [firstColumnWidth, ...activeEmployees.map(() => employeeColumnWidth)];
+  const wrappedHeaderHeight = Math.max(headerHeight, 8);
 
   let y = startY;
   doc.setFont('helvetica', 'bold');
@@ -248,8 +249,8 @@ function drawCompactDayTable(
   y += sectionTitleGap;
 
   const headerCells = ['Horario', ...activeEmployees.map((employee) => employee.name)];
-  drawRow(doc, startX, y, headerCells, columnWidths, headerHeight, true, undefined, 5.4, 1);
-  y += headerHeight;
+  drawRow(doc, startX, y, headerCells, columnWidths, wrappedHeaderHeight, true, undefined, 5.8, 0.9, true);
+  y += wrappedHeaderHeight;
 
   for (const slot of visibleTimeSlots) {
     const rowValues = [slot.label];
@@ -297,6 +298,7 @@ function drawDaySchedulePage(
   const marginX = 8;
   const marginTop = 10;
   const rowHeight = 7;
+  const headerHeight = 10;
   const firstColumnWidth = 30;
   const pageWidth = doc.internal.pageSize.getWidth();
   const employeeColumnWidth = (pageWidth - marginX * 2 - firstColumnWidth) / Math.max(activeEmployees.length, 1);
@@ -318,8 +320,8 @@ function drawDaySchedulePage(
   y += 2;
 
   const headerCells = ['Horario', ...activeEmployees.map((employee) => employee.name)];
-  drawRow(doc, marginX, y, headerCells, columnWidths, rowHeight, true);
-  y += rowHeight;
+  drawRow(doc, marginX, y, headerCells, columnWidths, headerHeight, true, undefined, 6.2, 1.2, true);
+  y += headerHeight;
 
   for (const slot of visibleTimeSlots) {
     const rowValues = [slot.label];
@@ -439,7 +441,8 @@ function drawRow(
   isHeader: boolean,
   fillColors?: Array<[number, number, number] | null>,
   fontSize = 9,
-  textOffsetY = 1.2
+  textOffsetY = 1.2,
+  wrapText = false
 ): void {
   let x = startX;
   doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
@@ -455,7 +458,15 @@ function drawRow(
       doc.rect(x, y, width, rowHeight, 'F');
     }
     doc.rect(x, y, width, rowHeight);
-    doc.text(cells[index] ?? '', x + 1.5, y + rowHeight / 2 + textOffsetY, { maxWidth: width - 3 });
+    if (wrapText) {
+      const lines = doc.splitTextToSize(cells[index] ?? '', width - 3) as string[];
+      const lineHeight = fontSize * 0.35;
+      const totalTextHeight = Math.max(lines.length, 1) * lineHeight;
+      const startY = y + Math.max(1.2, (rowHeight - totalTextHeight) / 2 + lineHeight);
+      doc.text(lines, x + 1.5, startY, { maxWidth: width - 3 });
+    } else {
+      doc.text(cells[index] ?? '', x + 1.5, y + rowHeight / 2 + textOffsetY, { maxWidth: width - 3 });
+    }
     x += width;
   }
 }

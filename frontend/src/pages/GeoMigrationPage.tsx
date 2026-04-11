@@ -59,6 +59,26 @@ type GeoMigrationGroup = {
   rows: GeoMigrationRow[];
 };
 
+type StoredMigrationResult = {
+  result: GeoVictoriaPlanningMigrationResult;
+  migratedAt: string;
+};
+
+function isStoredMigrationResult(value: unknown): value is StoredMigrationResult {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as StoredMigrationResult;
+  return typeof candidate.migratedAt === 'string' && typeof candidate.result === 'object' && candidate.result !== null;
+}
+
+function formatMigrationDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('es-PE', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(date);
+}
+
 export function GeoMigrationPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -159,7 +179,7 @@ export function GeoMigrationPage(): JSX.Element {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [isMigrating, setIsMigrating] = useState(false);
   const [migratingKeys, setMigratingKeys] = useState<string[]>([]);
-  const [resultByKey, setResultByKey] = useState<Record<string, GeoVictoriaPlanningMigrationResult>>({});
+  const [resultByKey, setResultByKey] = useState<Record<string, StoredMigrationResult>>({});
   const [selectedGroup, setSelectedGroup] = useState<GeoMigrationGroup | null>(null);
   const [pendingMigrationKeys, setPendingMigrationKeys] = useState<string[]>([]);
   const [pendingMigrationLabel, setPendingMigrationLabel] = useState('');
@@ -186,8 +206,19 @@ export function GeoMigrationPage(): JSX.Element {
         return;
       }
 
-      const parsed = JSON.parse(raw) as Record<string, GeoVictoriaPlanningMigrationResult>;
-      setResultByKey(parsed);
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const next: Record<string, StoredMigrationResult> = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (isStoredMigrationResult(value)) {
+          next[key] = value;
+        } else if (value && typeof value === 'object') {
+          next[key] = {
+            result: value as GeoVictoriaPlanningMigrationResult,
+            migratedAt: new Date().toISOString()
+          };
+        }
+      }
+      setResultByKey(next);
     } catch {
       setResultByKey({});
     }
@@ -244,6 +275,7 @@ export function GeoMigrationPage(): JSX.Element {
     });
     try {
       const response = await migrateGeoVictoriaPlanning(items);
+      const migratedAt = new Date().toISOString();
       const nextResults = { ...resultByKey };
       for (const result of response.results) {
         const rowKey =
@@ -252,7 +284,7 @@ export function GeoMigrationPage(): JSX.Element {
             : result.assignmentType === 'free'
               ? `${result.employeeId}:${result.dateISO}:free`
             : `${result.employeeId}:${result.dateISO}:${result.startHour}:${result.endHour}:${result.breakStartHour ?? ''}:${result.breakEndHour ?? ''}`;
-        nextResults[rowKey] = result;
+        nextResults[rowKey] = { result, migratedAt };
       }
       setResultByKey(nextResults);
       toast.close(migrationToastId);
@@ -295,14 +327,14 @@ export function GeoMigrationPage(): JSX.Element {
           <HStack justify="space-between" align="center" flexWrap="wrap" gap={4}>
             <WeekSelector />
             <HStack spacing={3}>
-              <Badge colorScheme="blue" variant="subtle" px={3} py={1} rounded="md">
+              <Badge colorScheme="blue" variant="subtle" px={3} py={1} rounded="md" textTransform="none">
                 Filas: {groups.length}
               </Badge>
-                <Badge colorScheme="green" variant="subtle" px={3} py={1} rounded="md">
+                <Badge colorScheme="green" variant="subtle" px={3} py={1} rounded="md" textTransform="none">
                   Migrables: {migratableKeys.length}
                 </Badge>
                 {selectedGeoVictoriaCompanyId ? (
-                  <Badge colorScheme="purple" variant="subtle" px={3} py={1} rounded="md">
+                  <Badge colorScheme="purple" variant="subtle" px={3} py={1} rounded="md" textTransform="none">
                     Filtro empresa activo
                   </Badge>
                 ) : null}
@@ -362,17 +394,23 @@ export function GeoMigrationPage(): JSX.Element {
                     <Th>Identificador</Th>
                     <Th>Turno</Th>
                     <Th>Planificacion</Th>
+                    <Th>Actualizado</Th>
                     <Th>Accion</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
                   {groups.map((group) => {
-                    const groupResults = group.rows.map((row) => resultByKey[row.key]).filter((result) => result !== undefined);
+                    const groupResults = group.rows.map((row) => resultByKey[row.key]).filter((result): result is StoredMigrationResult => result !== undefined);
                     const allRowsMigrated = group.rows.length > 0 && group.rows.every((row) => resultByKey[row.key] !== undefined);
-                    const shiftErrors = groupResults.filter((result) => !result.shiftOk);
-                    const planningErrors = groupResults.filter((result) => !result.planningOk);
-                    const shiftCreated = groupResults.filter((result) => result.shiftOk && result.shiftSource === 'created').length;
-                    const shiftReused = groupResults.filter((result) => result.shiftOk && result.shiftSource === 'existing').length;
+                    const shiftResults = groupResults.map((entry) => entry.result);
+                    const shiftErrors = shiftResults.filter((result) => !result.shiftOk);
+                    const planningErrors = shiftResults.filter((result) => !result.planningOk);
+                    const shiftCreated = shiftResults.filter((result) => result.shiftOk && result.shiftSource === 'created').length;
+                    const shiftReused = shiftResults.filter((result) => result.shiftOk && result.shiftSource === 'existing').length;
+                    const lastMigratedAt = groupResults.reduce<string | null>(
+                      (latest, entry) => (latest === null || entry.migratedAt > latest ? entry.migratedAt : latest),
+                      null
+                    );
                     const isRowMigrating = migratingKeys.includes(group.key);
                     return (
                       <Tr key={group.key}>
@@ -401,15 +439,19 @@ export function GeoMigrationPage(): JSX.Element {
                               }
                               hasArrow
                             >
-                              <Badge colorScheme={shiftErrors.length ? 'red' : 'green'}>
-                                {shiftErrors.length ? 'Con errores' : allRowsMigrated ? 'Completado' : 'Parcial'}
+                              <Badge colorScheme={shiftErrors.length ? 'red' : 'green'} textTransform="none">
+                                {shiftErrors.length ? 'Con errores' : allRowsMigrated ? 'Enviado' : 'Parcial'}
                               </Badge>
                             </Tooltip>
                           ) : group.canMigrate ? (
-                            <Badge colorScheme="gray">Pendiente</Badge>
+                            <Badge colorScheme="gray" textTransform="none">
+                              Pendiente
+                            </Badge>
                           ) : (
                             <Tooltip label={group.warnings.join(' ')} hasArrow>
-                              <Badge colorScheme="orange">Incompleto</Badge>
+                              <Badge colorScheme="orange" textTransform="none">
+                                Incompleto
+                              </Badge>
                             </Tooltip>
                           )}
                         </Td>
@@ -423,14 +465,29 @@ export function GeoMigrationPage(): JSX.Element {
                               }
                               hasArrow
                             >
-                              <Badge colorScheme={planningErrors.length ? 'red' : 'green'}>
-                                {planningErrors.length ? 'Con errores' : allRowsMigrated ? 'OK' : 'Parcial'}
+                              <Badge colorScheme={planningErrors.length ? 'red' : 'green'} textTransform="none">
+                                {planningErrors.length ? 'Con errores' : allRowsMigrated ? 'Enviado' : 'Parcial'}
                               </Badge>
                             </Tooltip>
                           ) : group.canMigrate ? (
-                            <Badge colorScheme="gray">Pendiente</Badge>
+                            <Badge colorScheme="gray" textTransform="none">
+                              Pendiente
+                            </Badge>
                           ) : (
-                            <Badge colorScheme="orange">Sin enviar</Badge>
+                            <Badge colorScheme="orange" textTransform="none">
+                              Sin enviar
+                            </Badge>
+                          )}
+                        </Td>
+                        <Td>
+                          {lastMigratedAt ? (
+                            <Text fontSize="xs" color="gray.600">
+                              {formatMigrationDateTime(lastMigratedAt)}
+                            </Text>
+                          ) : (
+                            <Text fontSize="xs" color="gray.400">
+                              -
+                            </Text>
                           )}
                         </Td>
                         <Td>
@@ -447,21 +504,21 @@ export function GeoMigrationPage(): JSX.Element {
                             >
                               Ver
                             </Button>
-                          <Button
-                            size="xs"
-                            colorScheme="teal"
-                            variant="outline"
-                            leftIcon={<FiSend />}
-                            onClick={() => {
-                              setPendingMigrationKeys([group.key]);
-                              setPendingMigrationLabel(`migrar a ${group.employeeName}`);
-                              openConfirm();
-                            }}
-                            isDisabled={!group.canMigrate}
-                            isLoading={isRowMigrating}
-                          >
-                            Migrar
-                          </Button>
+                            <Button
+                              size="xs"
+                              colorScheme="teal"
+                              variant="outline"
+                              leftIcon={<FiSend />}
+                              onClick={() => {
+                                setPendingMigrationKeys([group.key]);
+                                setPendingMigrationLabel(`migrar a ${group.employeeName}`);
+                                openConfirm();
+                              }}
+                              isDisabled={!group.canMigrate}
+                              isLoading={isRowMigrating}
+                            >
+                              Migrar
+                            </Button>
                           </HStack>
                         </Td>
                       </Tr>

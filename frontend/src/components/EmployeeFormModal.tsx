@@ -74,6 +74,11 @@ function splitEmployeeName(employee?: Employee): { firstName: string; lastName: 
   };
 }
 
+function getRoleDisplayLabel(role: Role): string {
+  const code = role.validCodes[0]?.trim();
+  return code ? `${code} - ${role.name}` : role.name;
+}
+
 export function EmployeeFormModal({
   isOpen,
   onClose,
@@ -313,7 +318,7 @@ export function EmployeeFormModal({
               <option value="">Sin zona asignada</option>
               {filteredRoles.map((role) => (
                 <option key={role.id} value={role.id}>
-                  {role.name}
+                  {getRoleDisplayLabel(role)}
                 </option>
               ))}
             </Select>

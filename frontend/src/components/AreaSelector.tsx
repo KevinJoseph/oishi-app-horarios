@@ -3,10 +3,10 @@ import { useAppStore } from '../store/useAppStore';
 import type { AreaId } from '../types';
 
 const AREA_OPTIONS: Array<{ id: AreaId; label: string }> = [
-  { id: 'salon', label: 'Area Salon' },
-  { id: 'cocina', label: 'Area Cocina' },
-  { id: 'oficina', label: 'Area Oficina' },
-  { id: 'produccion', label: 'Area Produccion' }
+  { id: 'salon', label: 'Zona Salón' },
+  { id: 'cocina', label: 'Zona Cocina' },
+  { id: 'oficina', label: 'Zona Oficina' },
+  { id: 'produccion', label: 'Zona Producción' }
 ];
 
 type Props = {

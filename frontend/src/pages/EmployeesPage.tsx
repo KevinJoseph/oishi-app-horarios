@@ -55,6 +55,12 @@ function getEmployeeRestDayLabel(restDay: Employee['restDay'], contractType: Emp
   return getRestDayLabel(restDay);
 }
 
+function getRoleDisplayLabel(role?: { name: string; validCodes: string[] } | null): string {
+  if (!role) return '-';
+  const code = role.validCodes[0]?.trim();
+  return code ? `${code} - ${role.name}` : role.name;
+}
+
 function getWeeklyHoursLabel(value: Employee['weeklyHours']): string {
   return value === undefined ? '-' : `${value.toFixed(1)} h`;
 }
@@ -149,7 +155,7 @@ export function EmployeesPage(): JSX.Element {
   const cancelDeleteAllRef = useRef<HTMLButtonElement>(null);
   const cancelGeoVictoriaRef = useRef<HTMLButtonElement>(null);
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
-  const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
+  const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role])), [roles]);
   const currentWeek = useMemo(
     () => weeks.find((week) => week.startDateISO === currentWeekStartDateISO),
     [weeks, currentWeekStartDateISO]
@@ -546,7 +552,7 @@ export function EmployeesPage(): JSX.Element {
                     <Td>{getContractTypeLabel(employee.contractType)}</Td>
                     <Td>{getShiftTypeLabel(employee.shiftType, employee.contractType)}</Td>
                     <Td>{getEmployeeRestDayLabel(employee.restDay, employee.contractType)}</Td>
-                    <Td>{employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? '-' : '-'}</Td>
+                    <Td>{getRoleDisplayLabel(employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? null : null)}</Td>
                     <Td>
                       <HStack>
                         <Tooltip label="Editar" hasArrow>

@@ -116,7 +116,7 @@ export function RolesPage(): JSX.Element {
                 <Tr>
                   <Th>Color</Th>
                   <Th>Nombre</Th>
-                  <Th>Códigos válidos</Th>
+                  <Th>Códigos de Zonas</Th>
                   <Th>Acciones</Th>
                 </Tr>
               </Thead>

@@ -65,6 +65,11 @@ type PersistenceScope = {
   extraWeekIds?: string[];
 };
 
+type QueuedWeekEntry = {
+  weekId: string;
+  validationKey: string;
+};
+
 type AppState = PersistableState & {
   currentWeekStartDateISO: string;
   currentMonthStartDateISO: string;
@@ -711,12 +716,12 @@ function toPersistableState(state: AppState): PersistableState {
 
 let persistInFlight = false;
 let persistWaiters: Array<() => void> = [];
-let pendingPersistence: Omit<Required<PersistenceScope>, 'extraWeekIds'> & { weekIds: Set<string> } = {
+let pendingPersistence: Omit<Required<PersistenceScope>, 'extraWeekIds'> & { weekEntries: QueuedWeekEntry[] } = {
   employees: false,
   roles: false,
   weeks: false,
   currentWeek: false,
-  weekIds: new Set<string>()
+  weekEntries: []
 };
 
 function hasPendingPersistence(): boolean {
@@ -724,7 +729,7 @@ function hasPendingPersistence(): boolean {
     pendingPersistence.employees ||
     pendingPersistence.roles ||
     pendingPersistence.weeks ||
-    pendingPersistence.weekIds.size > 0
+    pendingPersistence.weekEntries.length > 0
   );
 }
 
@@ -736,12 +741,18 @@ function queuePersistenceScope(get: () => AppState, scope: PersistenceScope): vo
     const scopedWeekId = getSelectedScopedWeekId(get());
     if (scopedWeekId) {
       pendingPersistence.currentWeek = true;
-      pendingPersistence.weekIds.add(scopedWeekId);
+      pendingPersistence.weekEntries.push({
+        weekId: scopedWeekId,
+        validationKey: currentValidationScopeKey(scopedWeekId)
+      });
     }
   }
   if (scope.extraWeekIds) {
     for (const weekId of scope.extraWeekIds) {
-      pendingPersistence.weekIds.add(weekId);
+      pendingPersistence.weekEntries.push({
+        weekId,
+        validationKey: currentValidationScopeKey(weekId)
+      });
     }
   }
 }
@@ -766,7 +777,7 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
   try {
     while (hasPendingPersistence()) {
       const stateSnapshot = get();
-      const queuedWeekIds = [...pendingPersistence.weekIds];
+      const queuedWeekEntries = [...pendingPersistence.weekEntries];
       const scope = {
         employees: pendingPersistence.employees,
         roles: pendingPersistence.roles,
@@ -778,19 +789,20 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
         roles: false,
         weeks: false,
         currentWeek: false,
-        weekIds: new Set<string>()
-      } as Omit<Required<PersistenceScope>, 'extraWeekIds'> & { weekIds: Set<string> };
+        weekEntries: []
+      } as Omit<Required<PersistenceScope>, 'extraWeekIds'> & { weekEntries: QueuedWeekEntry[] };
 
       const payload = {
         ...(scope.employees ? { employees: stateSnapshot.employees } : {}),
         ...(scope.roles ? { roles: stateSnapshot.roles } : {}),
         ...(scope.weeks ? { weeks: filterWeeksForPersistence(stateSnapshot) } : {}),
-        ...(queuedWeekIds.length > 0
+        ...(queuedWeekEntries.length > 0
           ? {
-              weekEntries: queuedWeekIds
+              weekEntries: queuedWeekEntries
+                .filter((entry, index, array) => array.findIndex((item) => item.weekId === entry.weekId && item.validationKey === entry.validationKey) === index)
                 .filter((weekId) => {
+                  const baseId = baseWeekIdFromScopedWeekId(weekId.weekId);
                   // No persistir planes de semanas futuras no validadas (excepto la siguiente inmediata, ya inicializada)
-                  const baseId = baseWeekIdFromScopedWeekId(weekId);
                   const week = stateSnapshot.weeks.find((w) => w.id === baseId);
                   if (!week) return false;
                   const currentWeekISO = getCurrentWeekStartDateISO();
@@ -798,13 +810,13 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
                   if (week.startDateISO > nextWeekISO) return false; // descartar semanas demasiado futuras
                   return true;
                 })
-                .flatMap((weekId) => {
-                  const validationKey = currentValidationScopeKey(weekId);
+                .flatMap((entry) => {
+                  const validationKey = entry.validationKey;
                   return [
                     {
-                      weekId,
-                      weekPlan: stateSnapshot.weekPlans[weekId],
-                      weekConfig: stateSnapshot.weekConfigById[weekId]
+                      weekId: entry.weekId,
+                      weekPlan: stateSnapshot.weekPlans[entry.weekId],
+                      weekConfig: stateSnapshot.weekConfigById[entry.weekId]
                     },
                     {
                       weekId: validationKey,

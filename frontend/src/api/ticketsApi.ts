@@ -1,6 +1,6 @@
 import { ApiError } from './http';
 
-export const TICKETS_API_URL = import.meta.env.VITE_TICKETS_API_URL ?? 'http://localhost:5000/api/tickets';
+export const TICKETS_API_URL = import.meta.env.VITE_TICKETS_API_URL ?? 'https://ticket.inel.pe/api/tickets';
 
 export type CreateTicketPayload = {
   application: string;

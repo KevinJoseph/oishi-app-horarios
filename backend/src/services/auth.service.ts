@@ -1,11 +1,11 @@
-import { randomBytes } from 'node:crypto';
 import { SessionModel } from '../models/Session.js';
 import { UserModel } from '../models/User.js';
-import type { LoginPayload, PublicUser } from '../types/auth.js';
+import type { ChangePasswordPayload, LoginPayload, PublicUser } from '../types/auth.js';
 import { HttpError } from '../utils/httpError.js';
-import { verifyPassword } from './password.service.js';
-import { ensureDefaultAdminUser, toPublicUser } from './user.service.js';
+import { hashPassword, verifyPassword } from './password.service.js';
+import { ensureDefaultAdminUser, toPublicUser, validatePassword } from './user.service.js';
 import { env } from '../config/env.js';
+import jwt, { type JwtPayload } from 'jsonwebtoken';
 
 const SESSION_DURATION_MS = env.authSessionDays * 24 * 60 * 60 * 1000;
 
@@ -13,8 +13,42 @@ function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function buildSessionToken(): string {
-  return randomBytes(48).toString('hex');
+type AuthJwtPayload = JwtPayload & {
+  sub: string;
+  username: string;
+  role: string;
+};
+
+function signAuthToken(payload: { userId: string; username: string; role: string }): string {
+  return jwt.sign(
+    {
+      sub: payload.userId,
+      username: payload.username,
+      role: payload.role
+    },
+    env.authJwtSecret,
+    {
+      algorithm: 'HS256',
+      expiresIn: `${env.authSessionDays}d`
+    }
+  );
+}
+
+function verifyAuthToken(token: string): AuthJwtPayload | null {
+  try {
+    const decoded = jwt.verify(token, env.authJwtSecret, { algorithms: ['HS256'] });
+    if (!decoded || typeof decoded === 'string') {
+      return null;
+    }
+
+    if (typeof decoded.sub !== 'string' || typeof decoded.username !== 'string' || typeof decoded.role !== 'string') {
+      return null;
+    }
+
+    return decoded as AuthJwtPayload;
+  } catch {
+    return null;
+  }
 }
 
 export async function login(payload: LoginPayload): Promise<{ token: string; user: PublicUser }> {
@@ -37,7 +71,11 @@ export async function login(payload: LoginPayload): Promise<{ token: string; use
     throw new HttpError(401, 'Credenciales inválidas.');
   }
 
-  const token = buildSessionToken();
+  const token = signAuthToken({
+    userId: String(user._id),
+    username: user.username,
+    role: user.role
+  });
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
 
   await SessionModel.create({
@@ -53,12 +91,21 @@ export async function login(payload: LoginPayload): Promise<{ token: string; use
 }
 
 export async function findSessionUserByToken(token: string): Promise<PublicUser | null> {
+  const decoded = verifyAuthToken(token);
+  if (!decoded) {
+    return null;
+  }
+
   const session = await SessionModel.findOne({ token, expiresAt: { $gt: new Date() } }).lean();
   if (!session) {
     return null;
   }
 
-  const user = await UserModel.findById(session.userId).lean();
+  if (String(session.userId) !== decoded.sub) {
+    return null;
+  }
+
+  const user = await UserModel.findById(decoded.sub).lean();
   if (!user) {
     await SessionModel.deleteOne({ _id: session._id });
     return null;
@@ -69,4 +116,45 @@ export async function findSessionUserByToken(token: string): Promise<PublicUser 
 
 export async function logoutByToken(token: string): Promise<void> {
   await SessionModel.deleteOne({ token });
+}
+
+export async function changePassword(
+  userId: string,
+  token: string,
+  payload: ChangePasswordPayload
+): Promise<void> {
+  const currentPassword = payload.currentPassword ?? '';
+  const newPassword = payload.newPassword ?? '';
+  const confirmNewPassword = payload.confirmNewPassword ?? '';
+
+  if (!currentPassword.trim() || !newPassword.trim()) {
+    throw new HttpError(400, 'La contraseña actual y la nueva contraseña son obligatorias.');
+  }
+
+  if (confirmNewPassword && newPassword !== confirmNewPassword) {
+    throw new HttpError(400, 'La confirmación de la nueva contraseña no coincide.');
+  }
+
+  validatePassword(newPassword);
+
+  const user = await UserModel.findById(userId);
+  if (!user) {
+    throw new HttpError(404, 'Usuario no encontrado.');
+  }
+
+  const validCurrentPassword = verifyPassword(currentPassword, user.passwordHash, user.passwordSalt);
+  if (!validCurrentPassword) {
+    throw new HttpError(400, 'La contraseña actual no es correcta.');
+  }
+
+  if (currentPassword === newPassword) {
+    throw new HttpError(400, 'La nueva contraseña debe ser diferente a la actual.');
+  }
+
+  const { passwordHash, passwordSalt } = hashPassword(newPassword);
+  user.passwordHash = passwordHash;
+  user.passwordSalt = passwordSalt;
+  await user.save();
+
+  await SessionModel.deleteMany({ userId: user._id, token: { $ne: token } });
 }

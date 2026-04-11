@@ -9,7 +9,7 @@ function normalizeUsername(value) {
 function validateRole(role) {
     return role === 'super_administrador' || role === 'administrador' || role === 'supervisor';
 }
-function validatePassword(password) {
+export function validatePassword(password) {
     if (password.trim().length < 6) {
         throw new HttpError(400, 'La contraseña debe tener al menos 6 caracteres.');
     }
@@ -23,6 +23,21 @@ function validateUsername(username) {
     const normalized = normalizeUsername(username);
     if (normalized.length < 3) {
         throw new HttpError(400, 'El usuario debe tener al menos 3 caracteres.');
+    }
+}
+function normalizeOptionalCellular(celular) {
+    const normalized = celular?.trim() ?? '';
+    return normalized ? normalized : null;
+}
+function validateCellular(celular) {
+    if (!celular) {
+        return;
+    }
+    if (celular.length > 20) {
+        throw new HttpError(400, 'El celular no puede superar 20 caracteres.');
+    }
+    if (!/^[0-9+\-\s()]+$/.test(celular)) {
+        throw new HttpError(400, 'El celular solo puede contener números, espacios, +, - y paréntesis.');
     }
 }
 function normalizeOptionalCompanyId(companyId) {
@@ -54,10 +69,12 @@ function validateCompanyAccess(role, companyId) {
 }
 export function toPublicUser(user) {
     const companyId = normalizeOptionalCompanyId(user.companyId);
+    const celular = normalizeOptionalCellular(user.celular);
     return {
         id: String(user._id),
         username: user.username,
         name: user.name,
+        celular,
         role: user.role,
         companyId,
         companyLabel: resolveCompanyLabel(companyId),
@@ -76,6 +93,7 @@ export async function ensureDefaultAdminUser() {
         await UserModel.create({
             username: normalizedUsername,
             name: env.defaultAdminName.trim(),
+            celular: null,
             role: 'super_administrador',
             companyId: null,
             passwordHash,
@@ -108,6 +126,7 @@ export async function listUsers() {
 export async function createUser(payload) {
     validateUsername(payload.username);
     validateName(payload.name);
+    validateCellular(normalizeOptionalCellular(payload.celular));
     validatePassword(payload.password);
     if (!validateRole(payload.role)) {
         throw new HttpError(400, 'Rol inválido.');
@@ -122,6 +141,7 @@ export async function createUser(payload) {
     const created = await UserModel.create({
         username: normalizedUsername,
         name: payload.name.trim(),
+        celular: normalizeOptionalCellular(payload.celular),
         role: payload.role,
         companyId: normalizedCompanyId,
         passwordHash,
@@ -142,6 +162,11 @@ export async function updateUser(userId, payload, actorUserId) {
     if (payload.name !== undefined) {
         validateName(payload.name);
         user.name = payload.name.trim();
+    }
+    if (payload.celular !== undefined) {
+        const normalizedCellular = normalizeOptionalCellular(payload.celular);
+        validateCellular(normalizedCellular);
+        user.celular = normalizedCellular;
     }
     if (payload.role !== undefined) {
         if (!validateRole(payload.role)) {

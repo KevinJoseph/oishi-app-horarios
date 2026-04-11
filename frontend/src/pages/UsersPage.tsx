@@ -41,6 +41,7 @@ function normalizeUser(user: Partial<AppUser>): AppUser {
     id: safeText(user.id, ''),
     username: safeText(user.username, ''),
     name: safeText(user.name, 'Sin nombre'),
+    celular: typeof user.celular === 'string' ? user.celular : null,
     role: normalizedRole,
     companyId: typeof user.companyId === 'string' ? user.companyId : null,
     companyLabel: typeof user.companyLabel === 'string' ? user.companyLabel : null,
@@ -127,11 +128,12 @@ export function UsersPage(): JSX.Element {
       <Card>
         <CardBody>
           <Box overflowX="auto">
-            <Table size="sm" minW="760px">
+            <Table size="sm" minW="880px">
               <Thead>
                 <Tr>
                   <Th>Nombre</Th>
                   <Th>Usuario</Th>
+                  <Th>Celular</Th>
                   <Th>Perfil</Th>
                   <Th>Empresa</Th>
                   <Th>Creado</Th>
@@ -150,6 +152,7 @@ export function UsersPage(): JSX.Element {
                       ) : null}
                     </Td>
                     <Td>{user.username}</Td>
+                    <Td>{user.celular ?? ''}</Td>
                     <Td>
                       <Badge
                         colorScheme={
@@ -237,6 +240,7 @@ export function UsersPage(): JSX.Element {
               await createUser({
                 name: payload.name,
                 username: payload.username,
+                celular: payload.celular,
                 role: payload.role,
                 companyId: payload.companyId,
                 password: payload.password

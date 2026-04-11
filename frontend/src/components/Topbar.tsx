@@ -195,6 +195,14 @@ export function Topbar(): JSX.Element {
               </Box>
               <Box px={2.5} py={1.5}>
                 <Text fontSize="xs" color="gray.500">
+                  Celular
+                </Text>
+                <Text fontSize="sm" color="gray.800">
+                  {currentUser?.celular ?? '-'}
+                </Text>
+              </Box>
+              <Box px={2.5} py={1.5}>
+                <Text fontSize="xs" color="gray.500">
                   Perfil
                 </Text>
                 <Text fontSize="sm" color="gray.800">

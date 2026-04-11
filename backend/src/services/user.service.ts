@@ -13,7 +13,7 @@ function validateRole(role: string): role is UserRole {
   return role === 'super_administrador' || role === 'administrador' || role === 'supervisor';
 }
 
-function validatePassword(password: string): void {
+export function validatePassword(password: string): void {
   if (password.trim().length < 6) {
     throw new HttpError(400, 'La contraseña debe tener al menos 6 caracteres.');
   }
@@ -29,6 +29,25 @@ function validateUsername(username: string): void {
   const normalized = normalizeUsername(username);
   if (normalized.length < 3) {
     throw new HttpError(400, 'El usuario debe tener al menos 3 caracteres.');
+  }
+}
+
+function normalizeOptionalCellular(celular: string | null | undefined): string | null {
+  const normalized = celular?.trim() ?? '';
+  return normalized ? normalized : null;
+}
+
+function validateCellular(celular: string | null): void {
+  if (!celular) {
+    return;
+  }
+
+  if (celular.length > 20) {
+    throw new HttpError(400, 'El celular no puede superar 20 caracteres.');
+  }
+
+  if (!/^[0-9+\-\s()]+$/.test(celular)) {
+    throw new HttpError(400, 'El celular solo puede contener números, espacios, +, - y paréntesis.');
   }
 }
 
@@ -71,16 +90,19 @@ export function toPublicUser(user: {
   _id: unknown;
   username: string;
   name: string;
+  celular?: string | null;
   role: UserRole;
   companyId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): PublicUser {
   const companyId = normalizeOptionalCompanyId(user.companyId);
+  const celular = normalizeOptionalCellular(user.celular);
   return {
     id: String(user._id),
     username: user.username,
     name: user.name,
+    celular,
     role: user.role,
     companyId,
     companyLabel: resolveCompanyLabel(companyId),
@@ -102,6 +124,7 @@ export async function ensureDefaultAdminUser(): Promise<void> {
     await UserModel.create({
       username: normalizedUsername,
       name: env.defaultAdminName.trim(),
+      celular: null,
       role: 'super_administrador',
       companyId: null,
       passwordHash,
@@ -141,6 +164,7 @@ export async function listUsers(): Promise<PublicUser[]> {
 export async function createUser(payload: CreateUserPayload): Promise<PublicUser> {
   validateUsername(payload.username);
   validateName(payload.name);
+  validateCellular(normalizeOptionalCellular(payload.celular));
   validatePassword(payload.password);
 
   if (!validateRole(payload.role)) {
@@ -158,6 +182,7 @@ export async function createUser(payload: CreateUserPayload): Promise<PublicUser
   const created = await UserModel.create({
     username: normalizedUsername,
     name: payload.name.trim(),
+    celular: normalizeOptionalCellular(payload.celular),
     role: payload.role,
     companyId: normalizedCompanyId,
     passwordHash,
@@ -187,6 +212,12 @@ export async function updateUser(
   if (payload.name !== undefined) {
     validateName(payload.name);
     user.name = payload.name.trim();
+  }
+
+  if (payload.celular !== undefined) {
+    const normalizedCellular = normalizeOptionalCellular(payload.celular);
+    validateCellular(normalizedCellular);
+    user.celular = normalizedCellular;
   }
 
   if (payload.role !== undefined) {

@@ -428,7 +428,8 @@ export async function getGeoVictoriaPositionsController(req, res) {
             tokenLabel = 'Recibo';
             credentialsUser = env.geoVictoriaReciboUser;
             credentialsPassword = env.geoVictoriaReciboPassword;
-        } else {
+        }
+        else {
             const credentials = getCompanyCredentials(companyId);
             if (!credentials) {
                 res.status(400).json({ error: `No existen credenciales configuradas para la company "${companyId}".` });

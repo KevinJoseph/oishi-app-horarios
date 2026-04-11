@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { login, logoutByToken } from '../services/auth.service.js';
-import type { LoginPayload } from '../types/auth.js';
+import { changePassword, login, logoutByToken } from '../services/auth.service.js';
+import type { ChangePasswordPayload, LoginPayload } from '../types/auth.js';
 import { HttpError } from '../utils/httpError.js';
 
 function resolveStatus(error: unknown): number {
@@ -45,4 +45,22 @@ export async function logoutController(req: Request, res: Response): Promise<voi
 
   await logoutByToken(token);
   res.status(204).end();
+}
+
+export async function changePasswordController(req: Request, res: Response): Promise<void> {
+  const user = req.authUser;
+  const token = req.authToken;
+
+  if (!user || !token) {
+    res.status(401).json({ error: 'No autenticado.' });
+    return;
+  }
+
+  try {
+    const payload = req.body as ChangePasswordPayload;
+    await changePassword(user.id, token, payload);
+    res.status(200).json({ message: 'Contraseña actualizada correctamente.' });
+  } catch (error) {
+    res.status(resolveStatus(error)).json({ error: resolveMessage(error) });
+  }
 }

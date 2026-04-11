@@ -30,6 +30,7 @@ type Props = {
   onSubmit: (payload: {
     username: string;
     name: string;
+    celular?: string | null;
     role: UserRole;
     password?: string;
     companyId?: string | null;
@@ -40,6 +41,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
   const toast = useToast();
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
+  const [celular, setCelular] = useState('');
   const [role, setRole] = useState<UserRole>('supervisor');
   const [companyId, setCompanyId] = useState('');
   const [password, setPassword] = useState('');
@@ -49,6 +51,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
   useEffect(() => {
     setUsername(editingUser?.username ?? '');
     setName(editingUser?.name ?? '');
+    setCelular(editingUser?.celular ?? '');
     setRole(editingUser?.role ?? 'supervisor');
     setCompanyId(editingUser?.companyId ?? '');
     setPassword('');
@@ -77,6 +80,17 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
       return;
     }
 
+    const normalizedCellular = celular.trim();
+    if (normalizedCellular.length > 20) {
+      toast({ status: 'error', title: 'El celular no puede superar 20 caracteres.' });
+      return;
+    }
+
+    if (normalizedCellular && !/^[0-9+\-\s()]+$/.test(normalizedCellular)) {
+      toast({ status: 'error', title: 'El celular solo puede contener números, espacios, +, - y paréntesis.' });
+      return;
+    }
+
     if (!isEditing && password.trim().length < 6) {
       toast({ status: 'error', title: 'La contraseña debe tener al menos 6 caracteres.' });
       return;
@@ -92,6 +106,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
       await onSubmit({
         name: name.trim(),
         username: username.trim(),
+        celular: normalizedCellular ? normalizedCellular : null,
         role,
         companyId: role === 'administrador' ? companyId.trim() : null,
         password: password.trim() ? password : undefined
@@ -121,6 +136,19 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
               autoComplete="off"
               name="app-username"
             />
+          </FormControl>
+          <FormControl mb={3}>
+            <FormLabel>Celular</FormLabel>
+            <Input
+              value={celular}
+              onChange={(event) => setCelular(event.target.value)}
+              placeholder="Ej. +51 999 888 777"
+              autoComplete="tel"
+              name="app-user-celular"
+            />
+            <Text mt={1} fontSize="xs" color="gray.500">
+              Opcional. Se guardará vacío si no lo completas.
+            </Text>
           </FormControl>
           <FormControl isRequired mb={3}>
             <FormLabel>Perfil</FormLabel>

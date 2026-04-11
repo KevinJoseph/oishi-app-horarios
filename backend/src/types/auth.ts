@@ -4,6 +4,7 @@ export type PublicUser = {
   id: string;
   username: string;
   name: string;
+  celular: string | null;
   role: UserRole;
   companyId: string | null;
   companyLabel: string | null;
@@ -16,9 +17,16 @@ export type LoginPayload = {
   password: string;
 };
 
+export type ChangePasswordPayload = {
+  currentPassword: string;
+  newPassword: string;
+  confirmNewPassword?: string;
+};
+
 export type CreateUserPayload = {
   username: string;
   name: string;
+  celular?: string | null;
   role: UserRole;
   password: string;
   companyId?: string | null;
@@ -27,6 +35,7 @@ export type CreateUserPayload = {
 export type UpdateUserPayload = {
   username?: string;
   name?: string;
+  celular?: string | null;
   role?: UserRole;
   password?: string;
   companyId?: string | null;

@@ -61,6 +61,11 @@ type GeoMigrationGroup = {
 export function GeoMigrationPage(): JSX.Element {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isConfirmOpen,
+    onOpen: openConfirm,
+    onClose: closeConfirm
+  } = useDisclosure();
   const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
@@ -155,10 +160,13 @@ export function GeoMigrationPage(): JSX.Element {
   const [migratingKeys, setMigratingKeys] = useState<string[]>([]);
   const [resultByKey, setResultByKey] = useState<Record<string, GeoVictoriaPlanningMigrationResult>>({});
   const [selectedGroup, setSelectedGroup] = useState<GeoMigrationGroup | null>(null);
+  const [pendingMigrationKeys, setPendingMigrationKeys] = useState<string[]>([]);
+  const [pendingMigrationLabel, setPendingMigrationLabel] = useState('');
   const selectedEmployee = useMemo(
     () => scopedEmployees.find((employee) => employee.id === selectedGroup?.employeeId) ?? null,
     [scopedEmployees, selectedGroup]
   );
+  const migrationToastId = 'geo-migration-progress';
 
   useEffect(() => {
     setSelectedKeys((current) => current.filter((key) => migratableKeys.includes(key)));
@@ -226,6 +234,13 @@ export function GeoMigrationPage(): JSX.Element {
 
     setIsMigrating(true);
     setMigratingKeys(keys);
+    toast({
+      id: migrationToastId,
+      status: 'info',
+      title: 'Migrando...',
+      duration: null,
+      isClosable: false
+    });
     try {
       const response = await migrateGeoVictoriaPlanning(items);
       const nextResults = { ...resultByKey };
@@ -239,18 +254,24 @@ export function GeoMigrationPage(): JSX.Element {
         nextResults[rowKey] = result;
       }
       setResultByKey(nextResults);
+      toast.close(migrationToastId);
       toast({
         status: response.failed > 0 ? 'warning' : 'success',
         title: `Migracion completada: ${response.migrated} ok, ${response.failed} con error.`
       });
     } catch (error) {
+      toast.close(migrationToastId);
       toast({
         status: 'error',
         title: error instanceof Error ? error.message : 'No se pudo migrar la planificacion a GeoVictoria.'
       });
     } finally {
+      toast.close(migrationToastId);
       setIsMigrating(false);
       setMigratingKeys([]);
+      setPendingMigrationKeys([]);
+      setPendingMigrationLabel('');
+      closeConfirm();
     }
   };
 
@@ -284,10 +305,14 @@ export function GeoMigrationPage(): JSX.Element {
                     Filtro empresa activo
                   </Badge>
                 ) : null}
-                <Button
+              <Button
                   colorScheme="teal"
                   leftIcon={<FiSend />}
-                onClick={() => void handleMigrate(selectedKeys)}
+                onClick={() => {
+                  setPendingMigrationKeys(selectedKeys);
+                  setPendingMigrationLabel('migrar los seleccionados');
+                  openConfirm();
+                }}
                 isDisabled={selectedKeys.length === 0}
                 isLoading={isMigrating}
                 loadingText="Migrando"
@@ -297,7 +322,11 @@ export function GeoMigrationPage(): JSX.Element {
               <Button
                 variant="outline"
                 colorScheme="teal"
-                onClick={() => void handleMigrate(migratableKeys)}
+                onClick={() => {
+                  setPendingMigrationKeys(migratableKeys);
+                  setPendingMigrationLabel('migrar la semana');
+                  openConfirm();
+                }}
                 isDisabled={migratableKeys.length === 0}
                 isLoading={isMigrating && migratingKeys.length === migratableKeys.length}
               >
@@ -422,7 +451,11 @@ export function GeoMigrationPage(): JSX.Element {
                             colorScheme="teal"
                             variant="outline"
                             leftIcon={<FiSend />}
-                            onClick={() => void handleMigrate([group.key])}
+                            onClick={() => {
+                              setPendingMigrationKeys([group.key]);
+                              setPendingMigrationLabel(`migrar a ${group.employeeName}`);
+                              openConfirm();
+                            }}
                             isDisabled={!group.canMigrate}
                             isLoading={isRowMigrating}
                           >
@@ -474,6 +507,43 @@ export function GeoMigrationPage(): JSX.Element {
               </VStack>
             )}
           </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        isOpen={isConfirmOpen}
+        onClose={() => {
+          if (!isMigrating) {
+            closeConfirm();
+          }
+        }}
+        isCentered
+      >
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Confirmar migración</ModalHeader>
+          <ModalCloseButton isDisabled={isMigrating} />
+          <ModalBody>
+            <Text>
+              ¿Deseas {pendingMigrationLabel || 'ejecutar la migración'}?
+            </Text>
+          </ModalBody>
+          <ModalFooter>
+            <HStack>
+              <Button variant="ghost" onClick={closeConfirm} isDisabled={isMigrating}>
+                Cancelar
+              </Button>
+              <Button
+                colorScheme="teal"
+                onClick={() => void handleMigrate(pendingMigrationKeys)}
+                isLoading={isMigrating}
+                loadingText="Migrando"
+                isDisabled={pendingMigrationKeys.length === 0}
+              >
+                Migrar
+              </Button>
+            </HStack>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </Box>

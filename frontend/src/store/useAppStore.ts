@@ -103,6 +103,16 @@ type AppState = PersistableState & {
 };
 
 const seeded = rebuildUnlockedWeekPlansForAllAreas(loadSeedState());
+const CURRENT_AREA_STORAGE_KEY = 'app_horario2_current_area_id';
+
+function getStoredCurrentAreaId(): AreaId | null {
+  const value = localStorage.getItem(CURRENT_AREA_STORAGE_KEY);
+  return value && AREA_IDS.includes(value as AreaId) ? (value as AreaId) : null;
+}
+
+function setStoredCurrentAreaId(areaId: AreaId): void {
+  localStorage.setItem(CURRENT_AREA_STORAGE_KEY, areaId);
+}
 
 function validRoleCodes(roles: Role[]): Set<string> {
   return new Set(roles.flatMap((role) => role.validCodes.map((code) => `${role.id}|${code}`)));
@@ -853,6 +863,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   ...seeded,
   currentWeekStartDateISO: seeded.weeks[0]?.startDateISO ?? '',
   currentMonthStartDateISO: monthStartDateISO(parseISO(seeded.weeks[0]?.startDateISO ?? formatISO(new Date(), { representation: 'date' }))),
+  currentAreaId: getStoredCurrentAreaId() ?? seeded.currentAreaId,
   hydrated: false,
   syncError: null,
 
@@ -898,6 +909,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weeks: weeksWithToday,
         weekPlans,
         weekAuditById,
+        currentAreaId: getStoredCurrentAreaId() ?? normalized.currentAreaId,
         currentWeekStartDateISO: todayWeekISO,
         currentMonthStartDateISO: monthStartDateISO(parseISO(todayWeekISO)),
         hydrated: true,
@@ -905,6 +917,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     } catch (error) {
       set({
+        currentAreaId: getStoredCurrentAreaId() ?? seeded.currentAreaId,
         hydrated: true,
         syncError: error instanceof Error ? error.message : 'No se pudo cargar el backend. Se usa estado local temporal.'
       });
@@ -955,13 +968,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentMonthStartDateISO: monthStartDateISO(addMonths(parseISO(state.currentMonthStartDateISO), direction))
     })),
   setCurrentArea: (areaId) =>
-    set((state) => ({
-      currentAreaId: areaId,
-      timeSlots: state.timeSlotsByArea[areaId] ?? state.timeSlots,
-      shiftRanges: state.shiftRangesByArea[areaId] ?? state.shiftRanges,
-      validationRequirements: state.validationRequirementsByArea[areaId] ?? state.validationRequirements,
-      breakConfig: state.breakConfigByArea[areaId] ?? state.breakConfig
-    })),
+    set((state) => {
+      setStoredCurrentAreaId(areaId);
+      return {
+        currentAreaId: areaId,
+        timeSlots: state.timeSlotsByArea[areaId] ?? state.timeSlots,
+        shiftRanges: state.shiftRangesByArea[areaId] ?? state.shiftRanges,
+        validationRequirements: state.validationRequirementsByArea[areaId] ?? state.validationRequirements,
+        breakConfig: state.breakConfigByArea[areaId] ?? state.breakConfig
+      };
+    }),
 
   resetAll: () => {
     const todayWeekISO = getCurrentWeekStartDateISO();

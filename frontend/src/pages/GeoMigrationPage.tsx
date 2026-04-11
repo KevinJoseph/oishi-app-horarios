@@ -39,6 +39,11 @@ function scopedWeekKey(areaId: AreaId, weekId: string): string {
   return `${areaId}::${weekId}`;
 }
 
+function buildMigrationResultStorageKey(scopedWeekId: string | null, companyId: string | null): string | null {
+  if (!scopedWeekId) return null;
+  return `geo-migration-results:${scopedWeekId}:company:${companyId ?? '__all__'}`;
+}
+
 type GeoMigrationGroup = {
   key: string;
   employeeId: string;
@@ -76,6 +81,10 @@ export function GeoMigrationPage(): JSX.Element {
   const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
   const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
   const weekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
+  const migrationResultStorageKey = useMemo(
+    () => buildMigrationResultStorageKey(currentScopedWeekId, selectedGeoVictoriaCompanyId),
+    [currentScopedWeekId, selectedGeoVictoriaCompanyId]
+  );
   const scopedEmployees = useMemo(
     () =>
       employees.filter(
@@ -154,6 +163,36 @@ export function GeoMigrationPage(): JSX.Element {
   useEffect(() => {
     setSelectedKeys((current) => current.filter((key) => migratableKeys.includes(key)));
   }, [migratableKeys]);
+
+  useEffect(() => {
+    if (!migrationResultStorageKey) {
+      setResultByKey({});
+      return;
+    }
+
+    try {
+      const raw = window.localStorage.getItem(migrationResultStorageKey);
+      if (!raw) {
+        setResultByKey({});
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as Record<string, GeoVictoriaPlanningMigrationResult>;
+      setResultByKey(parsed);
+    } catch {
+      setResultByKey({});
+    }
+  }, [migrationResultStorageKey]);
+
+  useEffect(() => {
+    if (!migrationResultStorageKey) return;
+
+    try {
+      window.localStorage.setItem(migrationResultStorageKey, JSON.stringify(resultByKey));
+    } catch {
+      // Si el navegador bloquea localStorage, seguimos sin persistencia pero sin romper la UI.
+    }
+  }, [migrationResultStorageKey, resultByKey]);
 
   const allMigratableSelected = migratableKeys.length > 0 && migratableKeys.every((key) => selectedKeys.includes(key));
 
@@ -275,7 +314,7 @@ export function GeoMigrationPage(): JSX.Element {
             <Text color="gray.500">No hay turnos asignados para el area y semana seleccionadas.</Text>
           ) : (
             <Box overflowX="auto">
-              <Table size="sm" bg="white" minW="1200px">
+              <Table size="sm" bg="white" minW="1040px">
                 <Thead>
                   <Tr>
                     <Th>
@@ -291,7 +330,6 @@ export function GeoMigrationPage(): JSX.Element {
                     <Th>Codigo</Th>
                     <Th>Empresa</Th>
                     <Th>Identificador</Th>
-                    <Th>Planificación semanal</Th>
                     <Th>Turno</Th>
                     <Th>Planificacion</Th>
                     <Th>Accion</Th>
@@ -323,20 +361,6 @@ export function GeoMigrationPage(): JSX.Element {
                         <Td>{group.employeeCode}</Td>
                         <Td>{group.companyLabel}</Td>
                         <Td>{group.userIdentifier || '-'}</Td>
-                        <Td>
-                          <VStack align="start" spacing={1}>
-                            {group.rows.map((row) => (
-                              <Box key={row.key}>
-                                <Text fontSize="sm">{row.assignmentType === 'rest' ? `${row.dayName}: Descanso` : `${row.dayName}: ${row.startHour} - ${row.endHour}`}</Text>
-                                {row.assignmentType === 'work' && row.breakStartHour && row.breakEndHour ? (
-                                  <Text fontSize="xs" color="gray.500">
-                                    Break {row.breakStartHour} - {row.breakEndHour}
-                                  </Text>
-                                ) : null}
-                              </Box>
-                            ))}
-                          </VStack>
-                        </Td>
                         <Td>
                           {groupResults.length ? (
                             <Tooltip

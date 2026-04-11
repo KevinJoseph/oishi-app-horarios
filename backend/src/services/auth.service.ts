@@ -1,6 +1,14 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { SessionModel } from '../models/Session.js';
+import { PasswordResetTokenModel } from '../models/PasswordResetToken.js';
 import { UserModel } from '../models/User.js';
-import type { ChangePasswordPayload, LoginPayload, PublicUser } from '../types/auth.js';
+import type {
+  ChangePasswordPayload,
+  ForgotPasswordPayload,
+  LoginPayload,
+  PublicUser,
+  ResetPasswordPayload
+} from '../types/auth.js';
 import { HttpError } from '../utils/httpError.js';
 import { hashPassword, verifyPassword } from './password.service.js';
 import { ensureDefaultAdminUser, toPublicUser, validatePassword } from './user.service.js';
@@ -11,6 +19,10 @@ const SESSION_DURATION_MS = env.authSessionDays * 24 * 60 * 60 * 1000;
 
 function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function hashResetToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
 }
 
 type AuthJwtPayload = JwtPayload & {
@@ -49,6 +61,10 @@ function verifyAuthToken(token: string): AuthJwtPayload | null {
   } catch {
     return null;
   }
+}
+
+function buildPasswordResetToken(): string {
+  return randomBytes(32).toString('hex');
 }
 
 export async function login(payload: LoginPayload): Promise<{ token: string; user: PublicUser }> {
@@ -157,4 +173,79 @@ export async function changePassword(
   await user.save();
 
   await SessionModel.deleteMany({ userId: user._id, token: { $ne: token } });
+}
+
+export async function requestPasswordReset(
+  payload: ForgotPasswordPayload
+): Promise<{ message: string; resetToken: string; expiresAt: string }> {
+  const username = normalizeUsername(payload.username ?? '');
+  if (!username) {
+    throw new HttpError(400, 'El usuario es obligatorio.');
+  }
+
+  const user = await UserModel.findOne({ username }).lean();
+  if (!user) {
+    throw new HttpError(404, 'Usuario no encontrado.');
+  }
+
+  await PasswordResetTokenModel.deleteMany({ userId: user._id });
+
+  const resetToken = buildPasswordResetToken();
+  const expiresAt = new Date(Date.now() + env.authPasswordResetMinutes * 60 * 1000);
+
+  await PasswordResetTokenModel.create({
+    userId: user._id,
+    tokenHash: hashResetToken(resetToken),
+    expiresAt,
+    usedAt: null
+  });
+
+  return {
+    message: 'Token de recuperación generado correctamente.',
+    resetToken,
+    expiresAt: expiresAt.toISOString()
+  };
+}
+
+export async function resetPassword(payload: ResetPasswordPayload): Promise<void> {
+  const resetToken = payload.resetToken ?? '';
+  const newPassword = payload.newPassword ?? '';
+  const confirmNewPassword = payload.confirmNewPassword ?? '';
+
+  if (!resetToken.trim() || !newPassword.trim()) {
+    throw new HttpError(400, 'El token de recuperación y la nueva contraseña son obligatorios.');
+  }
+
+  if (confirmNewPassword && newPassword !== confirmNewPassword) {
+    throw new HttpError(400, 'La confirmación de la nueva contraseña no coincide.');
+  }
+
+  validatePassword(newPassword);
+
+  const tokenHash = hashResetToken(resetToken.trim());
+  const resetEntry = await PasswordResetTokenModel.findOne({
+    tokenHash,
+    usedAt: null,
+    expiresAt: { $gt: new Date() }
+  });
+
+  if (!resetEntry) {
+    throw new HttpError(400, 'Token de recuperación inválido o expirado.');
+  }
+
+  const user = await UserModel.findById(resetEntry.userId);
+  if (!user) {
+    await PasswordResetTokenModel.deleteOne({ _id: resetEntry._id });
+    throw new HttpError(404, 'Usuario no encontrado.');
+  }
+
+  const { passwordHash, passwordSalt } = hashPassword(newPassword);
+  user.passwordHash = passwordHash;
+  user.passwordSalt = passwordSalt;
+  await user.save();
+
+  resetEntry.usedAt = new Date();
+  await resetEntry.save();
+
+  await SessionModel.deleteMany({ userId: user._id });
 }

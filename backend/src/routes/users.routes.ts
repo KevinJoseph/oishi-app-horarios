@@ -3,6 +3,7 @@ import {
   createUserController,
   deleteUserController,
   listUsersController,
+  validateCellphoneController,
   updateUserController
 } from '../controllers/users.controller.js';
 import { requireAdmin, requireAuth } from '../middlewares/auth.middleware.js';
@@ -13,3 +14,4 @@ usersRouter.get('/users', requireAuth, requireAdmin, listUsersController);
 usersRouter.post('/users', requireAuth, requireAdmin, createUserController);
 usersRouter.put('/users/:id', requireAuth, requireAdmin, updateUserController);
 usersRouter.delete('/users/:id', requireAuth, requireAdmin, deleteUserController);
+usersRouter.post('/user/validate-cellphone', requireAuth, validateCellphoneController);

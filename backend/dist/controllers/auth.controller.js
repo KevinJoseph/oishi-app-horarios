@@ -1,4 +1,4 @@
-import { changePassword, login, logoutByToken } from '../services/auth.service.js';
+import { changePassword, login, logoutByToken, requestPasswordReset, resetPassword } from '../services/auth.service.js';
 import { HttpError } from '../utils/httpError.js';
 function resolveStatus(error) {
     if (error instanceof HttpError) {
@@ -50,6 +50,26 @@ export async function changePasswordController(req, res) {
         const payload = req.body;
         await changePassword(user.id, token, payload);
         res.status(200).json({ message: 'Contraseña actualizada correctamente.' });
+    }
+    catch (error) {
+        res.status(resolveStatus(error)).json({ error: resolveMessage(error) });
+    }
+}
+export async function forgotPasswordController(req, res) {
+    try {
+        const payload = req.body;
+        const result = await requestPasswordReset(payload);
+        res.status(200).json(result);
+    }
+    catch (error) {
+        res.status(resolveStatus(error)).json({ error: resolveMessage(error) });
+    }
+}
+export async function resetPasswordController(req, res) {
+    try {
+        const payload = req.body;
+        await resetPassword(payload);
+        res.status(200).json({ message: 'Contraseña restablecida correctamente.' });
     }
     catch (error) {
         res.status(resolveStatus(error)).json({ error: resolveMessage(error) });

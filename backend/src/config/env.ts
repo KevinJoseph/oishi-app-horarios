@@ -140,6 +140,7 @@ export const env = {
   mongoUri: requireEnv('MONGO_URI', 'mongodb://127.0.0.1:27017/app_horarios2'),
   corsOrigin: requireEnv('CORS_ORIGIN', 'http://localhost:5173'),
   authSessionDays: Number(process.env.AUTH_SESSION_DAYS ?? 7),
+  authPasswordResetMinutes: Number(process.env.AUTH_PASSWORD_RESET_MINUTES ?? 30),
   authJwtSecret: requireEnv('AUTH_JWT_SECRET', 'dev-jwt-secret-change-me'),
   defaultAdminUsername: requireEnv('DEFAULT_ADMIN_USERNAME', 'Administrador'),
   defaultAdminPassword: requireEnv('DEFAULT_ADMIN_PASSWORD', 'Admin@@1##'),

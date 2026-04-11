@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { createUser, deleteUser, listUsers, updateUser } from '../services/user.service.js';
-import type { CreateUserPayload, UpdateUserPayload } from '../types/auth.js';
+import { createUser, deleteUser, listUsers, updateUser, validateCellphoneExists } from '../services/user.service.js';
+import type { CreateUserPayload, UpdateUserPayload, ValidateCellphonePayload } from '../types/auth.js';
 import { HttpError } from '../utils/httpError.js';
 
 function resolveStatus(error: unknown): number {
@@ -64,6 +64,19 @@ export async function deleteUserController(req: Request, res: Response): Promise
     const userId = String(req.params.id);
     await deleteUser(userId, actorId);
     res.status(204).end();
+  } catch (error) {
+    res.status(resolveStatus(error)).json({ error: resolveMessage(error) });
+  }
+}
+
+export async function validateCellphoneController(req: Request, res: Response): Promise<void> {
+  try {
+    const payload = req.body as ValidateCellphonePayload;
+    const exists = await validateCellphoneExists(payload.celular ?? '');
+    res.status(200).json({
+      exists,
+      message: exists ? 'Celular válido' : 'Celular no registrado'
+    });
   } catch (error) {
     res.status(resolveStatus(error)).json({ error: resolveMessage(error) });
   }

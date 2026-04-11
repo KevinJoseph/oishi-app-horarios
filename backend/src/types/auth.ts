@@ -23,6 +23,20 @@ export type ChangePasswordPayload = {
   confirmNewPassword?: string;
 };
 
+export type ForgotPasswordPayload = {
+  username: string;
+};
+
+export type ResetPasswordPayload = {
+  resetToken: string;
+  newPassword: string;
+  confirmNewPassword?: string;
+};
+
+export type ValidateCellphonePayload = {
+  celular: string;
+};
+
 export type CreateUserPayload = {
   username: string;
   name: string;

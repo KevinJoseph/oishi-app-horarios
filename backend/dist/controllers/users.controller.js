@@ -1,4 +1,4 @@
-import { createUser, deleteUser, listUsers, updateUser } from '../services/user.service.js';
+import { createUser, deleteUser, listUsers, updateUser, validateCellphoneExists } from '../services/user.service.js';
 import { HttpError } from '../utils/httpError.js';
 function resolveStatus(error) {
     if (error instanceof HttpError) {
@@ -57,6 +57,19 @@ export async function deleteUserController(req, res) {
         const userId = String(req.params.id);
         await deleteUser(userId, actorId);
         res.status(204).end();
+    }
+    catch (error) {
+        res.status(resolveStatus(error)).json({ error: resolveMessage(error) });
+    }
+}
+export async function validateCellphoneController(req, res) {
+    try {
+        const payload = req.body;
+        const exists = await validateCellphoneExists(payload.celular ?? '');
+        res.status(200).json({
+            exists,
+            message: exists ? 'Celular válido' : 'Celular no registrado'
+        });
     }
     catch (error) {
         res.status(resolveStatus(error)).json({ error: resolveMessage(error) });

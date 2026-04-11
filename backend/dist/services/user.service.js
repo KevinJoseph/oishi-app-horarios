@@ -29,6 +29,9 @@ function normalizeOptionalCellular(celular) {
     const normalized = celular?.trim() ?? '';
     return normalized ? normalized : null;
 }
+function normalizeCellularKey(celular) {
+    return (celular ?? '').replace(/\D/g, '');
+}
 function validateCellular(celular) {
     if (!celular) {
         return;
@@ -226,4 +229,12 @@ export async function deleteUser(userId, actorUserId) {
     }
     await UserModel.findByIdAndDelete(userId);
     await SessionModel.deleteMany({ userId });
+}
+export async function validateCellphoneExists(celular) {
+    const target = normalizeCellularKey(celular);
+    if (!target) {
+        throw new HttpError(400, 'El celular es obligatorio.');
+    }
+    const users = await UserModel.find({ celular: { $ne: null } }).lean();
+    return users.some((user) => normalizeCellularKey(user.celular) === target);
 }

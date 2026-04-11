@@ -23,10 +23,11 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   editing?: Role;
-  onSave: (role: Role) => { ok: boolean; error?: string };
+  onSave: (role: Role) => Promise<{ ok: boolean; error?: string }> | { ok: boolean; error?: string };
+  isSaving?: boolean;
 };
 
-export function RoleFormModal({ isOpen, onClose, editing, onSave }: Props): JSX.Element {
+export function RoleFormModal({ isOpen, onClose, editing, onSave, isSaving = false }: Props): JSX.Element {
   const colorPickerRef = useRef<HTMLInputElement | null>(null);
   const [name, setName] = useState('');
   const [colorHex, setColorHex] = useState('#90CDF4');
@@ -126,11 +127,13 @@ export function RoleFormModal({ isOpen, onClose, editing, onSave }: Props): JSX.
             </Button>
             <Button
               colorScheme="blue"
-              onClick={() => {
+              isLoading={isSaving}
+              loadingText="Guardando"
+              onClick={async () => {
                 const pending = newCode.trim().toUpperCase();
                 const nextCodes = pending && !codes.includes(pending) ? [...codes, pending] : codes;
                 if (!name.trim() || !nextCodes.length) return;
-                const result = onSave({
+                const result = await onSave({
                   id: editing?.id ?? createId('role'),
                   name: name.trim(),
                   colorHex: colorHex.trim() || '#90CDF4',

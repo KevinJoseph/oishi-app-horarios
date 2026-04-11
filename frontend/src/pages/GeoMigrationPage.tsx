@@ -62,12 +62,18 @@ type GeoMigrationGroup = {
 type StoredMigrationResult = {
   result: GeoVictoriaPlanningMigrationResult;
   migratedAt: string;
+  migratedBy: string | null;
 };
 
 function isStoredMigrationResult(value: unknown): value is StoredMigrationResult {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as StoredMigrationResult;
-  return typeof candidate.migratedAt === 'string' && typeof candidate.result === 'object' && candidate.result !== null;
+  return (
+    typeof candidate.migratedAt === 'string' &&
+    typeof candidate.result === 'object' &&
+    candidate.result !== null &&
+    (typeof candidate.migratedBy === 'string' || candidate.migratedBy === null || typeof candidate.migratedBy === 'undefined')
+  );
 }
 
 function formatMigrationDateTime(value: string): string {
@@ -88,6 +94,7 @@ export function GeoMigrationPage(): JSX.Element {
     onClose: closeConfirm
   } = useDisclosure();
   const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
+  const currentUser = useAuthStore((state) => state.currentUser);
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const weeks = useAppStore((state) => state.weeks);
@@ -210,11 +217,15 @@ export function GeoMigrationPage(): JSX.Element {
       const next: Record<string, StoredMigrationResult> = {};
       for (const [key, value] of Object.entries(parsed)) {
         if (isStoredMigrationResult(value)) {
-          next[key] = value;
+          next[key] = {
+            ...value,
+            migratedBy: value.migratedBy ?? null
+          };
         } else if (value && typeof value === 'object') {
           next[key] = {
             result: value as GeoVictoriaPlanningMigrationResult,
-            migratedAt: new Date().toISOString()
+            migratedAt: new Date().toISOString(),
+            migratedBy: null
           };
         }
       }
@@ -276,6 +287,7 @@ export function GeoMigrationPage(): JSX.Element {
     try {
       const response = await migrateGeoVictoriaPlanning(items);
       const migratedAt = new Date().toISOString();
+      const migratedBy = currentUser?.name?.trim() || currentUser?.username?.trim() || null;
       const nextResults = { ...resultByKey };
       for (const result of response.results) {
         const rowKey =
@@ -284,7 +296,7 @@ export function GeoMigrationPage(): JSX.Element {
             : result.assignmentType === 'free'
               ? `${result.employeeId}:${result.dateISO}:free`
             : `${result.employeeId}:${result.dateISO}:${result.startHour}:${result.endHour}:${result.breakStartHour ?? ''}:${result.breakEndHour ?? ''}`;
-        nextResults[rowKey] = { result, migratedAt };
+        nextResults[rowKey] = { result, migratedAt, migratedBy };
       }
       setResultByKey(nextResults);
       toast.close(migrationToastId);
@@ -411,6 +423,8 @@ export function GeoMigrationPage(): JSX.Element {
                       (latest, entry) => (latest === null || entry.migratedAt > latest ? entry.migratedAt : latest),
                       null
                     );
+                    const lastMigratedBy =
+                      groupResults.find((entry) => entry.migratedAt === lastMigratedAt)?.migratedBy ?? null;
                     const isRowMigrating = migratingKeys.includes(group.key);
                     return (
                       <Tr key={group.key}>
@@ -481,9 +495,11 @@ export function GeoMigrationPage(): JSX.Element {
                         </Td>
                         <Td>
                           {lastMigratedAt ? (
-                            <Text fontSize="xs" color="gray.600">
-                              {formatMigrationDateTime(lastMigratedAt)}
-                            </Text>
+                            <Tooltip label={lastMigratedBy ? `Actualizado por ${lastMigratedBy}` : 'Usuario no registrado'} hasArrow>
+                              <Text fontSize="xs" color="gray.600">
+                                {formatMigrationDateTime(lastMigratedAt)}
+                              </Text>
+                            </Tooltip>
                           ) : (
                             <Text fontSize="xs" color="gray.400">
                               -

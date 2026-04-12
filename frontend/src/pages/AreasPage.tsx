@@ -111,6 +111,11 @@ export function AreasPage(): JSX.Element {
       toast({ status: 'warning', title: 'El nombre es obligatorio.' });
       return;
     }
+    const duplicatedOrder = areas.find((area) => area.order === formOrder && area.code !== editing?.code);
+    if (duplicatedOrder) {
+      toast({ status: 'warning', title: 'Ya existe un área con ese número de orden.' });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -176,7 +181,7 @@ export function AreasPage(): JSX.Element {
               <Thead>
                 <Tr>
                   <Th>Orden</Th>
-                  <Th>Color</Th>
+                  {/*<Th>Color</Th>*/}
                   <Th>Area</Th>
                   {canEdit && <Th>Acciones</Th>}
                 </Tr>
@@ -204,9 +209,9 @@ export function AreasPage(): JSX.Element {
                           {area.order}
                         </Badge>
                       </Td>
-                      <Td>
+                      {/*<Td>
                         <Box w={5} h={5} rounded="md" bg={colorByIndex(index)} borderWidth="1px" borderColor="blue.100" />
-                      </Td>
+                      </Td>*/}
                       <Td>
                         <Text fontWeight="500">{area.label}</Text>
                       </Td>

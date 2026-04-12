@@ -55,9 +55,12 @@ function getEmployeeRestDayLabel(restDay: Employee['restDay'], contractType: Emp
   return getRestDayLabel(restDay);
 }
 
-function getRoleDisplayLabel(role?: { name: string; validCodes: string[] } | null): string {
-  if (!role) return '-';
-  const code = role.validCodes[0]?.trim();
+function getAssignedRoleDisplayLabel(
+  employee: Pick<Employee, 'mainRoleCode' | 'mainRoleId'>,
+  role?: { name: string; validCodes: string[] } | null
+): string {
+  if (!employee.mainRoleId || !role) return '-';
+  const code = employee.mainRoleCode?.trim();
   return code ? `${code} - ${role.name}` : role.name;
 }
 
@@ -65,11 +68,9 @@ function getWeeklyHoursLabel(value: Employee['weeklyHours']): string {
   return value === undefined ? '-' : `${value.toFixed(1)} h`;
 }
 
-function getAreaLabel(value: Employee['areaId']): string {
-  if (value === 'cocina') return 'Cocina';
-  if (value === 'oficina') return 'Oficina';
-  if (value === 'produccion') return 'Producción';
-  return 'Salón';
+function getAreaLabel(value: Employee['areaId'], areas: { code: string; label: string }[]): string {
+  if (!value) return '-';
+  return areas.find((area) => area.code === value)?.label ?? value;
 }
 
 function normalizeText(value: string | undefined): string {
@@ -549,12 +550,12 @@ export function EmployeesPage(): JSX.Element {
                     </Td>
                     <Td>{getEmployeeCompanyLabel(employee)}</Td>
                     <Td>{employee.positionDescription ?? '-'}</Td>
-                    <Td>{getAreaLabel(employee.areaId)}</Td>
+                    <Td>{getAreaLabel(employee.areaId, areas)}</Td>
                     <Td>{employee.contractType ? getWeeklyHoursLabel(employee.weeklyHours) : ''}</Td>
                     <Td>{getContractTypeLabel(employee.contractType)}</Td>
                     <Td>{getShiftTypeLabel(employee.shiftType, employee.contractType)}</Td>
                     <Td>{getEmployeeRestDayLabel(employee.restDay, employee.contractType)}</Td>
-                    <Td>{getRoleDisplayLabel(employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? null : null)}</Td>
+                    <Td>{getAssignedRoleDisplayLabel(employee, employee.mainRoleId ? roleById.get(employee.mainRoleId) ?? null : null)}</Td>
                     <Td>
                       <HStack>
                         <Tooltip label="Editar" hasArrow>

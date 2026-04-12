@@ -101,6 +101,7 @@ export type Assignment = {
   roleId: string | null;
   code: string;
   isBreak?: boolean;
+  suppressConfiguredBreak?: boolean;
 };
 
 export type DayPlan = {

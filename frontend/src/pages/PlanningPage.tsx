@@ -33,7 +33,7 @@ import { LegendDrawer } from '../components/LegendDrawer';
 import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Assignment } from '../types';
-import { isBreakAssignment } from '../utils/assignments';
+import { isBreakAssignment, suppressesConfiguredBreak } from '../utils/assignments';
 import { isTimeSlotInBreak } from '../utils/breaks';
 import { getCurrentMonday } from '../utils/dates';
 import { isRestDayForDate } from '../utils/weekdays';
@@ -255,7 +255,11 @@ export function PlanningPage(): JSX.Element {
           const slot = timeSlots.find((item) => item.id === slotId);
           for (const [employeeId, assignment] of Object.entries(byEmployee)) {
             const configuredBreakWithoutOverride =
-              Boolean(slot) && isTimeSlotInBreak(slot, breakConfig) && assignment.roleId === null && assignment.code === 'LIBRE';
+              Boolean(slot) &&
+              isTimeSlotInBreak(slot, breakConfig) &&
+              assignment.roleId === null &&
+              assignment.code === 'LIBRE' &&
+              !suppressesConfiguredBreak(assignment);
             if (configuredBreakWithoutOverride) continue;
             if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') continue;
             assignedByEmployeeId.set(employeeId, (assignedByEmployeeId.get(employeeId) ?? 0) + slotHours);

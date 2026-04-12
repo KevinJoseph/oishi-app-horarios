@@ -1600,6 +1600,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       const accepted = validRoleCodes(scopedRoles).has(`${assignment.roleId}|${assignment.code}`);
       if (!accepted) return { ok: false, error: 'El código no pertenece al Zona seleccionado.' };
     }
+    const selectedSlot = weekConfig.timeSlots.find((slot) => slot.id === timeSlotId);
+    const isConfiguredBreakSlot = Boolean(selectedSlot && isTimeSlotInBreak(selectedSlot, weekConfig.breakConfig));
+    const normalizedAssignment = assignment.isBreak
+      ? createBreakAssignment()
+      : {
+          ...assignment,
+          isBreak: false,
+          suppressConfiguredBreak: isConfiguredBreakSlot
+        };
 
     set((state) => {
       const plan = state.weekPlans[scopedWeekId];
@@ -1608,7 +1617,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (day.dateISO !== dateISO) return day;
         const assignmentsBySlot = { ...day.assignments };
         const byEmployee = { ...(assignmentsBySlot[timeSlotId] ?? {}) };
-        byEmployee[employeeId] = assignment;
+        byEmployee[employeeId] = normalizedAssignment;
         assignmentsBySlot[timeSlotId] = byEmployee;
         return { ...day, assignments: assignmentsBySlot };
       });

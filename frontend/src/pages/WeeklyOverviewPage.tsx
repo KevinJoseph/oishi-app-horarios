@@ -32,6 +32,7 @@ import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '
 import { useAuthStore } from '../store/useAuthStore';
 import { downloadEmployeeWeekPdf, downloadWeeklyGridPdf, downloadWeeklyOverviewPdf } from '../utils/pdf';
 import type { AreaId, Employee } from '../types';
+import { isWorkAssignment } from '../utils/assignments';
 
 export function WeeklyOverviewPage(): JSX.Element {
   const toast = useToast();
@@ -94,7 +95,7 @@ export function WeeklyOverviewPage(): JSX.Element {
       for (const [slotId, byEmployee] of Object.entries(day.assignments)) {
         const slotHours = slotDurationById.get(slotId) ?? 0;
         for (const [employeeId, assignment] of Object.entries(byEmployee)) {
-          if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') continue;
+          if (!isWorkAssignment(assignment)) continue;
           summary.set(employeeId, (summary.get(employeeId) ?? 0) + slotHours);
         }
       }

@@ -1,5 +1,6 @@
 import type { BreakConfig, Employee, Role, TimeSlot, WeekPlan } from '../types';
 import { isTimeSlotInBreak } from './breaks';
+import { isBreakAssignment, isWorkAssignment } from './assignments';
 import { isRestDayForDate } from './weekdays';
 
 export type GeoMigrationRow = {
@@ -123,9 +124,9 @@ export function buildGeoMigrationRows(
         const assignment = day.assignments[slot.id]?.[employee.id];
         const slotIndex = slotIndexById.get(slot.id);
         if (slotIndex === undefined) continue;
-        const isBreakSlot = isTimeSlotInBreak(slot, breakConfig);
+        const isBreakSlot = isTimeSlotInBreak(slot, breakConfig) || isBreakAssignment(assignment);
 
-        if (!assignment || (assignment.roleId === null && assignment.code === 'LIBRE')) {
+        if (!assignment || isBreakAssignment(assignment) || (assignment.roleId === null && assignment.code === 'LIBRE')) {
           if (isBreakSlot && currentSegment) {
             const breakIsContiguous = pendingBreak
               ? pendingBreak.lastSlotIndex + 1 === slotIndex
@@ -140,6 +141,11 @@ export function buildGeoMigrationRows(
               continue;
             }
           }
+          flushCurrentSegment();
+          continue;
+        }
+
+        if (!isWorkAssignment(assignment)) {
           flushCurrentSegment();
           continue;
         }

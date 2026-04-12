@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import type { BreakConfig, DayPlan, Employee, Role, TimeSlot, Week, WeekPlan } from '../types';
 import { isTimeSlotInBreak } from './breaks';
+import { isBreakAssignment, isWorkAssignment } from './assignments';
 import { isRestDayForDate } from './weekdays';
 
 type DownloadEmployeeWeekPdfInput = {
@@ -257,16 +258,27 @@ function drawCompactDayTable(
     const fillColors: Array<[number, number, number] | null> = [null];
     for (const employee of activeEmployees) {
       const assignment = dayPlan.assignments[slot.id]?.[employee.id];
-      const label =
-        !assignment || assignment.roleId === null || assignment.code === 'LIBRE'
-          ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
-            ? 'Descanso'
-            : isTimeSlotInBreak(slot, breakConfig)
+      const isBreak = isBreakAssignment(assignment);
+      const isWork = isWorkAssignment(assignment);
+      const label = !assignment
+        ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
+          ? 'Descanso'
+          : isTimeSlotInBreak(slot, breakConfig)
             ? 'Break'
             : 'SIN ASIGNAR'
-          : assignment.code;
+        : isBreak
+          ? 'Break'
+          : !isWork
+            ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
+              ? 'Descanso'
+              : isTimeSlotInBreak(slot, breakConfig)
+                ? 'Break'
+                : 'SIN ASIGNAR'
+            : assignment.code;
       rowValues.push(label);
-      if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') {
+      if (isBreak) {
+        fillColors.push([255, 244, 220]);
+      } else if (!isWork) {
         fillColors.push([255, 255, 255]);
       } else {
         fillColors.push(tintRoleCellColor(roleColorById.get(assignment.roleId)));
@@ -328,16 +340,27 @@ function drawDaySchedulePage(
     const fillColors: Array<[number, number, number] | null> = [null];
     for (const employee of activeEmployees) {
       const assignment = dayPlan.assignments[slot.id]?.[employee.id];
-      const label =
-        !assignment || assignment.roleId === null || assignment.code === 'LIBRE'
-          ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
-            ? 'Descanso'
-            : isTimeSlotInBreak(slot, breakConfig)
+      const isBreak = isBreakAssignment(assignment);
+      const isWork = isWorkAssignment(assignment);
+      const label = !assignment
+        ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
+          ? 'Descanso'
+          : isTimeSlotInBreak(slot, breakConfig)
             ? 'Break'
             : 'SIN ASIGNAR'
-          : assignment.code;
+        : isBreak
+          ? 'Break'
+          : !isWork
+            ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
+              ? 'Descanso'
+              : isTimeSlotInBreak(slot, breakConfig)
+                ? 'Break'
+                : 'SIN ASIGNAR'
+            : assignment.code;
       rowValues.push(label);
-      if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') {
+      if (isBreak) {
+        fillColors.push([255, 244, 220]);
+      } else if (!isWork) {
         fillColors.push([255, 255, 255]);
       } else {
         fillColors.push(tintRoleCellColor(roleColorById.get(assignment.roleId)));
@@ -410,16 +433,27 @@ function drawEmployeeSchedulePage(
     const fillColors: Array<[number, number, number] | null> = [null];
     for (const day of days) {
       const assignment = day.assignments[slot.id]?.[employee.id];
-      const label =
-        !assignment || assignment.roleId === null || assignment.code === 'LIBRE'
-          ? isRestDayForDate(day.dateISO, employee.restDay)
-            ? 'Descanso'
-            : isTimeSlotInBreak(slot, breakConfig)
+      const isBreak = isBreakAssignment(assignment);
+      const isWork = isWorkAssignment(assignment);
+      const label = !assignment
+        ? isRestDayForDate(day.dateISO, employee.restDay)
+          ? 'Descanso'
+          : isTimeSlotInBreak(slot, breakConfig)
             ? 'Break'
             : 'SIN ASIGNAR'
-          : assignment.code;
+        : isBreak
+          ? 'Break'
+          : !isWork
+            ? isRestDayForDate(day.dateISO, employee.restDay)
+              ? 'Descanso'
+              : isTimeSlotInBreak(slot, breakConfig)
+                ? 'Break'
+                : 'SIN ASIGNAR'
+            : assignment.code;
       rowValues.push(label);
-      if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') {
+      if (isBreak) {
+        fillColors.push([255, 244, 220]);
+      } else if (!isWork) {
         fillColors.push([255, 255, 255]);
       } else {
         fillColors.push(tintRoleCellColor(roleColorById.get(assignment.roleId)));
@@ -544,7 +578,7 @@ function computeAssignedHours(employeeId: string, days: WeekPlan['days'], slots:
   for (const day of days) {
     for (const slot of slots) {
       const assignment = day.assignments[slot.id]?.[employeeId];
-      if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') continue;
+      if (!isWorkAssignment(assignment)) continue;
       assigned += durationBySlotId.get(slot.id) ?? 0;
     }
   }

@@ -2,6 +2,7 @@ import { addDays, formatISO, parseISO } from 'date-fns';
 import { buildEmptyWeekPlan, buildMockWeeks, mockEmployees, mockRoles, mockTimeSlots } from './mocks';
 import type {
   AreaId,
+  AreaInfo,
   BreakConfig,
   BreakConfigByArea,
   Role,
@@ -22,6 +23,7 @@ const AREA_IDS: AreaId[] = ['salon', 'cocina', 'oficina', 'produccion'];
 const DEFAULT_AREA_ID: AreaId = 'salon';
 
 export type SeedState = {
+  areas: AreaInfo[];
   employees: typeof mockEmployees;
   roles: typeof mockRoles;
   currentAreaId: AreaId;
@@ -235,6 +237,10 @@ function normalizeWeekPlan(weekStartDateISO: string, sourcePlan: WeekPlan | unde
 }
 
 export function normalizePlannerState(input: SeedState): SeedState {
+  const areas = input.areas ?? [];
+  const areaCodes = areas.length > 0 ? areas.map((a) => a.code) : AREA_IDS as unknown as string[];
+  const firstArea = areaCodes[0] ?? DEFAULT_AREA_ID;
+
   const baseWeeks = input.weeks.length >= 4 ? input.weeks : buildMockWeeks();
   const normalizedWeeks = [...baseWeeks]
     .sort((a, b) => a.startDateISO.localeCompare(b.startDateISO))
@@ -245,18 +251,16 @@ export function normalizePlannerState(input: SeedState): SeedState {
   const weekPlans: Record<string, WeekPlan> = {};
 
   const currentWeekISO = getCurrentWeekStartDateISO();
-  // Pre-calcular validatedWeekIds para limpiar semanas futuras
   const rawValidatedWeekIds = (input.validatedWeekIds ?? []) as string[];
 
   for (const week of normalizedWeeks) {
-    for (const areaId of AREA_IDS) {
+    for (const areaId of areaCodes) {
       const scopedKey = scopedWeekKey(areaId, week.id);
-      const legacyKey = areaId === DEFAULT_AREA_ID ? week.id : '';
+      const legacyKey = areaId === firstArea ? week.id : '';
       const sourcePlan = input.weekPlans[scopedKey] ?? (legacyKey ? input.weekPlans[legacyKey] : undefined);
 
-      // Semanas futuras no validadas: mostrar siempre vacías (sin asignar)
       const isFutureWeek = week.startDateISO > currentWeekISO;
-      const normalizedScopedKey = scopedKey.includes('::') ? scopedKey : scopedWeekKey(DEFAULT_AREA_ID, scopedKey);
+      const normalizedScopedKey = scopedKey.includes('::') ? scopedKey : scopedWeekKey(firstArea, scopedKey);
       const isValidated = rawValidatedWeekIds.some((id) => {
         const normalized = normalizeValidationWeekKey(id);
         return normalized === normalizedScopedKey || normalized.startsWith(`${normalizedScopedKey}::company:`);
@@ -274,9 +278,7 @@ export function normalizePlannerState(input: SeedState): SeedState {
 
   const normalizedEmployees = normalizeEmployeeCodes(input.employees).map((employee) => normalizeEmployeeContract(employee));
   const normalizedRoles = normalizeRolesByArea(input.roles);
-  const currentAreaId = AREA_IDS.includes(input.currentAreaId as AreaId)
-    ? (input.currentAreaId as AreaId)
-    : DEFAULT_AREA_ID;
+  const currentAreaId = areaCodes.includes(input.currentAreaId) ? input.currentAreaId : firstArea;
   const rawTimeSlotsByArea = (input.timeSlotsByArea ?? {}) as Partial<TimeSlotsByArea>;
   const rawShiftRangesByArea = (input.shiftRangesByArea ?? {}) as Partial<ShiftRangesByArea>;
   const rawValidationByArea = (input.validationRequirementsByArea ?? {}) as Partial<ValidationRequirementsByArea>;
@@ -285,30 +287,19 @@ export function normalizePlannerState(input: SeedState): SeedState {
   const fallbackShiftRanges = normalizeShiftRanges(input.shiftRanges, fallbackTimeSlots);
   const fallbackValidation = normalizeValidationRequirements(input.validationRequirements);
   const fallbackBreakConfig = normalizeBreakConfig(input.breakConfig, fallbackTimeSlots);
-  const timeSlotsByArea = {
-    salon: cloneTimeSlots(rawTimeSlotsByArea.salon ?? fallbackTimeSlots),
-    cocina: cloneTimeSlots(rawTimeSlotsByArea.cocina ?? fallbackTimeSlots),
-    oficina: cloneTimeSlots(rawTimeSlotsByArea.oficina ?? fallbackTimeSlots),
-    produccion: cloneTimeSlots(rawTimeSlotsByArea.produccion ?? fallbackTimeSlots)
-  } satisfies TimeSlotsByArea;
-  const shiftRangesByArea = {
-    salon: normalizeShiftRanges(rawShiftRangesByArea.salon ?? fallbackShiftRanges, timeSlotsByArea.salon),
-    cocina: normalizeShiftRanges(rawShiftRangesByArea.cocina ?? fallbackShiftRanges, timeSlotsByArea.cocina),
-    oficina: normalizeShiftRanges(rawShiftRangesByArea.oficina ?? fallbackShiftRanges, timeSlotsByArea.oficina),
-    produccion: normalizeShiftRanges(rawShiftRangesByArea.produccion ?? fallbackShiftRanges, timeSlotsByArea.produccion)
-  } satisfies ShiftRangesByArea;
-  const validationRequirementsByArea = {
-    salon: normalizeValidationRequirements(rawValidationByArea.salon ?? fallbackValidation),
-    cocina: normalizeValidationRequirements(rawValidationByArea.cocina ?? fallbackValidation),
-    oficina: normalizeValidationRequirements(rawValidationByArea.oficina ?? fallbackValidation),
-    produccion: normalizeValidationRequirements(rawValidationByArea.produccion ?? fallbackValidation)
-  } satisfies ValidationRequirementsByArea;
-  const breakConfigByArea = {
-    salon: normalizeBreakConfig(rawBreakConfigByArea.salon ?? fallbackBreakConfig, timeSlotsByArea.salon),
-    cocina: normalizeBreakConfig(rawBreakConfigByArea.cocina ?? fallbackBreakConfig, timeSlotsByArea.cocina),
-    oficina: normalizeBreakConfig(rawBreakConfigByArea.oficina ?? fallbackBreakConfig, timeSlotsByArea.oficina),
-    produccion: normalizeBreakConfig(rawBreakConfigByArea.produccion ?? fallbackBreakConfig, timeSlotsByArea.produccion)
-  } satisfies BreakConfigByArea;
+
+  const timeSlotsByArea: TimeSlotsByArea = {};
+  const shiftRangesByArea: ShiftRangesByArea = {};
+  const validationRequirementsByArea: ValidationRequirementsByArea = {};
+  const breakConfigByArea: BreakConfigByArea = {};
+  for (const code of areaCodes) {
+    timeSlotsByArea[code] = cloneTimeSlots(rawTimeSlotsByArea[code] ?? fallbackTimeSlots);
+    shiftRangesByArea[code] = normalizeShiftRanges(rawShiftRangesByArea[code] ?? fallbackShiftRanges, timeSlotsByArea[code]);
+    validationRequirementsByArea[code] = normalizeValidationRequirements(rawValidationByArea[code] ?? fallbackValidation);
+    breakConfigByArea[code] = normalizeBreakConfig(rawBreakConfigByArea[code] ?? fallbackBreakConfig, timeSlotsByArea[code]);
+  }
+
+  const areaCodeSet = new Set(areaCodes);
   const knownWeekIds = new Set(normalizedWeeks.map((week) => week.id));
   const validatedWeekIds = (input.validatedWeekIds ?? [])
     .map((key) => normalizeValidationWeekKey(key))
@@ -316,15 +307,15 @@ export function normalizePlannerState(input: SeedState): SeedState {
       const companyMarkerIndex = key.indexOf('::company:');
       const baseKey = companyMarkerIndex >= 0 ? key.slice(0, companyMarkerIndex) : key;
       const [areaId, weekId] = baseKey.split('::');
-      return AREA_IDS.includes(areaId as AreaId) && knownWeekIds.has(weekId);
+      return areaCodeSet.has(areaId) && knownWeekIds.has(weekId);
     });
   const weekAuditById: Record<string, WeekAudit> = {};
   const inputWeekAuditById = (input.weekAuditById ?? {}) as Record<string, unknown>;
   const inputWeekConfigById = (input.weekConfigById ?? {}) as Record<string, unknown>;
   for (const week of normalizedWeeks) {
-    for (const areaId of AREA_IDS) {
+    for (const areaId of areaCodes) {
       const scopedKey = scopedWeekKey(areaId, week.id);
-      const legacyKey = areaId === DEFAULT_AREA_ID ? week.id : '';
+      const legacyKey = areaId === firstArea ? week.id : '';
       weekAuditById[scopedKey] = sanitizeWeekAudit(inputWeekAuditById[scopedKey] ?? (legacyKey ? inputWeekAuditById[legacyKey] : undefined));
     }
   }
@@ -334,21 +325,21 @@ export function normalizePlannerState(input: SeedState): SeedState {
     if (companyMarkerIndex < 0) continue;
     const baseKey = normalizedKey.slice(0, companyMarkerIndex);
     const [areaId, weekId] = baseKey.split('::');
-    if (!AREA_IDS.includes(areaId as AreaId) || !knownWeekIds.has(weekId)) continue;
+    if (!areaCodeSet.has(areaId) || !knownWeekIds.has(weekId)) continue;
     weekAuditById[normalizedKey] = sanitizeWeekAudit(value);
   }
   const weekConfigById: WeekConfigurationById = {};
   const knownScopedWeekIds = new Set<string>();
   for (const week of normalizedWeeks) {
-    for (const areaId of AREA_IDS) {
+    for (const areaId of areaCodes) {
       knownScopedWeekIds.add(scopedWeekKey(areaId, week.id));
     }
   }
   for (const scopedKey of Object.keys(inputWeekConfigById)) {
-    const normalizedScopedKey = scopedKey.includes('::') ? scopedKey : scopedWeekKey(DEFAULT_AREA_ID, scopedKey);
+    const normalizedScopedKey = scopedKey.includes('::') ? scopedKey : scopedWeekKey(firstArea, scopedKey);
     if (!knownScopedWeekIds.has(normalizedScopedKey)) continue;
     const [areaIdFromKey] = normalizedScopedKey.split('::');
-    const areaId = AREA_IDS.includes(areaIdFromKey as AreaId) ? (areaIdFromKey as AreaId) : DEFAULT_AREA_ID;
+    const areaId = areaCodeSet.has(areaIdFromKey) ? areaIdFromKey : firstArea;
     const fallbackSnapshot = buildWeekConfigurationSnapshot(
       areaId,
       timeSlotsByArea,
@@ -365,7 +356,7 @@ export function normalizePlannerState(input: SeedState): SeedState {
   for (const scopedKey of validatedWeekIds) {
     if (weekConfigById[scopedKey]) continue;
     const [areaIdFromKey] = scopedKey.split('::');
-    const areaId = AREA_IDS.includes(areaIdFromKey as AreaId) ? (areaIdFromKey as AreaId) : DEFAULT_AREA_ID;
+    const areaId = areaCodeSet.has(areaIdFromKey) ? areaIdFromKey : firstArea;
     const fallbackSnapshot = buildWeekConfigurationSnapshot(
       areaId,
       timeSlotsByArea,
@@ -377,13 +368,14 @@ export function normalizePlannerState(input: SeedState): SeedState {
   }
 
   return {
+    areas,
     employees: normalizedEmployees,
     roles: normalizedRoles as SeedState['roles'],
     currentAreaId,
-    timeSlots: timeSlotsByArea[currentAreaId] ?? timeSlotsByArea.salon,
-    shiftRanges: shiftRangesByArea[currentAreaId] ?? shiftRangesByArea.salon,
-    validationRequirements: validationRequirementsByArea[currentAreaId] ?? validationRequirementsByArea.salon,
-    breakConfig: breakConfigByArea[currentAreaId] ?? breakConfigByArea.salon,
+    timeSlots: timeSlotsByArea[currentAreaId] ?? fallbackTimeSlots,
+    shiftRanges: shiftRangesByArea[currentAreaId] ?? fallbackShiftRanges,
+    validationRequirements: validationRequirementsByArea[currentAreaId] ?? fallbackValidation,
+    breakConfig: breakConfigByArea[currentAreaId] ?? fallbackBreakConfig,
     timeSlotsByArea,
     shiftRangesByArea,
     validationRequirementsByArea,
@@ -447,6 +439,7 @@ export function loadSeedState(): SeedState {
   }
 
   return {
+    areas: [],
     employees,
     roles,
     currentAreaId: DEFAULT_AREA_ID,

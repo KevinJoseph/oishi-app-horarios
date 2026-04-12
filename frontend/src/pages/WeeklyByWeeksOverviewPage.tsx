@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, WeekPlan } from '../types';
+import { isWorkAssignment } from '../utils/assignments';
 
 type EmployeeDailyHours = {
   employeeId: string;
@@ -141,7 +142,7 @@ function buildEmployeeDailyHours(
       const slotHours = slotDurationById.get(slotId) ?? 0;
       for (const employeeId of employeeIds) {
         const assignment = byEmployee[employeeId];
-        if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') continue;
+        if (!isWorkAssignment(assignment)) continue;
         const current = output.get(employeeId);
         if (!current) continue;
         current.dailyHours[dayIndex] += slotHours;

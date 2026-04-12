@@ -235,6 +235,7 @@ export function buildSeedState(): PlannerStatePayload {
   }
 
   return {
+    areas: [],
     employees,
     roles,
     currentAreaId: 'salon',

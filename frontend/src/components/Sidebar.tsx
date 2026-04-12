@@ -1,6 +1,6 @@
 import { Box, Flex, Icon, Image, Link, Text } from '@chakra-ui/react';
 import { NavLink } from 'react-router-dom';
-import { FiCalendar, FiGrid, FiLayers, FiSend, FiSettings, FiShield, FiUsers } from 'react-icons/fi';
+import { FiCalendar, FiGrid, FiLayers, FiMap, FiSend, FiSettings, FiShield, FiUsers } from 'react-icons/fi';
 import { useAuthStore } from '../store/useAuthStore';
 
 const links = [
@@ -8,6 +8,7 @@ const links = [
   { to: '/planning', label: 'Planificación', icon: FiCalendar, end: true },
   { to: '/planning/weekly-overview', label: 'Vista General', icon: FiGrid },
   { to: '/roles', label: 'Leyenda / Zonas', icon: FiLayers },
+  { to: '/areas', label: 'Áreas', icon: FiMap },
   { to: '/geo-migration', label: 'Migrar a Geo', icon: FiSend },
   { to: '/users', label: 'Usuarios', icon: FiShield },
   { to: '/settings/timeslots', label: 'Config. Horarios', icon: FiSettings }

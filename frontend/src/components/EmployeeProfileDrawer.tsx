@@ -15,6 +15,7 @@ import {
 import { useMemo } from 'react';
 import type { BreakConfig, Employee, Role, TimeSlot, WeekPlan } from '../types';
 import { isTimeSlotInBreak } from '../utils/breaks';
+import { isWorkAssignment } from '../utils/assignments';
 import { getRestDayLabel } from '../utils/weekdays';
 
 type Props = {
@@ -70,7 +71,7 @@ export function EmployeeProfileDrawer({
         const slot = slotById.get(slotId);
         if (!slot || isTimeSlotInBreak(slot, breakConfig)) continue;
         const assignment = assignmentsByEmployee[employee.id];
-        if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') continue;
+        if (!isWorkAssignment(assignment)) continue;
 
         const slotHours = slotDurationById.get(slotId) ?? 0;
         assignedSlots += 1;

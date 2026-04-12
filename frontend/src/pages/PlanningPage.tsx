@@ -33,6 +33,7 @@ import { LegendDrawer } from '../components/LegendDrawer';
 import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Assignment } from '../types';
+import { isBreakAssignment } from '../utils/assignments';
 import { isTimeSlotInBreak } from '../utils/breaks';
 import { getCurrentMonday } from '../utils/dates';
 import { isRestDayForDate } from '../utils/weekdays';
@@ -216,6 +217,7 @@ export function PlanningPage(): JSX.Element {
       label: activeDay.dayName
     };
   }, [activeDay, employees, timeSlots]);
+  const selectedCellIsExceptionalBreak = Boolean(selectedCell?.assignment && isBreakAssignment(selectedCell.assignment));
   useEffect(() => {
     setActiveDayIndex(0);
   }, [currentWeekStartDateISO]);
@@ -607,13 +609,19 @@ export function PlanningPage(): JSX.Element {
           const emp = employees.find((e) => e.id === selectedCell.employeeId);
           return isRestDayForDate(activeDay.dateISO, emp?.restDay);
         })()}
+        isNormalBreakSlot={(() => {
+          if (!activeDay || !selectedCell) return false;
+          const slot = timeSlots.find((item) => item.id === selectedCell.timeSlotId);
+          return slot ? isTimeSlotInBreak(slot, breakConfig) : false;
+        })()}
         isExceptionalRestDay={(() => {
           if (!activeDay || !selectedCell || !currentWeekPlan?.restDayOverrides) return false;
           const override = currentWeekPlan.restDayOverrides[selectedCell.employeeId];
           if (override === undefined) return false;
           return new Date(`${activeDay.dateISO}T00:00:00`).getDay() === override;
         })()}
-        onSave={({ assignment, applyToEmployeeDay, dayHours, exceptionalRestDay }) => {
+        isExceptionalBreak={selectedCellIsExceptionalBreak}
+        onSave={({ assignment, applyToEmployeeDay, dayHours, exceptionalRestDay, exceptionalBreak }) => {
           if (!canEdit) {
             toast({ status: 'error', title: 'Tu perfil es solo de visualización.' });
             return;
@@ -630,6 +638,20 @@ export function PlanningPage(): JSX.Element {
               dateISO: activeDay.dateISO,
               employeeId: selectedCell.employeeId,
               active: exceptionalRestDay
+            });
+            if (!result.ok) {
+              toast({ status: 'error', title: result.error ?? 'No se pudo guardar.' });
+            }
+            return;
+          }
+          if (exceptionalBreak !== undefined) {
+            const result = updateAssignment({
+              weekId: currentScopedWeekId ?? currentWeek.id,
+              dateISO: activeDay.dateISO,
+              timeSlotId: selectedCell.timeSlotId,
+              employeeId: selectedCell.employeeId,
+              assignment,
+              actorName: currentUser?.name
             });
             if (!result.ok) {
               toast({ status: 'error', title: result.error ?? 'No se pudo guardar.' });

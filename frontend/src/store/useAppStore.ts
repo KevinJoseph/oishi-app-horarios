@@ -8,10 +8,11 @@ import {
 } from '../api/plannerApi';
 import { loadSeedState, normalizePlannerState } from '../data/seed';
 import { buildEmptyWeekPlan, buildWeekFromStartDate } from '../data/mocks';
-import { AREA_IDS } from '../types';
 import { getBreakTimeSlotIds, getWorkableTimeSlots, isTimeSlotInBreak } from '../utils/breaks';
+import { createBreakAssignment, createFreeAssignment, isBreakAssignment } from '../utils/assignments';
 import type {
   AreaId,
+  AreaInfo,
   Assignment,
   BreakConfig,
   Employee,
@@ -107,7 +108,7 @@ const CURRENT_AREA_STORAGE_KEY = 'app_horario2_current_area_id';
 
 function getStoredCurrentAreaId(): AreaId | null {
   const value = localStorage.getItem(CURRENT_AREA_STORAGE_KEY);
-  return value && AREA_IDS.includes(value as AreaId) ? (value as AreaId) : null;
+  return value && value.trim().length > 0 ? value : null;
 }
 
 function setStoredCurrentAreaId(areaId: AreaId): void {
@@ -130,7 +131,7 @@ function resolveScopedWeekId(currentAreaId: AreaId, weekId: string): string {
 function areaFromWeekId(weekId: string): AreaId {
   if (!weekId.includes('::')) return 'salon';
   const [areaId] = weekId.split('::');
-  return AREA_IDS.includes(areaId as AreaId) ? (areaId as AreaId) : 'salon';
+  return areaId && areaId.trim().length > 0 ? areaId : 'salon';
 }
 
 function baseWeekIdFromScopedWeekId(weekId: string): string {
@@ -205,6 +206,12 @@ function buildAutoWeekPlanForEmployee(
     const isRestDay = parseISODateToDay(day.dateISO) === restDay;
     for (const slot of assignableSlots) {
       const byEmployee = { ...(assignments[slot.id] ?? {}) };
+      const existing = byEmployee[employeeId];
+      if (isBreakAssignment(existing)) {
+        byEmployee[employeeId] = createBreakAssignment();
+        assignments[slot.id] = byEmployee;
+        continue;
+      }
       const isPlanningSlot = planningSlotIds.has(slot.id);
       const slotHours = slotHoursById.get(slot.id) ?? 0;
 
@@ -212,7 +219,7 @@ function buildAutoWeekPlanForEmployee(
         byEmployee[employeeId] = { roleId, code };
         remainingHours = Number((remainingHours - slotHours).toFixed(4));
       } else {
-        byEmployee[employeeId] = { roleId: null, code: 'LIBRE' };
+        byEmployee[employeeId] = createFreeAssignment();
       }
 
       assignments[slot.id] = byEmployee;
@@ -298,7 +305,7 @@ function clearEmployeeFromWeekPlan(plan: WeekPlan, employeeId: string, timeSlots
     const assignments = { ...day.assignments };
     for (const slotId of slotIds) {
       const byEmployee = { ...(assignments[slotId] ?? {}) };
-      byEmployee[employeeId] = { roleId: null, code: 'LIBRE' };
+      byEmployee[employeeId] = createFreeAssignment();
       assignments[slotId] = byEmployee;
     }
     return { ...day, assignments };
@@ -540,7 +547,7 @@ function remapWeekPlansToTimeSlots(
 
           const byEmployee: WeekPlan['days'][number]['assignments'][string] = {};
           for (const employeeId of employeeIds) {
-            byEmployee[employeeId] = { roleId: null, code: 'LIBRE' };
+            byEmployee[employeeId] = createFreeAssignment();
           }
           assignments[slot.id] = byEmployee;
         }
@@ -675,9 +682,14 @@ function getConfigurationTargetWeekIds(state: PersistableState & { currentWeekSt
   return new Set([scopedWeekId]);
 }
 
+function getAreaCodes(state: PersistableState): string[] {
+  if (state.areas && state.areas.length > 0) return state.areas.map((a) => a.code);
+  return Object.keys(state.timeSlotsByArea);
+}
+
 function rebuildUnlockedWeekPlansForAllAreas(state: PersistableState): PersistableState {
   let weekPlans = state.weekPlans;
-  for (const areaId of AREA_IDS) {
+  for (const areaId of getAreaCodes(state)) {
     weekPlans = rebuildWeekPlansForArea(
       weekPlans,
       state.employees,
@@ -699,6 +711,7 @@ function rebuildUnlockedWeekPlansForAllAreas(state: PersistableState): Persistab
 
 function toPersistableState(state: AppState): PersistableState {
   return {
+    areas: state.areas,
     employees: state.employees,
     roles: state.roles,
     currentAreaId: state.currentAreaId,
@@ -892,7 +905,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Ensure today's week has a plan for all areas
       const weekPlans = { ...normalized.weekPlans };
       const weekAuditById = { ...normalized.weekAuditById };
-      for (const areaId of AREA_IDS) {
+      for (const areaId of getAreaCodes(normalized)) {
         const scopedId = toScopedWeekId(areaId, todayWeek.id);
         if (!weekPlans[scopedId]) {
           const timeSlotIds = (normalized.timeSlotsByArea[areaId] ?? normalized.timeSlots).map((s) => s.id);
@@ -1322,7 +1335,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               assignments[slotId] = { ...byEmployee };
               for (const [employeeId, assignment] of Object.entries(assignments[slotId])) {
                 if (assignment.roleId === roleId) {
-                  assignments[slotId][employeeId] = { roleId: null, code: 'LIBRE' };
+                  assignments[slotId][employeeId] = createFreeAssignment();
                 }
               }
             }
@@ -1386,6 +1399,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (assignment.roleId === null && assignment.code !== 'LIBRE') {
       return { ok: false, error: 'LIBRE debe usar código LIBRE.' };
     }
+    if (assignment.isBreak && (assignment.roleId !== null || assignment.code !== 'LIBRE')) {
+      return { ok: false, error: 'Break debe usar código LIBRE y no puede tener zona.' };
+    }
+    if (assignment.isBreak) {
+      return { ok: false, error: 'Break excepcional solo se puede asignar a una celda.' };
+    }
     if (assignment.roleId !== null) {
       const accepted = validRoleCodes(scopedRoles).has(`${assignment.roleId}|${assignment.code}`);
       if (!accepted) return { ok: false, error: 'El código no pertenece al Zona seleccionado.' };
@@ -1428,6 +1447,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (assignment.roleId === null && assignment.code !== 'LIBRE') {
       return { ok: false, error: 'LIBRE debe usar código LIBRE.' };
     }
+    if (assignment.isBreak && (assignment.roleId !== null || assignment.code !== 'LIBRE')) {
+      return { ok: false, error: 'Break debe usar código LIBRE y no puede tener zona.' };
+    }
+    if (assignment.isBreak) {
+      return { ok: false, error: 'Break excepcional solo se puede asignar a una celda.' };
+    }
     if (assignment.roleId !== null) {
       const accepted = validRoleCodes(scopedRoles).has(`${assignment.roleId}|${assignment.code}`);
       if (!accepted) return { ok: false, error: 'El código no pertenece al Zona seleccionado.' };
@@ -1445,8 +1470,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           const byEmployee = { ...(assignmentsBySlot[timeSlotId] ?? {}) };
           byEmployee[employeeId] =
             breakSlotIds.has(timeSlotId) && assignment.roleId !== null && assignment.code !== 'LIBRE'
-              ? { roleId: null, code: 'LIBRE' }
-              : assignment;
+              ? createFreeAssignment()
+              : assignment.isBreak
+                ? createBreakAssignment()
+                : assignment;
           assignmentsBySlot[timeSlotId] = byEmployee;
         }
         return { ...day, assignments: assignmentsBySlot };
@@ -1479,6 +1506,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (assignment.roleId === null && assignment.code !== 'LIBRE') {
       return { ok: false, error: 'LIBRE debe usar código LIBRE.' };
     }
+    if (assignment.isBreak && (assignment.roleId !== null || assignment.code !== 'LIBRE')) {
+      return { ok: false, error: 'Break debe usar código LIBRE y no puede tener zona.' };
+    }
     if (assignment.roleId !== null) {
       const accepted = validRoleCodes(scopedRoles).has(`${assignment.roleId}|${assignment.code}`);
       if (!accepted) return { ok: false, error: 'El código no pertenece al Zona seleccionado.' };
@@ -1502,17 +1532,23 @@ export const useAppStore = create<AppState>((set, get) => ({
           const timeSlotId = slot.id;
           const byEmployee = { ...(assignmentsBySlot[timeSlotId] ?? {}) };
           if (breakSlotIds.has(timeSlotId)) {
-            byEmployee[employeeId] = { roleId: null, code: 'LIBRE' };
+            byEmployee[employeeId] = createFreeAssignment();
             assignmentsBySlot[timeSlotId] = byEmployee;
             continue;
           }
           const slotHours = getSlotDurationHours(slot.start, slot.end);
           const shouldApplyInSlot = remaining > 0 && slotHours > 0;
 
+          if (assignment.isBreak) {
+            byEmployee[employeeId] = createBreakAssignment();
+            assignmentsBySlot[timeSlotId] = byEmployee;
+            continue;
+          }
+
           if (assignment.roleId === null) {
             // LIBRE + N horas: solo libera los primeros N bloques y mantiene intacto el resto del día.
             if (shouldApplyInSlot) {
-              byEmployee[employeeId] = { roleId: null, code: 'LIBRE' };
+              byEmployee[employeeId] = createFreeAssignment();
               assignmentsBySlot[timeSlotId] = byEmployee;
               remaining = Number((remaining - slotHours).toFixed(4));
             }
@@ -1520,7 +1556,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
 
           // Zona + N horas: asigna los primeros N bloques y libera el resto del día.
-          byEmployee[employeeId] = shouldApplyInSlot ? assignment : { roleId: null, code: 'LIBRE' };
+          byEmployee[employeeId] = shouldApplyInSlot ? assignment : createFreeAssignment();
           assignmentsBySlot[timeSlotId] = byEmployee;
 
           if (shouldApplyInSlot) {
@@ -1798,7 +1834,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (!active || parseISODateToDay(day.dateISO) !== dayNumber) return day;
         const assignments = { ...day.assignments };
         for (const slotId of Object.keys(assignments)) {
-          assignments[slotId] = { ...(assignments[slotId] ?? {}), [employeeId]: { roleId: null, code: 'LIBRE' } };
+          assignments[slotId] = { ...(assignments[slotId] ?? {}), [employeeId]: createFreeAssignment() };
         }
         return { ...day, assignments };
       });
@@ -1854,7 +1890,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         nextWeeks = existResult.weeks;
         const nextWeek = existResult.week;
 
-        for (const areaId of AREA_IDS) {
+        for (const areaId of getAreaCodes(state)) {
           const nextScopedId = toScopedWeekId(areaId, nextWeek.id);
           if (!nextWeekPlans[nextScopedId]) {
             const weekConfig = getWeekConfigurationSnapshot(state, toScopedWeekId(areaId, baseWeekId));
@@ -1889,7 +1925,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const nextStartISO = formatISO(addWeeks(parseISO(validatedWeek.startDateISO), 1), { representation: 'date' });
       const nextWeek = stateAfterValidation.weeks.find((w) => w.startDateISO === nextStartISO);
       if (nextWeek) {
-        for (const areaId of AREA_IDS) {
+        for (const areaId of getAreaCodes(stateAfterValidation)) {
           nextWeekExtraIds.push(toScopedWeekId(areaId, nextWeek.id));
         }
       }

@@ -5,6 +5,7 @@ import { EmployeesPage } from './pages/EmployeesPage';
 import { GeoMigrationPage } from './pages/GeoMigrationPage';
 import { LoginPage } from './pages/LoginPage';
 import { PlanningPage } from './pages/PlanningPage';
+import { AreasPage } from './pages/AreasPage';
 import { RolesPage } from './pages/RolesPage';
 import { TimeSlotsPage } from './pages/TimeSlotsPage';
 import { UsersPage } from './pages/UsersPage';
@@ -21,6 +22,7 @@ export default function App(): JSX.Element {
           <Route path="/geo-migration" element={<GeoMigrationPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/roles" element={<RolesPage />} />
+          <Route path="/areas" element={<AreasPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/settings/timeslots" element={<TimeSlotsPage />} />
           <Route path="*" element={<Navigate to="/planning" replace />} />

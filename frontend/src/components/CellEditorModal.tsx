@@ -18,6 +18,7 @@ import {
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
 import type { Assignment, Role } from '../types';
+import { createBreakAssignment, createFreeAssignment, isBreakAssignment } from '../utils/assignments';
 
 type Props = {
   isOpen: boolean;
@@ -27,12 +28,15 @@ type Props = {
   roles: Role[];
   isCurrentWeek?: boolean;
   isNormalRestDay?: boolean;
+  isNormalBreakSlot?: boolean;
   isExceptionalRestDay?: boolean;
+  isExceptionalBreak?: boolean;
   onSave: (payload: {
     assignment: Assignment;
     applyToEmployeeDay: boolean;
     dayHours?: number;
     exceptionalRestDay?: boolean;
+    exceptionalBreak?: boolean;
   }) => void;
 };
 
@@ -44,7 +48,9 @@ export function CellEditorModal({
   roles,
   isCurrentWeek = false,
   isNormalRestDay = false,
+  isNormalBreakSlot = false,
   isExceptionalRestDay = false,
+  isExceptionalBreak = false,
   onSave
 }: Props): JSX.Element {
   const [roleId, setRoleId] = useState<string>('');
@@ -52,11 +58,13 @@ export function CellEditorModal({
   const [applyToEmployeeDay, setApplyToEmployeeDay] = useState(false);
   const [dayHours, setDayHours] = useState<string>('0');
   const [exRestDay, setExRestDay] = useState(false);
+  const [exBreak, setExBreak] = useState(false);
 
   useEffect(() => {
     if (!assignment) return;
     setRoleId(assignment.roleId ?? '');
     setCode(assignment.code);
+    setExBreak(isBreakAssignment(assignment));
   }, [assignment]);
 
   useEffect(() => {
@@ -64,11 +72,12 @@ export function CellEditorModal({
     setApplyToEmployeeDay(false);
     setDayHours('0');
     setExRestDay(isExceptionalRestDay);
-  }, [isOpen, isExceptionalRestDay]);
+    setExBreak(isExceptionalBreak);
+  }, [isExceptionalBreak, isExceptionalRestDay, isOpen]);
 
   const selectedRole = useMemo(() => roles.find((role) => role.id === roleId), [roles, roleId]);
   const options = selectedRole?.validCodes ?? [];
-  const isFree = !roleId || exRestDay;
+  const isFree = !roleId || exRestDay || exBreak;
 
   useEffect(() => {
     if (isFree) {
@@ -82,6 +91,7 @@ export function CellEditorModal({
 
   // Mostrar el checkbox de descanso excepcional solo en la semana actual y si no es el día de descanso normal
   const showExRestDayOption = isCurrentWeek && !isNormalRestDay;
+  const showExBreakOption = isCurrentWeek && !isNormalBreakSlot;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -101,6 +111,7 @@ export function CellEditorModal({
                     if (event.target.checked) {
                       setRoleId('');
                       setApplyToEmployeeDay(false);
+                      setExBreak(false);
                     }
                   }}
                 >
@@ -115,9 +126,35 @@ export function CellEditorModal({
               <Divider mb={4} />
             </>
           )}
-          <FormControl mb={4} isDisabled={exRestDay}>
+          {showExBreakOption && (
+            <>
+              <FormControl mb={4}>
+                <Checkbox
+                  isChecked={exBreak}
+                  colorScheme="yellow"
+                  onChange={(event) => {
+                    setExBreak(event.target.checked);
+                    if (event.target.checked) {
+                      setRoleId('');
+                      setApplyToEmployeeDay(false);
+                      setExRestDay(false);
+                    }
+                  }}
+                >
+                  Break excepcional (solo esta celda)
+                </Checkbox>
+                {exBreak && (
+                  <Text fontSize="xs" color="yellow.700" mt={1}>
+                    Este bloque se marcará como break manual y no contará como tiempo trabajado.
+                  </Text>
+                )}
+              </FormControl>
+              <Divider mb={4} />
+            </>
+          )}
+          <FormControl mb={4} isDisabled={exRestDay || exBreak}>
             <FormLabel>Zona</FormLabel>
-            <Select value={exRestDay ? '' : roleId} onChange={(event) => setRoleId(event.target.value)} isDisabled={exRestDay}>
+            <Select value={exRestDay || exBreak ? '' : roleId} onChange={(event) => setRoleId(event.target.value)} isDisabled={exRestDay || exBreak}>
               <option value="">SIN ASIGNAR</option>
               {roles.map((role) => (
                 <option key={role.id} value={role.id}>
@@ -126,13 +163,13 @@ export function CellEditorModal({
               ))}
             </Select>
           </FormControl>
-          <FormControl isDisabled={exRestDay}>
+          <FormControl isDisabled={exRestDay || exBreak}>
             <FormLabel>Código</FormLabel>
-            <Select value={exRestDay ? 'LIBRE' : code} isDisabled={isFree} onChange={(event) => setCode(event.target.value)}>
+            <Select value={exRestDay || exBreak ? 'LIBRE' : code} isDisabled={isFree} onChange={(event) => setCode(event.target.value)}>
               {isFree ? <option value="LIBRE">SIN ASIGNAR</option> : options.map((item) => <option key={item}>{item}</option>)}
             </Select>
           </FormControl>
-          {!exRestDay && (
+          {!exRestDay && !exBreak && (
             <>
               <FormControl mt={4}>
                 <Checkbox isChecked={applyToEmployeeDay} onChange={(event) => setApplyToEmployeeDay(event.target.checked)}>
@@ -154,14 +191,20 @@ export function CellEditorModal({
               Cancelar
             </Button>
             <Button
-              colorScheme={exRestDay ? 'orange' : 'blue'}
+              colorScheme={exRestDay ? 'orange' : exBreak ? 'yellow' : 'blue'}
               onClick={() => {
                 if (exRestDay || (showExRestDayOption && isExceptionalRestDay && !exRestDay)) {
                   // Cambio en descanso excepcional
                   onSave({
-                    assignment: { roleId: null, code: 'LIBRE' },
+                    assignment: createFreeAssignment(),
                     applyToEmployeeDay: false,
                     exceptionalRestDay: exRestDay
+                  });
+                } else if (exBreak) {
+                  onSave({
+                    assignment: createBreakAssignment(),
+                    applyToEmployeeDay: false,
+                    exceptionalBreak: exBreak
                   });
                 } else {
                   onSave({

@@ -1,4 +1,5 @@
 import type { DayPlan, Employee, TimeSlot } from '../types';
+import { isWorkAssignment } from './assignments';
 
 function countAssigned(dayPlan: DayPlan, slotIds: string[], employeeIds: Set<string>): number {
   let count = 0;
@@ -7,7 +8,7 @@ function countAssigned(dayPlan: DayPlan, slotIds: string[], employeeIds: Set<str
     if (!row) continue;
     for (const [employeeId, assignment] of Object.entries(row)) {
       if (!employeeIds.has(employeeId)) continue;
-      if (assignment.roleId !== null && assignment.code !== 'LIBRE') count += 1;
+      if (isWorkAssignment(assignment)) count += 1;
     }
   }
   return count;

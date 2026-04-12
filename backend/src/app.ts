@@ -6,6 +6,7 @@ import { env } from './config/env.js';
 import { authRouter } from './routes/auth.routes.js';
 import { usersRouter } from './routes/users.routes.js';
 import { geoVictoriaRouter } from './routes/geovictoria.routes.js';
+import { areaRouter } from './routes/area.routes.js';
 import { HttpError } from './utils/httpError.js';
 
 export const app = express();
@@ -26,6 +27,7 @@ app.use('/api', authRouter);
 app.use('/api', usersRouter);
 app.use('/api', plannerStateRouter);
 app.use('/api', geoVictoriaRouter);
+app.use('/api', areaRouter);
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const statusCode = error instanceof HttpError ? error.statusCode : 500;

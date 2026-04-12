@@ -1,5 +1,6 @@
+/** @deprecated kept only for backward compat during migration — use dynamic areas from DB */
 export const AREA_IDS = ['salon', 'cocina', 'oficina', 'produccion'] as const;
-export type AreaId = (typeof AREA_IDS)[number];
+export type AreaId = string;
 
 export type Employee = {
   id: string;
@@ -51,10 +52,10 @@ export type BreakConfig = {
 };
 
 export type ValidationRequirements = Record<number, ValidationRequirement>;
-export type TimeSlotsByArea = Record<AreaId, TimeSlot[]>;
-export type ShiftRangesByArea = Record<AreaId, ShiftRanges>;
-export type ValidationRequirementsByArea = Record<AreaId, ValidationRequirements>;
-export type BreakConfigByArea = Record<AreaId, BreakConfig>;
+export type TimeSlotsByArea = Record<string, TimeSlot[]>;
+export type ShiftRangesByArea = Record<string, ShiftRanges>;
+export type ValidationRequirementsByArea = Record<string, ValidationRequirements>;
+export type BreakConfigByArea = Record<string, BreakConfig>;
 export type WeekConfigurationSnapshot = {
   areaId: AreaId;
   timeSlots: TimeSlot[];
@@ -108,7 +109,14 @@ export type WeekAudit = {
   validatedByName: string | null;
 };
 
+export type AreaInfo = {
+  code: string;
+  label: string;
+  order: number;
+};
+
 export type PlannerStatePayload = {
+  areas: AreaInfo[];
   employees: Employee[];
   roles: Role[];
   currentAreaId: AreaId;

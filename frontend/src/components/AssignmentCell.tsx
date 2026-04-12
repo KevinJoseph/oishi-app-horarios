@@ -1,5 +1,6 @@
 import { Badge, Box } from '@chakra-ui/react';
 import type { Assignment, Role } from '../types';
+import { isBreakAssignment } from '../utils/assignments';
 
 type Props = {
   assignment: Assignment;
@@ -9,8 +10,9 @@ type Props = {
 };
 
 export function AssignmentCell({ assignment, role, labelOverride, onClick }: Props): JSX.Element {
-  const isFree = assignment.roleId === null;
-  const label = labelOverride ?? (isFree ? 'SIN ASIGNAR' : assignment.code);
+  const isBreak = isBreakAssignment(assignment);
+  const isFree = assignment.roleId === null && !isBreak;
+  const label = labelOverride ?? (isBreak ? 'Break' : isFree ? 'SIN ASIGNAR' : assignment.code);
   return (
     <Box
       minH="48px"
@@ -20,11 +22,11 @@ export function AssignmentCell({ assignment, role, labelOverride, onClick }: Pro
       alignItems="center"
       justifyContent="center"
       cursor={onClick ? 'pointer' : 'default'}
-      bg={isFree ? 'white' : `${role?.colorHex ?? '#EDF2F7'}22`}
+      bg={isBreak ? 'orange.50' : isFree ? 'white' : `${role?.colorHex ?? '#EDF2F7'}22`}
       onClick={onClick}
     >
       <Badge
-        colorScheme={isFree ? 'gray' : 'blue'}
+        colorScheme={isBreak ? 'orange' : isFree ? 'gray' : 'blue'}
         px={2.5}
         py={0.5}
         borderRadius="md"

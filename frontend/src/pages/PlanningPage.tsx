@@ -115,7 +115,22 @@ export function PlanningPage(): JSX.Element {
   const currentWeekAudit = getWeekAuditForCompany(weekAuditById, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
-  const timeSlots = effectiveWeekConfig?.timeSlots?.length ? effectiveWeekConfig.timeSlots : areaTimeSlots;
+  const timeSlots = useMemo(() => {
+    const candidateSlots = effectiveWeekConfig?.timeSlots?.length ? effectiveWeekConfig.timeSlots : areaTimeSlots;
+    if (!currentScopedWeekId) return candidateSlots;
+    const plan = weekPlans[currentScopedWeekId];
+    if (!plan?.days?.[0]) return candidateSlots;
+    const planSlotIds = Object.keys(plan.days[0].assignments);
+    if (planSlotIds.length === 0) return candidateSlots;
+    const candidateIdSet = new Set(candidateSlots.map((s) => s.id));
+    const allMatch = planSlotIds.every((id) => candidateIdSet.has(id));
+    if (allMatch) return candidateSlots;
+    // Plan slot IDs don't match candidate slots — fall back to areaTimeSlots
+    const areaIdSet = new Set(areaTimeSlots.map((s) => s.id));
+    const areaMatch = planSlotIds.every((id) => areaIdSet.has(id));
+    if (areaMatch) return areaTimeSlots;
+    return candidateSlots;
+  }, [effectiveWeekConfig, areaTimeSlots, currentScopedWeekId, weekPlans]);
   const validationRequirements = effectiveWeekConfig?.validationRequirements ?? areaValidationRequirements;
   const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
   const currentWorkflowWeekStartDateISO = useMemo(() => formatISO(getCurrentMonday(), { representation: 'date' }), []);

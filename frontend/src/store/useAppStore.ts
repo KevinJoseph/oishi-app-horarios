@@ -948,16 +948,22 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Ensure today's week has a plan for all areas
       const weekPlans = { ...normalized.weekPlans };
       const weekAuditById = { ...normalized.weekAuditById };
+      const weekConfigById = { ...normalized.weekConfigById };
       for (const areaId of getAreaCodes(normalized)) {
         const scopedId = toScopedWeekId(areaId, todayWeek.id);
         if (!weekPlans[scopedId]) {
-          const timeSlotIds = (normalized.timeSlotsByArea[areaId] ?? normalized.timeSlots).map((s) => s.id);
+          const areaTimeSlots = normalized.timeSlotsByArea[areaId] ?? normalized.timeSlots;
+          const timeSlotIds = areaTimeSlots.map((s) => s.id);
           weekPlans[scopedId] = buildEmptyWeekPlan(
             todayWeek,
             normalized.employees.map((e) => e.id),
             timeSlotIds
           );
           weekAuditById[scopedId] = { createdByName: null, validatedByName: null };
+          // Ensure weekConfigById matches the slot IDs used to build the plan
+          if (!weekConfigById[scopedId]) {
+            weekConfigById[scopedId] = buildWeekConfigurationSnapshotForArea(normalized, areaId);
+          }
         }
       }
       set({
@@ -965,6 +971,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weeks: weeksWithToday,
         weekPlans,
         weekAuditById,
+        weekConfigById,
         currentAreaId: getStoredCurrentAreaId() ?? normalized.currentAreaId,
         currentWeekStartDateISO: todayWeekISO,
         currentMonthStartDateISO: monthStartDateISO(parseISO(todayWeekISO)),
@@ -1023,17 +1030,97 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({
       currentMonthStartDateISO: monthStartDateISO(addMonths(parseISO(state.currentMonthStartDateISO), direction))
     })),
-  setCurrentArea: (areaId) =>
+  setCurrentArea: (areaId) => {
+    const prev = get();
+    const prevAreaId = prev.currentAreaId;
+    // Persist the outgoing area's current week plan before switching so data is not lost.
+    if (prevAreaId !== areaId) {
+      const outgoingScopedWeekId = getSelectedScopedWeekId(prev);
+      if (outgoingScopedWeekId && prev.weekPlans[outgoingScopedWeekId]) {
+        persistSnapshot(get, set, { currentWeek: true });
+      }
+    }
     set((state) => {
       setStoredCurrentAreaId(areaId);
+      // Preserve the outgoing area's global settings back into the ByArea maps to prevent data
+      // divergence when the global timeSlots/shiftRanges were updated independently.
+      const timeSlotsByArea = prevAreaId !== areaId
+        ? { ...state.timeSlotsByArea, [prevAreaId]: state.timeSlotsByArea[prevAreaId] ?? state.timeSlots }
+        : state.timeSlotsByArea;
+      const shiftRangesByArea = prevAreaId !== areaId
+        ? { ...state.shiftRangesByArea, [prevAreaId]: state.shiftRangesByArea[prevAreaId] ?? state.shiftRanges }
+        : state.shiftRangesByArea;
+      const breakConfigByArea = prevAreaId !== areaId
+        ? { ...state.breakConfigByArea, [prevAreaId]: state.breakConfigByArea[prevAreaId] ?? state.breakConfig }
+        : state.breakConfigByArea;
+
+      // Ensure the incoming area's current week plan exists so the UI never flashes empty.
+      const currentWeek = state.weeks.find((week) => week.startDateISO === state.currentWeekStartDateISO);
+      let weekPlans = state.weekPlans;
+      let weekAuditById = state.weekAuditById;
+      let weekConfigById = state.weekConfigById;
+      const incomingState = { ...state, timeSlotsByArea, shiftRangesByArea, breakConfigByArea, currentAreaId: areaId };
+      if (currentWeek) {
+        const incomingScopedWeekId = toScopedWeekId(areaId, currentWeek.id);
+        if (!weekPlans[incomingScopedWeekId]) {
+          const weekConfig = getWeekConfigurationSnapshot(incomingState, incomingScopedWeekId);
+          const emptyWeekPlan = buildEmptyWeekPlan(
+            currentWeek,
+            state.employees.map((employee) => employee.id),
+            weekConfig.timeSlots.map((slot) => slot.id)
+          );
+          weekPlans = {
+            ...weekPlans,
+            [incomingScopedWeekId]: rebuildWeekPlansFromEmployees(
+              { [incomingScopedWeekId]: emptyWeekPlan },
+              state.employees,
+              state.roles,
+              weekConfig.timeSlots,
+              weekConfig.shiftRanges,
+              weekConfig.breakConfig
+            )[incomingScopedWeekId]
+          };
+          weekAuditById = {
+            ...weekAuditById,
+            [incomingScopedWeekId]: weekAuditById[incomingScopedWeekId] ?? { createdByName: null, validatedByName: null }
+          };
+          if (!weekConfigById[incomingScopedWeekId]) {
+            weekConfigById = { ...weekConfigById, [incomingScopedWeekId]: weekConfig };
+          }
+        } else {
+          // Plan exists — reconcile weekConfigById so render slot IDs match plan slot IDs.
+          const plan = weekPlans[incomingScopedWeekId];
+          const existingConfig = weekConfigById[incomingScopedWeekId];
+          if (existingConfig && plan.days[0]) {
+            const planSlotIds = new Set(Object.keys(plan.days[0].assignments));
+            const configSlotIds = new Set(existingConfig.timeSlots.map((s) => s.id));
+            const mismatch = planSlotIds.size > 0 && ![...planSlotIds].every((id) => configSlotIds.has(id));
+            if (mismatch) {
+              // weekConfigById has stale slot IDs — replace with current area config
+              weekConfigById = {
+                ...weekConfigById,
+                [incomingScopedWeekId]: buildWeekConfigurationSnapshotForArea(incomingState, areaId)
+              };
+            }
+          }
+        }
+      }
+
       return {
         currentAreaId: areaId,
-        timeSlots: state.timeSlotsByArea[areaId] ?? state.timeSlots,
-        shiftRanges: state.shiftRangesByArea[areaId] ?? state.shiftRanges,
+        timeSlots: timeSlotsByArea[areaId] ?? state.timeSlots,
+        shiftRanges: shiftRangesByArea[areaId] ?? state.shiftRanges,
         validationRequirements: state.validationRequirementsByArea[areaId] ?? state.validationRequirements,
-        breakConfig: state.breakConfigByArea[areaId] ?? state.breakConfig
+        breakConfig: breakConfigByArea[areaId] ?? state.breakConfig,
+        timeSlotsByArea,
+        shiftRangesByArea,
+        breakConfigByArea,
+        weekPlans,
+        weekAuditById,
+        weekConfigById
       };
-    }),
+    });
+  },
 
   resetAll: () => {
     const todayWeekISO = getCurrentWeekStartDateISO();
@@ -1471,6 +1558,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekAuditById: {
           ...state.weekAuditById,
           [scopedWeekId]: { createdByName: null, validatedByName: null }
+        },
+        weekConfigById: {
+          ...state.weekConfigById,
+          [scopedWeekId]: state.weekConfigById[scopedWeekId] ?? weekConfig
         }
       };
     });

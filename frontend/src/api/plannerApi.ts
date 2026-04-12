@@ -17,6 +17,14 @@ export function savePlannerState(payload: SeedState, companyId?: string | null):
   });
 }
 
+export type AreaSettingsUpdateEntry = {
+  areaId: string;
+  timeSlots?: import('../types').TimeSlot[];
+  shiftRanges?: import('../types').ShiftRanges;
+  validationRequirements?: import('../types').ValidationRequirements;
+  breakConfig?: import('../types').BreakConfig;
+};
+
 export type PlannerStatePartialUpdatePayload = {
   employees?: SeedState['employees'];
   roles?: SeedState['roles'];
@@ -28,6 +36,7 @@ export type PlannerStatePartialUpdatePayload = {
     weekConfig?: WeekConfigurationSnapshot;
     validated?: boolean;
   }>;
+  areaSettings?: AreaSettingsUpdateEntry[];
 };
 
 export function savePlannerStatePartial(payload: PlannerStatePartialUpdatePayload, companyId?: string | null): Promise<{ ok: true }> {

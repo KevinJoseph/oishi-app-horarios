@@ -115,7 +115,7 @@ export function PlanningPage(): JSX.Element {
   const currentWeekAudit = getWeekAuditForCompany(weekAuditById, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
-  const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
+  const timeSlots = effectiveWeekConfig?.timeSlots?.length ? effectiveWeekConfig.timeSlots : areaTimeSlots;
   const validationRequirements = effectiveWeekConfig?.validationRequirements ?? areaValidationRequirements;
   const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
   const currentWorkflowWeekStartDateISO = useMemo(() => formatISO(getCurrentMonday(), { representation: 'date' }), []);
@@ -229,7 +229,6 @@ export function PlanningPage(): JSX.Element {
     const slotDurationById = new Map<string, number>();
 
     for (const slot of timeSlots) {
-      if (isTimeSlotInBreak(slot, breakConfig)) continue;
       slotDurationById.set(slot.id, getDurationHours(slot.start, slot.end));
     }
 
@@ -238,7 +237,11 @@ export function PlanningPage(): JSX.Element {
         for (const [slotId, byEmployee] of Object.entries(day.assignments)) {
           const slotHours = slotDurationById.get(slotId) ?? 0;
           if (slotHours <= 0) continue;
+          const slot = timeSlots.find((item) => item.id === slotId);
           for (const [employeeId, assignment] of Object.entries(byEmployee)) {
+            const configuredBreakWithoutOverride =
+              Boolean(slot) && isTimeSlotInBreak(slot, breakConfig) && assignment.roleId === null && assignment.code === 'LIBRE';
+            if (configuredBreakWithoutOverride) continue;
             if (!assignment || assignment.roleId === null || assignment.code === 'LIBRE') continue;
             assignedByEmployeeId.set(employeeId, (assignedByEmployeeId.get(employeeId) ?? 0) + slotHours);
           }

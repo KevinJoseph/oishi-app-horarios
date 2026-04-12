@@ -189,9 +189,13 @@ function normalizeWeekConfigurationSnapshot(
 ): WeekConfigurationSnapshot {
   const source = (input ?? {}) as Partial<WeekConfigurationSnapshot>;
   const areaId = AREA_IDS.includes(source.areaId as AreaId) ? (source.areaId as AreaId) : fallbackAreaId;
+  const normalizedTimeSlots =
+    Array.isArray(source.timeSlots) && source.timeSlots.length > 0
+      ? cloneTimeSlots(source.timeSlots)
+      : cloneTimeSlots(fallback.timeSlots);
   return {
     areaId,
-    timeSlots: Array.isArray(source.timeSlots) ? cloneTimeSlots(source.timeSlots) : cloneTimeSlots(fallback.timeSlots),
+    timeSlots: normalizedTimeSlots,
     shiftRanges: source.shiftRanges ? normalizeShiftRanges(source.shiftRanges, fallback.timeSlots) : cloneShiftRanges(fallback.shiftRanges),
     validationRequirements: normalizeValidationRequirements(source.validationRequirements ?? fallback.validationRequirements),
     breakConfig: source.breakConfig ? normalizeBreakConfig(source.breakConfig, fallback.timeSlots) : cloneBreakConfig(fallback.breakConfig)
@@ -238,7 +242,19 @@ function normalizeWeekPlan(weekStartDateISO: string, sourcePlan: WeekPlan | unde
 
 export function normalizePlannerState(input: SeedState): SeedState {
   const areas = input.areas ?? [];
-  const areaCodes = areas.length > 0 ? areas.map((a) => a.code) : AREA_IDS as unknown as string[];
+  const baseAreaCodes = areas.length > 0 ? areas.map((a) => a.code) : AREA_IDS as unknown as string[];
+  const extraAreaCodes = new Set<string>();
+  for (const key of Object.keys(input.timeSlotsByArea ?? {})) extraAreaCodes.add(key);
+  for (const key of Object.keys(input.breakConfigByArea ?? {})) extraAreaCodes.add(key);
+  for (const key of Object.keys(input.weekPlans ?? {})) {
+    const areaId = key.split('::')[0];
+    if (areaId) extraAreaCodes.add(areaId);
+  }
+  for (const key of Object.keys(input.weekConfigById ?? {})) {
+    const areaId = key.split('::')[0];
+    if (areaId) extraAreaCodes.add(areaId);
+  }
+  const areaCodes = Array.from(new Set([...baseAreaCodes, ...extraAreaCodes]));
   const firstArea = areaCodes[0] ?? DEFAULT_AREA_ID;
 
   const baseWeeks = input.weeks.length >= 4 ? input.weeks : buildMockWeeks();

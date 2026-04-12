@@ -134,6 +134,7 @@ export function EmployeesPage(): JSX.Element {
   const weekConfigById = useAppStore((state) => state.weekConfigById);
   const currentWeekStartDateISO = useAppStore((state) => state.currentWeekStartDateISO);
   const upsertEmployee = useAppStore((state) => state.upsertEmployee);
+  const setCurrentArea = useAppStore((state) => state.setCurrentArea);
   const batchUpsertEmployees = useAppStore((state) => state.batchUpsertEmployees);
   const deleteEmployee = useAppStore((state) => state.deleteEmployee);
   const deleteEmployeesByCompany = useAppStore((state) => state.deleteEmployeesByCompany);
@@ -165,7 +166,7 @@ export function EmployeesPage(): JSX.Element {
   const currentWeekAudit = getWeekAuditForCompany(weekAuditById, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
-  const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
+  const timeSlots = effectiveWeekConfig?.timeSlots?.length ? effectiveWeekConfig.timeSlots : areaTimeSlots;
   const companyScopedEmployees = useMemo(() => {
     if (!selectedGeoVictoriaCompanyId) return employees;
     return employees.filter(
@@ -650,10 +651,15 @@ export function EmployeesPage(): JSX.Element {
         adminAssignedCompanyId={currentUser?.role === 'administrador' ? currentUser.companyId ?? null : null}
         onSave={(employee) => {
           if (!canEdit) return { ok: false, error: 'No tienes permisos para guardar colaboradores.' };
-          return upsertEmployee({
+          const payload = {
             ...employee,
             areaId: editing ? employee.areaId : currentAreaId
-          });
+          };
+          const result = upsertEmployee(payload);
+          if (result.ok && payload.areaId) {
+            setCurrentArea(payload.areaId);
+          }
+          return result;
         }}
       />
 

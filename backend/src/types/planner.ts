@@ -148,9 +148,18 @@ export type PlannerWeekEntryUpdatePayload = {
   validated?: boolean;
 };
 
+export type AreaSettingsUpdateEntry = {
+  areaId: string;
+  timeSlots?: TimeSlot[];
+  shiftRanges?: ShiftRanges;
+  validationRequirements?: ValidationRequirements;
+  breakConfig?: BreakConfig;
+};
+
 export type PlannerStatePartialUpdatePayload = {
   employees?: Employee[];
   roles?: Role[];
   weeks?: Week[];
   weekEntries?: PlannerWeekEntryUpdatePayload[];
+  areaSettings?: AreaSettingsUpdateEntry[];
 };

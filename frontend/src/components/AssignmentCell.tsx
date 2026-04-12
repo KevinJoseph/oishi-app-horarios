@@ -22,11 +22,11 @@ export function AssignmentCell({ assignment, role, labelOverride, onClick }: Pro
       alignItems="center"
       justifyContent="center"
       cursor={onClick ? 'pointer' : 'default'}
-      bg={isBreak ? 'orange.50' : isFree ? 'white' : `${role?.colorHex ?? '#EDF2F7'}22`}
+      bg={isBreak ? 'gray.100' : isFree ? 'white' : `${role?.colorHex ?? '#EDF2F7'}22`}
       onClick={onClick}
     >
       <Badge
-        colorScheme={isBreak ? 'orange' : isFree ? 'gray' : 'blue'}
+        colorScheme={isBreak ? 'gray' : isFree ? 'gray' : 'blue'}
         px={2.5}
         py={0.5}
         borderRadius="md"

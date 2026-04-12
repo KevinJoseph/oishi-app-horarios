@@ -111,7 +111,7 @@ export function GeoMigrationPage(): JSX.Element {
   );
   const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
-  const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
+  const timeSlots = effectiveWeekConfig?.timeSlots?.length ? effectiveWeekConfig.timeSlots : areaTimeSlots;
   const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
   const weekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
   const migrationResultStorageKey = useMemo(

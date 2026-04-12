@@ -152,9 +152,18 @@ export function CellEditorModal({
               <Divider mb={4} />
             </>
           )}
+          {isNormalBreakSlot && !exRestDay ? (
+            <Text fontSize="xs" color="gray.600" mb={4}>
+              Este bloque pertenece al refrigerio configurado. En planificación puedes sobrescribirlo manualmente con una zona.
+            </Text>
+          ) : null}
           <FormControl mb={4} isDisabled={exRestDay || exBreak}>
             <FormLabel>Zona</FormLabel>
-            <Select value={exRestDay || exBreak ? '' : roleId} onChange={(event) => setRoleId(event.target.value)} isDisabled={exRestDay || exBreak}>
+            <Select
+              value={exRestDay || exBreak ? '' : roleId}
+              onChange={(event) => setRoleId(event.target.value)}
+              isDisabled={exRestDay || exBreak}
+            >
               <option value="">SIN ASIGNAR</option>
               {roles.map((role) => (
                 <option key={role.id} value={role.id}>
@@ -165,7 +174,11 @@ export function CellEditorModal({
           </FormControl>
           <FormControl isDisabled={exRestDay || exBreak}>
             <FormLabel>Código</FormLabel>
-            <Select value={exRestDay || exBreak ? 'LIBRE' : code} isDisabled={isFree} onChange={(event) => setCode(event.target.value)}>
+            <Select
+              value={exRestDay || exBreak ? 'LIBRE' : code}
+              isDisabled={isFree}
+              onChange={(event) => setCode(event.target.value)}
+            >
               {isFree ? <option value="LIBRE">SIN ASIGNAR</option> : options.map((item) => <option key={item}>{item}</option>)}
             </Select>
           </FormControl>
@@ -191,7 +204,7 @@ export function CellEditorModal({
               Cancelar
             </Button>
             <Button
-              colorScheme={exRestDay ? 'orange' : exBreak ? 'yellow' : 'blue'}
+              colorScheme={exRestDay ? 'orange' : exBreak ? 'gray' : 'blue'}
               onClick={() => {
                 if (exRestDay || (showExRestDayOption && isExceptionalRestDay && !exRestDay)) {
                   // Cambio en descanso excepcional

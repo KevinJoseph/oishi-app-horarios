@@ -201,6 +201,7 @@ export function buildSeedState() {
         };
     }
     return {
+        areas: [],
         employees,
         roles,
         currentAreaId: 'salon',

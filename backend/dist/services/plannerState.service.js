@@ -6,12 +6,12 @@ import { WeekConfigModel } from '../models/WeekConfig.js';
 import { WeekAuditModel } from '../models/WeekAudit.js';
 import { AreaSettingsModel } from '../models/AreaSettings.js';
 import { AppSettingsModel } from '../models/AppSettings.js';
+import { AreaModel } from '../models/Area.js';
 import { buildSeedState } from './seedState.js';
-import { AREA_IDS } from '../types/planner.js';
 const APP_SETTINGS_ID = 'default';
 export const DEFAULT_COMPANY_ID = '__default__';
-function isAreaId(value) {
-    return typeof value === 'string' && AREA_IDS.includes(value);
+function isValidAreaCode(value) {
+    return typeof value === 'string' && value.trim().length > 0;
 }
 function resolveCompanyId(companyId) {
     const trimmed = (companyId ?? '').trim();
@@ -28,7 +28,7 @@ function parseWeekScope(key) {
     if (parts.length !== 3)
         return null;
     const [companyId, areaId, baseWeekId] = parts;
-    if (!isAreaId(areaId))
+    if (!isValidAreaCode(areaId))
         return null;
     return { companyId, areaId, baseWeekId };
 }
@@ -71,83 +71,82 @@ function normalizeIncomingScopedKey(rawKey, companyId) {
     const parts = withoutCompanySuffix.split('::');
     if (parts.length === 3) {
         const [, areaId, baseWeekId] = parts;
-        if (!isAreaId(areaId))
+        if (!isValidAreaCode(areaId))
             return null;
         return scopedKey(companyId, areaId, baseWeekId);
     }
     if (parts.length === 2) {
         const [areaId, baseWeekId] = parts;
-        if (!isAreaId(areaId))
+        if (!isValidAreaCode(areaId))
             return null;
         return scopedKey(companyId, areaId, baseWeekId);
     }
     return null;
 }
 async function ensureSeeded() {
-    const [empCount, weekCount, appSettings] = await Promise.all([
-        EmployeeModel.estimatedDocumentCount(),
-        WeekModel.estimatedDocumentCount(),
-        AppSettingsModel.findById(APP_SETTINGS_ID).lean()
-    ]);
-    if (empCount > 0 || weekCount > 0 || appSettings) {
+    const appSettings = await AppSettingsModel.findById(APP_SETTINGS_ID).lean();
+    if (appSettings)
         return;
-    }
     const seed = buildSeedState();
-    const ops = [];
-    if (seed.employees.length > 0) {
-        ops.push(EmployeeModel.insertMany(seed.employees.map((employee) => ({ _id: employee.id, data: employee })), { ordered: false }));
-    }
-    if (seed.weeks.length > 0) {
-        ops.push(WeekModel.insertMany(seed.weeks.map((week) => ({
-            _id: week.id,
-            label: week.label,
-            startDateISO: week.startDateISO
-        })), { ordered: false }));
-    }
-    ops.push(AppSettingsModel.create({
+    await AppSettingsModel.create({
         _id: APP_SETTINGS_ID,
         currentAreaId: seed.currentAreaId
-    }));
-    await Promise.all(ops);
+    });
 }
 export async function getOrCreatePlannerState(context) {
     await ensureSeeded();
     const { companyId } = context;
-    const [employeeDocs, roleDocs, weekDocs, weekPlanDocs, weekConfigDocs, weekAuditDocs, areaSettingsDocs, appSettings] = await Promise.all([
-        EmployeeModel.find({}).lean(),
+    const [areaDocs, employeeDocs, roleDocs, weekDocs, weekPlanDocs, weekConfigDocs, weekAuditDocs, areaSettingsDocs, appSettings] = await Promise.all([
+        AreaModel.find({ companyId }).sort({ order: 1, code: 1 }).lean(),
+        EmployeeModel.find({ companyId }).lean(),
         RoleModel.find({ companyId }).lean(),
-        WeekModel.find({}).lean(),
+        WeekModel.find({ companyId }).lean(),
         WeekPlanModel.find({ companyId }).lean(),
         WeekConfigModel.find({ companyId }).lean(),
         WeekAuditModel.find({ companyId }).lean(),
         AreaSettingsModel.find({ companyId }).lean(),
         AppSettingsModel.findById(APP_SETTINGS_ID).lean()
     ]);
+    const areas = areaDocs.map((doc) => ({
+        code: doc.code,
+        label: doc.label,
+        order: doc.order
+    }));
+    const dynamicAreaCodes = new Set(areas.map((a) => a.code));
+    for (const doc of areaSettingsDocs) {
+        if (isValidAreaCode(doc.areaId))
+            dynamicAreaCodes.add(doc.areaId);
+    }
+    for (const doc of weekConfigDocs) {
+        if (isValidAreaCode(doc.areaId))
+            dynamicAreaCodes.add(doc.areaId);
+    }
+    for (const doc of weekPlanDocs) {
+        if (isValidAreaCode(doc.areaId))
+            dynamicAreaCodes.add(doc.areaId);
+    }
+    const areaCodes = Array.from(dynamicAreaCodes);
     const employees = employeeDocs.map((doc) => doc.data);
     const roles = roleDocs.map((doc) => ({
         ...doc.data,
         companyId: doc.companyId,
-        areaId: isAreaId(doc.areaId) ? doc.areaId : 'salon'
+        areaId: isValidAreaCode(doc.areaId) ? doc.areaId : areaCodes[0] ?? 'default'
     }));
     const weeks = weekDocs.map((doc) => ({
-        id: doc._id,
+        id: doc.baseWeekId,
         label: doc.label,
         startDateISO: doc.startDateISO
     }));
-    // Frontend keys expected as `${areaId}::${weekId}` (legacy format) — map from internal keys.
     const toLegacyScope = (areaId, baseWeekId) => `${areaId}::${baseWeekId}`;
     const weekPlans = {};
     for (const doc of weekPlanDocs) {
-        const areaId = isAreaId(doc.areaId) ? doc.areaId : 'salon';
+        const areaId = isValidAreaCode(doc.areaId) ? doc.areaId : areaCodes[0] ?? 'default';
         const key = toLegacyScope(areaId, doc.baseWeekId);
-        weekPlans[key] = {
-            weekId: key,
-            days: doc.days
-        };
+        weekPlans[key] = { weekId: key, days: doc.days };
     }
     const weekConfigById = {};
     for (const doc of weekConfigDocs) {
-        const areaId = isAreaId(doc.areaId) ? doc.areaId : 'salon';
+        const areaId = isValidAreaCode(doc.areaId) ? doc.areaId : areaCodes[0] ?? 'default';
         const key = toLegacyScope(areaId, doc.baseWeekId);
         weekConfigById[key] = {
             areaId,
@@ -160,65 +159,53 @@ export async function getOrCreatePlannerState(context) {
     const weekAuditById = {};
     const validatedWeekIds = [];
     for (const doc of weekAuditDocs) {
-        const areaId = isAreaId(doc.areaId) ? doc.areaId : 'salon';
+        const areaId = isValidAreaCode(doc.areaId) ? doc.areaId : areaCodes[0] ?? 'default';
         const key = toLegacyScope(areaId, doc.baseWeekId);
         weekAuditById[key] = {
             createdByName: doc.createdByName ?? null,
             validatedByName: doc.validatedByName ?? null
         };
-        if (doc.validated) {
+        if (doc.validated)
             validatedWeekIds.push(key);
-        }
     }
-    const defaultTimeSlots = [];
-    const defaultShiftRanges = {
-        day: { startHour: 12, endHour: 17 },
-        night: { startHour: 17, endHour: 22 }
-    };
-    const defaultBreak = { enabled: false, startHour: 16, endHour: 17 };
-    const timeSlotsByArea = {
-        salon: defaultTimeSlots,
-        cocina: defaultTimeSlots,
-        oficina: defaultTimeSlots,
-        produccion: defaultTimeSlots
-    };
-    const shiftRangesByArea = {
-        salon: defaultShiftRanges,
-        cocina: defaultShiftRanges,
-        oficina: defaultShiftRanges,
-        produccion: defaultShiftRanges
-    };
-    const validationRequirementsByArea = {
-        salon: defaultValidationRequirements(),
-        cocina: defaultValidationRequirements(),
-        oficina: defaultValidationRequirements(),
-        produccion: defaultValidationRequirements()
-    };
-    const breakConfigByArea = {
-        salon: defaultBreak,
-        cocina: defaultBreak,
-        oficina: defaultBreak,
-        produccion: defaultBreak
-    };
+    const seedState = buildSeedState();
+    const defaultTimeSlots = seedState.timeSlots;
+    const defaultShiftRanges = seedState.shiftRanges;
+    const defaultBreak = seedState.breakConfig;
+    const timeSlotsByArea = {};
+    const shiftRangesByArea = {};
+    const validationRequirementsByArea = {};
+    const breakConfigByArea = {};
+    for (const code of areaCodes) {
+        timeSlotsByArea[code] = seedState.timeSlotsByArea[code] ?? defaultTimeSlots;
+        shiftRangesByArea[code] = seedState.shiftRangesByArea[code] ?? defaultShiftRanges;
+        validationRequirementsByArea[code] = seedState.validationRequirementsByArea[code] ?? defaultValidationRequirements();
+        breakConfigByArea[code] = seedState.breakConfigByArea[code] ?? defaultBreak;
+    }
     for (const doc of areaSettingsDocs) {
-        if (!isAreaId(doc.areaId))
+        if (!isValidAreaCode(doc.areaId))
             continue;
-        timeSlotsByArea[doc.areaId] = doc.timeSlots;
-        shiftRangesByArea[doc.areaId] = doc.shiftRanges;
+        const fallbackAreaTimeSlots = seedState.timeSlotsByArea[doc.areaId] ?? defaultTimeSlots;
+        const sanitizedTimeSlots = Array.isArray(doc.timeSlots) && doc.timeSlots.length > 0
+            ? doc.timeSlots
+            : fallbackAreaTimeSlots;
+        timeSlotsByArea[doc.areaId] = sanitizedTimeSlots;
+        shiftRangesByArea[doc.areaId] = doc.shiftRanges ?? (seedState.shiftRangesByArea[doc.areaId] ?? defaultShiftRanges);
         validationRequirementsByArea[doc.areaId] = sanitizeValidationRequirements(doc.validationRequirements);
-        breakConfigByArea[doc.areaId] = doc.breakConfig;
+        breakConfigByArea[doc.areaId] = doc.breakConfig ?? (seedState.breakConfigByArea[doc.areaId] ?? defaultBreak);
     }
-    const currentAreaId = isAreaId(appSettings?.currentAreaId)
+    const currentAreaId = isValidAreaCode(appSettings?.currentAreaId)
         ? appSettings.currentAreaId
-        : 'salon';
+        : areaCodes[0] ?? 'default';
     return {
+        areas,
         employees,
         roles,
         currentAreaId,
-        timeSlots: timeSlotsByArea[currentAreaId],
-        shiftRanges: shiftRangesByArea[currentAreaId],
-        validationRequirements: validationRequirementsByArea[currentAreaId],
-        breakConfig: breakConfigByArea[currentAreaId],
+        timeSlots: timeSlotsByArea[currentAreaId] ?? defaultTimeSlots,
+        shiftRanges: shiftRangesByArea[currentAreaId] ?? defaultShiftRanges,
+        validationRequirements: validationRequirementsByArea[currentAreaId] ?? defaultValidationRequirements(),
+        breakConfig: breakConfigByArea[currentAreaId] ?? defaultBreak,
         timeSlotsByArea,
         shiftRangesByArea,
         validationRequirementsByArea,
@@ -230,24 +217,28 @@ export async function getOrCreatePlannerState(context) {
         weekConfigById
     };
 }
-async function replaceEmployees(employees) {
-    const ids = employees.map((employee) => employee.id);
-    const ops = employees.map((employee) => ({
-        updateOne: {
-            filter: { _id: employee.id },
-            update: { $set: { data: employee } },
-            upsert: true
-        }
-    }));
+async function replaceEmployeesForCompany(companyId, employees) {
+    const ids = [];
+    const ops = employees.map((employee) => {
+        const id = `${companyId}::${employee.id}`;
+        ids.push(id);
+        return {
+            updateOne: {
+                filter: { _id: id },
+                update: { $set: { companyId, baseEmployeeId: employee.id, data: employee } },
+                upsert: true
+            }
+        };
+    });
     if (ops.length > 0) {
         await EmployeeModel.bulkWrite(ops, { ordered: false });
     }
-    await EmployeeModel.deleteMany({ _id: { $nin: ids } });
+    await EmployeeModel.deleteMany({ companyId, _id: { $nin: ids } });
 }
 async function replaceRolesForCompany(companyId, roles) {
     const ids = roles.map((role) => role.id);
     const ops = roles.map((role) => {
-        const areaId = isAreaId(role.areaId) ? role.areaId : 'salon';
+        const areaId = isValidAreaCode(role.areaId) ? role.areaId : 'salon';
         return {
             updateOne: {
                 filter: { _id: role.id },
@@ -268,29 +259,37 @@ async function replaceRolesForCompany(companyId, roles) {
     // Only delete roles for this company that are not in the payload.
     await RoleModel.deleteMany({ companyId, _id: { $nin: ids } });
 }
-async function replaceWeeks(weeks) {
-    const ops = weeks.map((week) => ({
-        updateOne: {
-            filter: { _id: week.id },
-            update: {
-                $set: {
-                    label: week.label,
-                    startDateISO: week.startDateISO
-                }
-            },
-            upsert: true
-        }
-    }));
+async function replaceWeeksForCompany(companyId, weeks) {
+    const ids = [];
+    const ops = weeks.map((week) => {
+        const id = `${companyId}::${week.id}`;
+        ids.push(id);
+        return {
+            updateOne: {
+                filter: { _id: id },
+                update: {
+                    $set: {
+                        companyId,
+                        baseWeekId: week.id,
+                        label: week.label,
+                        startDateISO: week.startDateISO
+                    }
+                },
+                upsert: true
+            }
+        };
+    });
     if (ops.length > 0) {
         await WeekModel.bulkWrite(ops, { ordered: false });
     }
+    await WeekModel.deleteMany({ companyId, _id: { $nin: ids } });
 }
 async function upsertWeekPlan(companyId, legacyKey, plan) {
     const parts = legacyKey.split('::');
     if (parts.length !== 2)
         return;
     const [rawAreaId, baseWeekId] = parts;
-    if (!isAreaId(rawAreaId))
+    if (!isValidAreaCode(rawAreaId))
         return;
     const areaId = rawAreaId;
     const id = scopedKey(companyId, areaId, baseWeekId);
@@ -308,9 +307,9 @@ async function upsertWeekConfig(companyId, legacyKey, config) {
     if (parts.length !== 2)
         return;
     const [rawAreaId, baseWeekId] = parts;
-    if (!isAreaId(rawAreaId))
+    if (!isValidAreaCode(rawAreaId))
         return;
-    const areaId = isAreaId(config.areaId) ? config.areaId : rawAreaId;
+    const areaId = isValidAreaCode(config.areaId) ? config.areaId : rawAreaId;
     const id = scopedKey(companyId, areaId, baseWeekId);
     await WeekConfigModel.updateOne({ _id: id }, {
         $set: {
@@ -331,7 +330,7 @@ async function upsertWeekAudit(companyId, rawKey, audit, validated) {
     if (parts.length !== 2)
         return;
     const [rawAreaId, baseWeekId] = parts;
-    if (!isAreaId(rawAreaId))
+    if (!isValidAreaCode(rawAreaId))
         return;
     const areaId = rawAreaId;
     const id = scopedKey(companyId, areaId, baseWeekId);
@@ -353,11 +352,11 @@ export async function updatePlannerStatePartial(context, payload) {
     const { companyId } = context;
     const ops = [];
     if (payload.employees)
-        ops.push(replaceEmployees(payload.employees));
+        ops.push(replaceEmployeesForCompany(companyId, payload.employees));
     if (payload.roles)
         ops.push(replaceRolesForCompany(companyId, payload.roles));
     if (payload.weeks)
-        ops.push(replaceWeeks(payload.weeks));
+        ops.push(replaceWeeksForCompany(companyId, payload.weeks));
     for (const entry of payload.weekEntries ?? []) {
         if (!entry.weekId?.trim())
             continue;
@@ -371,16 +370,39 @@ export async function updatePlannerStatePartial(context, payload) {
             ops.push(upsertWeekAudit(companyId, entry.weekId, entry.weekAudit, entry.validated));
         }
     }
+    for (const entry of payload.areaSettings ?? []) {
+        if (!entry.areaId?.trim())
+            continue;
+        const id = areaSettingsKey(companyId, entry.areaId);
+        const setFields = { companyId, areaId: entry.areaId };
+        if (entry.timeSlots)
+            setFields.timeSlots = entry.timeSlots;
+        if (entry.shiftRanges)
+            setFields.shiftRanges = entry.shiftRanges;
+        if (entry.validationRequirements)
+            setFields.validationRequirements = sanitizeValidationRequirements(entry.validationRequirements);
+        if (entry.breakConfig)
+            setFields.breakConfig = entry.breakConfig;
+        ops.push(AreaSettingsModel.updateOne({ _id: id }, {
+            $set: setFields,
+            $setOnInsert: {
+                ...(!entry.timeSlots ? { timeSlots: [] } : {}),
+                ...(!entry.shiftRanges ? { shiftRanges: { day: { startHour: 12, endHour: 17 }, night: { startHour: 17, endHour: 22 } } } : {}),
+                ...(!entry.validationRequirements ? { validationRequirements: defaultValidationRequirements() } : {}),
+                ...(!entry.breakConfig ? { breakConfig: { enabled: false, startHour: 16, endHour: 17 } } : {})
+            }
+        }, { upsert: true }));
+    }
     await Promise.all(ops);
 }
 export async function replacePlannerState(context, payload) {
     const { companyId } = context;
     await Promise.all([
-        replaceEmployees(payload.employees),
+        replaceEmployeesForCompany(companyId, payload.employees),
         replaceRolesForCompany(companyId, payload.roles),
-        replaceWeeks(payload.weeks),
+        replaceWeeksForCompany(companyId, payload.weeks),
         AppSettingsModel.updateOne({ _id: APP_SETTINGS_ID }, { $set: { currentAreaId: payload.currentAreaId } }, { upsert: true }),
-        ...AREA_IDS.map((areaId) => AreaSettingsModel.updateOne({ _id: areaSettingsKey(companyId, areaId) }, {
+        ...Object.keys(payload.timeSlotsByArea).map((areaId) => AreaSettingsModel.updateOne({ _id: areaSettingsKey(companyId, areaId) }, {
             $set: {
                 companyId,
                 areaId,
@@ -418,8 +440,9 @@ export async function updateValidationRequirements(context, payload) {
 export async function resetPlannerState(context) {
     const { companyId } = context;
     await Promise.all([
-        EmployeeModel.deleteMany({}),
+        EmployeeModel.deleteMany({ companyId }),
         RoleModel.deleteMany({ companyId }),
+        WeekModel.deleteMany({ companyId }),
         WeekPlanModel.deleteMany({ companyId }),
         WeekConfigModel.deleteMany({ companyId }),
         WeekAuditModel.deleteMany({ companyId }),

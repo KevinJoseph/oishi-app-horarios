@@ -80,7 +80,7 @@ export function WeeklyOverviewPage(): JSX.Element {
   const currentWeekAudit = getWeekAuditForCompany(weekAuditById, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
-  const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
+  const timeSlots = effectiveWeekConfig?.timeSlots?.length ? effectiveWeekConfig.timeSlots : areaTimeSlots;
   const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
   const days = currentWeekPlan?.days ?? [];
   const activeEmployees = useMemo(() => employees.filter((employee) => employee.active), [employees]);

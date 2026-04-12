@@ -54,7 +54,7 @@ export function TimeSlotsPage(): JSX.Element {
   const currentScopedWeekId = currentWeek ? `${currentAreaId}::${currentWeek.id}` : null;
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
   const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
-  const timeSlots = effectiveWeekConfig?.timeSlots ?? areaTimeSlots;
+  const timeSlots = effectiveWeekConfig?.timeSlots?.length ? effectiveWeekConfig.timeSlots : areaTimeSlots;
   const shiftRanges = effectiveWeekConfig?.shiftRanges ?? areaShiftRanges;
   const validationRequirements = effectiveWeekConfig?.validationRequirements ?? areaValidationRequirements;
   const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;

@@ -154,7 +154,17 @@ export async function getOrCreatePlannerState(context: PlannerStateContext): Pro
     label: doc.label,
     order: doc.order
   }));
-  const areaCodes = areas.map((a) => a.code);
+  const dynamicAreaCodes = new Set(areas.map((a) => a.code));
+  for (const doc of areaSettingsDocs) {
+    if (isValidAreaCode(doc.areaId)) dynamicAreaCodes.add(doc.areaId);
+  }
+  for (const doc of weekConfigDocs) {
+    if (isValidAreaCode(doc.areaId)) dynamicAreaCodes.add(doc.areaId);
+  }
+  for (const doc of weekPlanDocs) {
+    if (isValidAreaCode(doc.areaId)) dynamicAreaCodes.add(doc.areaId);
+  }
+  const areaCodes = Array.from(dynamicAreaCodes);
 
   const employees = employeeDocs.map((doc) => doc.data as Employee);
   const roles: Role[] = roleDocs.map((doc) => ({
@@ -202,9 +212,10 @@ export async function getOrCreatePlannerState(context: PlannerStateContext): Pro
     if (doc.validated) validatedWeekIds.push(key);
   }
 
-  const defaultTimeSlots: TimeSlot[] = [];
-  const defaultShiftRanges: ShiftRanges = { day: { startHour: 12, endHour: 17 }, night: { startHour: 17, endHour: 22 } };
-  const defaultBreak: BreakConfig = { enabled: false, startHour: 16, endHour: 17 };
+  const seedState = buildSeedState();
+  const defaultTimeSlots: TimeSlot[] = seedState.timeSlots;
+  const defaultShiftRanges: ShiftRanges = seedState.shiftRanges;
+  const defaultBreak: BreakConfig = seedState.breakConfig;
 
   const timeSlotsByArea: PlannerStatePayload['timeSlotsByArea'] = {};
   const shiftRangesByArea: PlannerStatePayload['shiftRangesByArea'] = {};
@@ -212,18 +223,23 @@ export async function getOrCreatePlannerState(context: PlannerStateContext): Pro
   const breakConfigByArea: PlannerStatePayload['breakConfigByArea'] = {};
 
   for (const code of areaCodes) {
-    timeSlotsByArea[code] = defaultTimeSlots;
-    shiftRangesByArea[code] = defaultShiftRanges;
-    validationRequirementsByArea[code] = defaultValidationRequirements();
-    breakConfigByArea[code] = defaultBreak;
+    timeSlotsByArea[code] = seedState.timeSlotsByArea[code] ?? defaultTimeSlots;
+    shiftRangesByArea[code] = seedState.shiftRangesByArea[code] ?? defaultShiftRanges;
+    validationRequirementsByArea[code] = seedState.validationRequirementsByArea[code] ?? defaultValidationRequirements();
+    breakConfigByArea[code] = seedState.breakConfigByArea[code] ?? defaultBreak;
   }
 
   for (const doc of areaSettingsDocs) {
     if (!isValidAreaCode(doc.areaId)) continue;
-    timeSlotsByArea[doc.areaId] = doc.timeSlots as TimeSlot[];
-    shiftRangesByArea[doc.areaId] = doc.shiftRanges as ShiftRanges;
+    const fallbackAreaTimeSlots = seedState.timeSlotsByArea[doc.areaId] ?? defaultTimeSlots;
+    const sanitizedTimeSlots =
+      Array.isArray(doc.timeSlots) && doc.timeSlots.length > 0
+        ? (doc.timeSlots as TimeSlot[])
+        : fallbackAreaTimeSlots;
+    timeSlotsByArea[doc.areaId] = sanitizedTimeSlots;
+    shiftRangesByArea[doc.areaId] = (doc.shiftRanges as ShiftRanges) ?? (seedState.shiftRangesByArea[doc.areaId] ?? defaultShiftRanges);
     validationRequirementsByArea[doc.areaId] = sanitizeValidationRequirements(doc.validationRequirements);
-    breakConfigByArea[doc.areaId] = doc.breakConfig as BreakConfig;
+    breakConfigByArea[doc.areaId] = (doc.breakConfig as BreakConfig) ?? (seedState.breakConfigByArea[doc.areaId] ?? defaultBreak);
   }
 
   const currentAreaId: AreaId = isValidAreaCode(appSettings?.currentAreaId)
@@ -428,6 +444,31 @@ export async function updatePlannerStatePartial(
     if (entry.weekAudit || typeof entry.validated === 'boolean') {
       ops.push(upsertWeekAudit(companyId, entry.weekId, entry.weekAudit, entry.validated));
     }
+  }
+
+  for (const entry of payload.areaSettings ?? []) {
+    if (!entry.areaId?.trim()) continue;
+    const id = areaSettingsKey(companyId, entry.areaId);
+    const setFields: Record<string, unknown> = { companyId, areaId: entry.areaId };
+    if (entry.timeSlots) setFields.timeSlots = entry.timeSlots;
+    if (entry.shiftRanges) setFields.shiftRanges = entry.shiftRanges;
+    if (entry.validationRequirements) setFields.validationRequirements = sanitizeValidationRequirements(entry.validationRequirements);
+    if (entry.breakConfig) setFields.breakConfig = entry.breakConfig;
+    ops.push(
+      AreaSettingsModel.updateOne(
+        { _id: id },
+        {
+          $set: setFields,
+          $setOnInsert: {
+            ...(!entry.timeSlots ? { timeSlots: [] } : {}),
+            ...(!entry.shiftRanges ? { shiftRanges: { day: { startHour: 12, endHour: 17 }, night: { startHour: 17, endHour: 22 } } } : {}),
+            ...(!entry.validationRequirements ? { validationRequirements: defaultValidationRequirements() } : {}),
+            ...(!entry.breakConfig ? { breakConfig: { enabled: false, startHour: 16, endHour: 17 } } : {})
+          }
+        },
+        { upsert: true }
+      )
+    );
   }
 
   await Promise.all(ops);

@@ -1282,17 +1282,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   upsertRole: (role) => {
-    const { roles, currentAreaId } = get();
+    const { currentAreaId } = get();
     const normalizedRole: Role = {
       ...role,
       areaId: role.areaId ?? currentAreaId
     };
-    const duplicate = roles
-      .filter((current) => (current.areaId ?? 'salon') === (normalizedRole.areaId ?? 'salon'))
-      .filter((current) => current.id !== role.id)
-      .some((current) => current.validCodes.some((code) => normalizedRole.validCodes.includes(code)));
-    if (duplicate) return { ok: false, error: 'Hay códigos duplicados en otro Zona.' };
-
     set((state) => {
       const exists = state.roles.some((item) => item.id === role.id);
       const next = exists

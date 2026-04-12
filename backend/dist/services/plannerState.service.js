@@ -372,7 +372,6 @@ export async function updatePlannerStatePartial(context, payload) {
         }
     }
     await Promise.all(ops);
-    return getOrCreatePlannerState(context);
 }
 export async function replacePlannerState(context, payload) {
     const { companyId } = context;

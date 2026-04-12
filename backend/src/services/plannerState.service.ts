@@ -440,7 +440,7 @@ async function upsertWeekAudit(
 export async function updatePlannerStatePartial(
   context: PlannerStateContext,
   payload: PlannerStatePartialUpdatePayload
-): Promise<PlannerStatePayload> {
+): Promise<void> {
   const { companyId } = context;
   const ops: Promise<unknown>[] = [];
 
@@ -463,7 +463,6 @@ export async function updatePlannerStatePartial(
   }
 
   await Promise.all(ops);
-  return getOrCreatePlannerState(context);
 }
 
 export async function replacePlannerState(

@@ -91,7 +91,7 @@ export function CellEditorModal({
 
   // Mostrar el checkbox de descanso excepcional solo en la semana actual y si no es el día de descanso normal
   const showExRestDayOption = isCurrentWeek && !isNormalRestDay;
-  const showExBreakOption = isCurrentWeek && !isNormalBreakSlot;
+  const showExBreakOption = isCurrentWeek;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -154,7 +154,8 @@ export function CellEditorModal({
           )}
           {isNormalBreakSlot && !exRestDay ? (
             <Text fontSize="xs" color="gray.600" mb={4}>
-              Este bloque pertenece al refrigerio configurado. En planificación puedes sobrescribirlo manualmente con una zona.
+              Este bloque pertenece al refrigerio configurado. En planificación puedes sobrescribirlo manualmente con una zona
+              o marcarlo como break excepcional para esta celda.
             </Text>
           ) : null}
           <FormControl mb={4} isDisabled={exRestDay || exBreak}>

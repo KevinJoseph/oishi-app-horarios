@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import {
+  buildPlannerContext,
   getOrCreatePlannerState,
   replacePlannerState,
   resetPlannerState,
@@ -12,30 +13,38 @@ import type {
   ValidationRequirementsUpdatePayload
 } from '../types/planner.js';
 
-export async function getPlannerStateController(_req: Request, res: Response): Promise<void> {
-  const state = await getOrCreatePlannerState();
+function contextFromRequest(req: Request) {
+  const override = req.query.companyId as string | undefined;
+  const userCompanyId = req.authUser?.companyId ?? null;
+  const isAdmin = req.authUser?.role === 'super_administrador' || req.authUser?.role === 'supervisor';
+  const companyId = (isAdmin && override) ? override : userCompanyId;
+  return buildPlannerContext(companyId);
+}
+
+export async function getPlannerStateController(req: Request, res: Response): Promise<void> {
+  const state = await getOrCreatePlannerState(contextFromRequest(req));
   res.status(200).json(state);
 }
 
 export async function putPlannerStateController(req: Request, res: Response): Promise<void> {
   const payload = req.body as PlannerStatePayload;
-  const updated = await replacePlannerState(payload);
+  const updated = await replacePlannerState(contextFromRequest(req), payload);
   res.status(200).json(updated);
 }
 
 export async function putPlannerStatePartialController(req: Request, res: Response): Promise<void> {
   const payload = req.body as PlannerStatePartialUpdatePayload;
-  await updatePlannerStatePartial(payload);
+  await updatePlannerStatePartial(contextFromRequest(req), payload);
   res.status(200).json({ ok: true });
 }
 
 export async function putValidationRequirementsController(req: Request, res: Response): Promise<void> {
   const payload = req.body as ValidationRequirementsUpdatePayload;
-  const updated = await updateValidationRequirements(payload);
+  const updated = await updateValidationRequirements(contextFromRequest(req), payload);
   res.status(200).json(updated);
 }
 
-export async function resetPlannerStateController(_req: Request, res: Response): Promise<void> {
-  const seed = await resetPlannerState();
+export async function resetPlannerStateController(req: Request, res: Response): Promise<void> {
+  const seed = await resetPlannerState(contextFromRequest(req));
   res.status(200).json(seed);
 }

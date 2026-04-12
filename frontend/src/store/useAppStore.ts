@@ -138,16 +138,8 @@ function baseWeekIdFromScopedWeekId(weekId: string): string {
   return weekId.split('::')[1] ?? weekId;
 }
 
-function getSelectedValidationCompanyId(): string | null {
+function getSelectedCompanyId(): string | null {
   return useAuthStore.getState().selectedGeoVictoriaCompanyId ?? null;
-}
-
-function buildValidationScopeKey(scopedWeekId: string, companyId: string | null): string {
-  return `${scopedWeekId}::company:${companyId ?? '__all__'}`;
-}
-
-function currentValidationScopeKey(scopedWeekId: string): string {
-  return buildValidationScopeKey(scopedWeekId, getSelectedValidationCompanyId());
 }
 
 function rolesForArea(roles: Role[], areaId: AreaId): Role[] {
@@ -572,7 +564,7 @@ function remapWeekPlansToTimeSlotsForArea(
   const next = { ...weekPlans };
   for (const [weekId, plan] of Object.entries(weekPlans)) {
     if (areaFromWeekId(weekId) !== areaId) continue;
-    if (validatedWeekIds.includes(currentValidationScopeKey(weekId))) continue;
+    if (validatedWeekIds.includes(weekId)) continue;
     if (targetWeekIds && !targetWeekIds.has(weekId)) continue;
     next[weekId] = remapWeekPlansToTimeSlots({ [weekId]: plan }, timeSlots, employeeIds)[weekId];
   }
@@ -594,7 +586,7 @@ function rebuildWeekPlansForArea(
   const next = { ...weekPlans };
   for (const [weekId, plan] of Object.entries(weekPlans)) {
     if (areaFromWeekId(weekId) !== areaId) continue;
-    if (validatedWeekIds.includes(currentValidationScopeKey(weekId))) continue;
+    if (validatedWeekIds.includes(weekId)) continue;
     if (targetWeekIds && !targetWeekIds.has(weekId)) continue;
     const weekConfig = weekConfigById[weekId];
     const timeSlots = weekConfig?.timeSlots ?? timeSlotsByArea[areaId];
@@ -657,7 +649,7 @@ function isWeekUnlockedForPlanning(weeks: Week[], validatedWeekIds: string[], sc
 
   const previousWeek = orderedWeeks[currentIndex - 1];
   const previousScopedWeekId = toScopedWeekId(areaFromWeekId(scopedWeekId), previousWeek.id);
-  return validatedWeekIds.includes(currentValidationScopeKey(previousScopedWeekId));
+  return validatedWeekIds.includes(previousScopedWeekId);
 }
 
 function getSelectedScopedWeekId(state: Pick<PersistableState, 'weeks' | 'currentAreaId'> & { currentWeekStartDateISO: string }): string | null {
@@ -678,7 +670,7 @@ function getSelectedScopedWeekIdForArea(
 function getConfigurationTargetWeekIds(state: PersistableState & { currentWeekStartDateISO: string }, areaId: AreaId): Set<string> {
   const scopedWeekId = getSelectedScopedWeekId({ ...state, currentAreaId: areaId });
   if (!scopedWeekId) return new Set<string>();
-  if (state.validatedWeekIds.includes(currentValidationScopeKey(scopedWeekId))) return new Set<string>();
+  if (state.validatedWeekIds.includes(scopedWeekId)) return new Set<string>();
   if (!isWeekUnlockedForPlanning(state.weeks, state.validatedWeekIds, scopedWeekId)) return new Set<string>();
   return new Set([scopedWeekId]);
 }
@@ -755,7 +747,7 @@ function queuePersistenceScope(get: () => AppState, scope: PersistenceScope): vo
       pendingPersistence.currentWeek = true;
       pendingPersistence.weekEntries.push({
         weekId: scopedWeekId,
-        validationKey: currentValidationScopeKey(scopedWeekId)
+        validationKey: scopedWeekId
       });
     }
   }
@@ -763,7 +755,7 @@ function queuePersistenceScope(get: () => AppState, scope: PersistenceScope): vo
     for (const weekId of scope.extraWeekIds) {
       pendingPersistence.weekEntries.push({
         weekId,
-        validationKey: currentValidationScopeKey(weekId)
+        validationKey: weekId
       });
     }
   }
@@ -842,7 +834,7 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
       };
 
       try {
-        await savePlannerStatePartial(payload);
+        await savePlannerStatePartial(payload, getSelectedCompanyId());
         set({ syncError: null });
       } catch (error) {
         set({ syncError: error instanceof Error ? error.message : 'No se pudo sincronizar con el backend.' });
@@ -886,7 +878,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (get().hydrated) return;
 
     try {
-      const remote = await fetchPlannerState();
+      const remote = await fetchPlannerState(getSelectedCompanyId());
       const normalized = normalizePlannerState(remote);
       const todayWeekISO = getCurrentWeekStartDateISO();
       // Ensure today's week exists in the weeks array
@@ -988,7 +980,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentWeekStartDateISO: todayWeekISO,
       currentMonthStartDateISO: monthStartDateISO(parseISO(todayWeekISO))
     });
-    void resetPlannerStateApi()
+    void resetPlannerStateApi(getSelectedCompanyId())
       .then((fresh) => {
         const normalized = normalizePlannerState(fresh);
         set({
@@ -1206,8 +1198,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       return {
         employees,
         weekPlans,
-        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, currentValidationScopeKey(scopedWeekId)),
-        weekAuditById: clearWeekValidator(state.weekAuditById, currentValidationScopeKey(scopedWeekId))
+        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, scopedWeekId),
+        weekAuditById: clearWeekValidator(state.weekAuditById, scopedWeekId)
       };
     });
     persistSnapshot(get, set, { employees: true, currentWeek: true });
@@ -1237,8 +1229,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       return {
         employees: [],
         weekPlans,
-        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, currentValidationScopeKey(scopedWeekId)),
-        weekAuditById: clearWeekValidator(state.weekAuditById, currentValidationScopeKey(scopedWeekId))
+        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, scopedWeekId),
+        weekAuditById: clearWeekValidator(state.weekAuditById, scopedWeekId)
       };
     });
     persistSnapshot(get, set, { employees: true, currentWeek: true });
@@ -1282,8 +1274,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       return {
         employees,
         weekPlans,
-        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, currentValidationScopeKey(scopedWeekId)),
-        weekAuditById: clearWeekValidator(state.weekAuditById, currentValidationScopeKey(scopedWeekId))
+        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, scopedWeekId),
+        weekAuditById: clearWeekValidator(state.weekAuditById, scopedWeekId)
       };
     });
     persistSnapshot(get, set, { employees: true, currentWeek: true });
@@ -1341,8 +1333,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       return {
         roles,
         weekPlans,
-        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, currentValidationScopeKey(scopedWeekId)),
-        weekAuditById: clearWeekValidator(state.weekAuditById, currentValidationScopeKey(scopedWeekId))
+        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, scopedWeekId),
+        weekAuditById: clearWeekValidator(state.weekAuditById, scopedWeekId)
       };
     });
     persistSnapshot(get, set, { roles: true, currentWeek: true });
@@ -1378,7 +1370,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateAssignment: ({ weekId, dateISO, timeSlotId, employeeId, assignment, actorName }) => {
     const stateSnapshot = get();
     const scopedWeekId = resolveScopedWeekId(stateSnapshot.currentAreaId, weekId);
-    const validationKey = currentValidationScopeKey(scopedWeekId);
+    const validationKey = scopedWeekId;
     if (stateSnapshot.validatedWeekIds.includes(validationKey)) {
       return { ok: false, error: 'La semana validada está en solo lectura. Retorna la validación para editar.' };
     }
@@ -1425,7 +1417,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateEmployeeDayAssignments: ({ weekId, dateISO, employeeId, assignment, timeSlotIds, actorName }) => {
     const stateSnapshot = get();
     const scopedWeekId = resolveScopedWeekId(stateSnapshot.currentAreaId, weekId);
-    const validationKey = currentValidationScopeKey(scopedWeekId);
+    const validationKey = scopedWeekId;
     if (stateSnapshot.validatedWeekIds.includes(validationKey)) {
       return { ok: false, error: 'La semana validada está en solo lectura. Retorna la validación para editar.' };
     }
@@ -1474,7 +1466,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateEmployeeDayByHours: ({ weekId, dateISO, employeeId, assignment, hours, actorName }) => {
     const stateSnapshot = get();
     const scopedWeekId = resolveScopedWeekId(stateSnapshot.currentAreaId, weekId);
-    const validationKey = currentValidationScopeKey(scopedWeekId);
+    const validationKey = scopedWeekId;
     if (stateSnapshot.validatedWeekIds.includes(validationKey)) {
       return { ok: false, error: 'La semana validada está en solo lectura. Retorna la validación para editar.' };
     }
@@ -1572,7 +1564,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!scopedWeekId) {
       return { ok: false, error: 'No existe una semana seleccionada.' };
     }
-    if (stateSnapshot.validatedWeekIds.includes(currentValidationScopeKey(scopedWeekId))) {
+    if (stateSnapshot.validatedWeekIds.includes(scopedWeekId)) {
       return { ok: false, error: 'La semana seleccionada ya está validada. Desvalídala para cambiar su configuración.' };
     }
 
@@ -1629,7 +1621,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!scopedWeekId) {
       return { ok: false, error: 'No existe una semana seleccionada.' };
     }
-    if (stateSnapshot.validatedWeekIds.includes(currentValidationScopeKey(scopedWeekId))) {
+    if (stateSnapshot.validatedWeekIds.includes(scopedWeekId)) {
       return { ok: false, error: 'La semana seleccionada ya está validada. Desvalídala para cambiar su configuración.' };
     }
     const currentWeekConfig = getWeekConfigurationSnapshot(stateSnapshot, scopedWeekId);
@@ -1714,7 +1706,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!scopedWeekId) {
       return { ok: false, error: 'No existe una semana seleccionada.' };
     }
-    if (stateSnapshot.validatedWeekIds.includes(currentValidationScopeKey(scopedWeekId))) {
+    if (stateSnapshot.validatedWeekIds.includes(scopedWeekId)) {
       return { ok: false, error: 'La semana seleccionada ya está validada. Desvalídala para cambiar su configuración.' };
     }
 
@@ -1737,7 +1729,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!scopedWeekId) {
       return { ok: false, error: 'No existe una semana seleccionada.' };
     }
-    if (stateSnapshot.validatedWeekIds.includes(currentValidationScopeKey(scopedWeekId))) {
+    if (stateSnapshot.validatedWeekIds.includes(scopedWeekId)) {
       return { ok: false, error: 'La semana seleccionada ya está validada. Desvalídala para cambiar su configuración.' };
     }
     const currentWeekConfig = getWeekConfigurationSnapshot(stateSnapshot, scopedWeekId);
@@ -1785,7 +1777,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setExceptionalRestDay: ({ weekId, dateISO, employeeId, active }) => {
     const stateSnapshot = get();
     const scopedWeekId = resolveScopedWeekId(stateSnapshot.currentAreaId, weekId);
-    if (stateSnapshot.validatedWeekIds.includes(currentValidationScopeKey(scopedWeekId))) {
+    if (stateSnapshot.validatedWeekIds.includes(scopedWeekId)) {
       return { ok: false, error: 'La semana validada está en solo lectura.' };
     }
     if (!isWeekUnlockedForPlanning(stateSnapshot.weeks, stateSnapshot.validatedWeekIds, scopedWeekId)) {
@@ -1827,7 +1819,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const stateSnapshot = get();
     const scopedWeekId = resolveScopedWeekId(stateSnapshot.currentAreaId, weekId);
-    const validationKey = currentValidationScopeKey(scopedWeekId);
+    const validationKey = scopedWeekId;
     if (!stateSnapshot.weekPlans[scopedWeekId]) {
       return { ok: false, error: 'No existe planificación para esa semana.' };
     }
@@ -1913,7 +1905,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set((state) => {
       const scopedWeekId = resolveScopedWeekId(state.currentAreaId, weekId);
-      const validationKey = currentValidationScopeKey(scopedWeekId);
+      const validationKey = scopedWeekId;
       if (!state.weekPlans[scopedWeekId]) return {};
       if (!state.validatedWeekIds.includes(validationKey)) return {};
       return {
@@ -1931,29 +1923,36 @@ export function createId(prefix: string): string {
   return `${prefix}-${Math.random().toString(16).slice(2, 8)}-${Date.now().toString(36)}`;
 }
 
-export function getValidationScopeKeyForWeek(scopedWeekId: string, companyId: string | null): string {
-  return buildValidationScopeKey(scopedWeekId, companyId);
-}
-
 export function isWeekValidatedForCompany(
   validatedWeekIds: string[],
   scopedWeekId: string | null,
-  companyId: string | null
+  _companyId?: string | null
 ): boolean {
   if (!scopedWeekId) return false;
-  return validatedWeekIds.includes(buildValidationScopeKey(scopedWeekId, companyId));
+  return validatedWeekIds.includes(scopedWeekId);
 }
 
 export function getWeekAuditForCompany(
   weekAuditById: Record<string, WeekAudit>,
   scopedWeekId: string | null,
-  companyId: string | null
+  _companyId?: string | null
 ): WeekAudit | undefined {
   if (!scopedWeekId) return undefined;
-  return weekAuditById[buildValidationScopeKey(scopedWeekId, companyId)];
+  return weekAuditById[scopedWeekId];
 }
+
+// Re-initialize store when the selected company changes.
+useAuthStore.subscribe((state, prevState) => {
+  if (state.selectedGeoVictoriaCompanyId !== prevState.selectedGeoVictoriaCompanyId) {
+    const store = useAppStore.getState();
+    if (store.hydrated) {
+      useAppStore.setState({ hydrated: false });
+      store.initialize();
+    }
+  }
+});
 
 export async function exportPersistSnapshot(): Promise<void> {
   const state = useAppStore.getState();
-  await savePlannerState(toPersistableState(state));
+  await savePlannerState(toPersistableState(state), getSelectedCompanyId());
 }

@@ -69,6 +69,8 @@ export type Role = {
   name: string;
   colorHex: string;
   validCodes: string[];
+  areaId?: AreaId;
+  companyId?: string;
 };
 
 export type TimeSlot = {

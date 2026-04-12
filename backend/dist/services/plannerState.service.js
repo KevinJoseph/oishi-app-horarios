@@ -1,122 +1,39 @@
-import { PlannerStateModel } from '../models/PlannerState.js';
+import { EmployeeModel } from '../models/Employee.js';
+import { RoleModel } from '../models/Role.js';
+import { WeekModel } from '../models/Week.js';
+import { WeekPlanModel } from '../models/WeekPlan.js';
+import { WeekConfigModel } from '../models/WeekConfig.js';
+import { WeekAuditModel } from '../models/WeekAudit.js';
+import { AreaSettingsModel } from '../models/AreaSettings.js';
+import { AppSettingsModel } from '../models/AppSettings.js';
 import { buildSeedState } from './seedState.js';
 import { AREA_IDS } from '../types/planner.js';
-const STATE_KEY = 'default';
+const APP_SETTINGS_ID = 'default';
+export const DEFAULT_COMPANY_ID = '__default__';
 function isAreaId(value) {
     return typeof value === 'string' && AREA_IDS.includes(value);
 }
-function sanitizeValidationRequirements(input) {
-    const source = (input ?? {});
+function resolveCompanyId(companyId) {
+    const trimmed = (companyId ?? '').trim();
+    return trimmed.length > 0 ? trimmed : DEFAULT_COMPANY_ID;
+}
+function scopedKey(companyId, areaId, baseWeekId) {
+    return `${companyId}::${areaId}::${baseWeekId}`;
+}
+function areaSettingsKey(companyId, areaId) {
+    return `${companyId}::${areaId}`;
+}
+function parseWeekScope(key) {
+    const parts = key.split('::');
+    if (parts.length !== 3)
+        return null;
+    const [companyId, areaId, baseWeekId] = parts;
+    if (!isAreaId(areaId))
+        return null;
+    return { companyId, areaId, baseWeekId };
+}
+function defaultValidationRequirements() {
     return {
-        0: {
-            opening: Number.isFinite(source[0]?.opening) ? Math.max(0, Math.trunc(source[0].opening)) : 0,
-            closing: Number.isFinite(source[0]?.closing) ? Math.max(0, Math.trunc(source[0].closing)) : 0
-        },
-        1: {
-            opening: Number.isFinite(source[1]?.opening) ? Math.max(0, Math.trunc(source[1].opening)) : 0,
-            closing: Number.isFinite(source[1]?.closing) ? Math.max(0, Math.trunc(source[1].closing)) : 0
-        },
-        2: {
-            opening: Number.isFinite(source[2]?.opening) ? Math.max(0, Math.trunc(source[2].opening)) : 0,
-            closing: Number.isFinite(source[2]?.closing) ? Math.max(0, Math.trunc(source[2].closing)) : 0
-        },
-        3: {
-            opening: Number.isFinite(source[3]?.opening) ? Math.max(0, Math.trunc(source[3].opening)) : 0,
-            closing: Number.isFinite(source[3]?.closing) ? Math.max(0, Math.trunc(source[3].closing)) : 0
-        },
-        4: {
-            opening: Number.isFinite(source[4]?.opening) ? Math.max(0, Math.trunc(source[4].opening)) : 0,
-            closing: Number.isFinite(source[4]?.closing) ? Math.max(0, Math.trunc(source[4].closing)) : 0
-        },
-        5: {
-            opening: Number.isFinite(source[5]?.opening) ? Math.max(0, Math.trunc(source[5].opening)) : 0,
-            closing: Number.isFinite(source[5]?.closing) ? Math.max(0, Math.trunc(source[5].closing)) : 0
-        },
-        6: {
-            opening: Number.isFinite(source[6]?.opening) ? Math.max(0, Math.trunc(source[6].opening)) : 0,
-            closing: Number.isFinite(source[6]?.closing) ? Math.max(0, Math.trunc(source[6].closing)) : 0
-        }
-    };
-}
-function clearAllWeekValidators(weekAuditById) {
-    const next = {};
-    for (const [weekId, audit] of Object.entries(weekAuditById)) {
-        next[weekId] = {
-            ...audit,
-            validatedByName: null
-        };
-    }
-    return next;
-}
-function cloneTimeSlots(input) {
-    return input.map((slot) => ({ ...slot }));
-}
-function cloneShiftRanges(input) {
-    return {
-        day: { ...input.day },
-        night: { ...input.night }
-    };
-}
-function cloneValidationRequirements(input) {
-    return sanitizeValidationRequirements(input);
-}
-function cloneBreakConfig(input) {
-    return {
-        enabled: Boolean(input.enabled),
-        startHour: input.startHour,
-        endHour: input.endHour
-    };
-}
-function buildWeekConfigurationSnapshot(areaId, timeSlotsByArea, shiftRangesByArea, validationRequirementsByArea, breakConfigByArea) {
-    return {
-        areaId,
-        timeSlots: cloneTimeSlots(timeSlotsByArea[areaId]),
-        shiftRanges: cloneShiftRanges(shiftRangesByArea[areaId]),
-        validationRequirements: cloneValidationRequirements(validationRequirementsByArea[areaId]),
-        breakConfig: cloneBreakConfig(breakConfigByArea[areaId])
-    };
-}
-function sanitizeWeekConfigurationSnapshot(input, fallbackAreaId, fallback) {
-    const source = (input ?? {});
-    const areaId = isAreaId(source.areaId) ? source.areaId : fallbackAreaId;
-    return {
-        areaId,
-        timeSlots: Array.isArray(source.timeSlots) ? cloneTimeSlots(source.timeSlots) : cloneTimeSlots(fallback.timeSlots),
-        shiftRanges: source.shiftRanges && typeof source.shiftRanges === 'object'
-            ? cloneShiftRanges(source.shiftRanges)
-            : cloneShiftRanges(fallback.shiftRanges),
-        validationRequirements: cloneValidationRequirements(source.validationRequirements ?? fallback.validationRequirements),
-        breakConfig: source.breakConfig && typeof source.breakConfig === 'object'
-            ? cloneBreakConfig(source.breakConfig)
-            : cloneBreakConfig(fallback.breakConfig)
-    };
-}
-function sanitizePayload(payload) {
-    return {
-        employees: payload.employees,
-        roles: payload.roles,
-        currentAreaId: payload.currentAreaId,
-        timeSlots: payload.timeSlots,
-        shiftRanges: payload.shiftRanges,
-        validationRequirements: payload.validationRequirements,
-        breakConfig: payload.breakConfig,
-        timeSlotsByArea: payload.timeSlotsByArea,
-        shiftRangesByArea: payload.shiftRangesByArea,
-        validationRequirementsByArea: payload.validationRequirementsByArea,
-        breakConfigByArea: payload.breakConfigByArea,
-        weeks: payload.weeks,
-        weekPlans: payload.weekPlans,
-        validatedWeekIds: payload.validatedWeekIds,
-        weekAuditById: payload.weekAuditById,
-        weekConfigById: payload.weekConfigById
-    };
-}
-function mapUnknownState(raw) {
-    const defaultShiftRanges = {
-        day: { startHour: 12, endHour: 17 },
-        night: { startHour: 17, endHour: 22 }
-    };
-    const defaultValidationRequirements = {
         0: { opening: 0, closing: 0 },
         1: { opening: 0, closing: 0 },
         2: { opening: 0, closing: 0 },
@@ -125,216 +42,392 @@ function mapUnknownState(raw) {
         5: { opening: 0, closing: 0 },
         6: { opening: 0, closing: 0 }
     };
-    const defaultBreakConfig = {
-        enabled: false,
-        startHour: 16,
-        endHour: 17
-    };
-    const timeSlotsByArea = raw.timeSlotsByArea && typeof raw.timeSlotsByArea === 'object'
-        ? {
-            salon: raw.timeSlotsByArea.salon ??
-                raw.timeSlots,
-            cocina: raw.timeSlotsByArea.cocina ??
-                raw.timeSlots,
-            oficina: raw.timeSlotsByArea.oficina ??
-                raw.timeSlots,
-            produccion: raw.timeSlotsByArea.produccion ??
-                raw.timeSlots
+}
+function sanitizeValidationRequirements(input) {
+    const source = (input ?? {});
+    const out = defaultValidationRequirements();
+    for (const key of [0, 1, 2, 3, 4, 5, 6]) {
+        const entry = source[key];
+        if (entry) {
+            out[key] = {
+                opening: Number.isFinite(entry.opening) ? Math.max(0, Math.trunc(entry.opening)) : 0,
+                closing: Number.isFinite(entry.closing) ? Math.max(0, Math.trunc(entry.closing)) : 0
+            };
         }
-        : {
-            salon: raw.timeSlots,
-            cocina: raw.timeSlots,
-            oficina: raw.timeSlots,
-            produccion: raw.timeSlots
+    }
+    return out;
+}
+/**
+ * Legacy scopedWeekId from the frontend is `${areaId}::${weekId}`. Convert it to the
+ * new internal `${companyId}::${areaId}::${weekId}` using the caller's company context.
+ * Accepts either format to be lenient with stored validation keys.
+ */
+function normalizeIncomingScopedKey(rawKey, companyId) {
+    const trimmed = rawKey.trim();
+    if (!trimmed)
+        return null;
+    // Drop any legacy `::company:xxx` suffix.
+    const withoutCompanySuffix = trimmed.replace(/::company:[^:]*$/i, '');
+    const parts = withoutCompanySuffix.split('::');
+    if (parts.length === 3) {
+        const [, areaId, baseWeekId] = parts;
+        if (!isAreaId(areaId))
+            return null;
+        return scopedKey(companyId, areaId, baseWeekId);
+    }
+    if (parts.length === 2) {
+        const [areaId, baseWeekId] = parts;
+        if (!isAreaId(areaId))
+            return null;
+        return scopedKey(companyId, areaId, baseWeekId);
+    }
+    return null;
+}
+async function ensureSeeded() {
+    const [empCount, weekCount, appSettings] = await Promise.all([
+        EmployeeModel.estimatedDocumentCount(),
+        WeekModel.estimatedDocumentCount(),
+        AppSettingsModel.findById(APP_SETTINGS_ID).lean()
+    ]);
+    if (empCount > 0 || weekCount > 0 || appSettings) {
+        return;
+    }
+    const seed = buildSeedState();
+    const ops = [];
+    if (seed.employees.length > 0) {
+        ops.push(EmployeeModel.insertMany(seed.employees.map((employee) => ({ _id: employee.id, data: employee })), { ordered: false }));
+    }
+    if (seed.weeks.length > 0) {
+        ops.push(WeekModel.insertMany(seed.weeks.map((week) => ({
+            _id: week.id,
+            label: week.label,
+            startDateISO: week.startDateISO
+        })), { ordered: false }));
+    }
+    ops.push(AppSettingsModel.create({
+        _id: APP_SETTINGS_ID,
+        currentAreaId: seed.currentAreaId
+    }));
+    await Promise.all(ops);
+}
+export async function getOrCreatePlannerState(context) {
+    await ensureSeeded();
+    const { companyId } = context;
+    const [employeeDocs, roleDocs, weekDocs, weekPlanDocs, weekConfigDocs, weekAuditDocs, areaSettingsDocs, appSettings] = await Promise.all([
+        EmployeeModel.find({}).lean(),
+        RoleModel.find({ companyId }).lean(),
+        WeekModel.find({}).lean(),
+        WeekPlanModel.find({ companyId }).lean(),
+        WeekConfigModel.find({ companyId }).lean(),
+        WeekAuditModel.find({ companyId }).lean(),
+        AreaSettingsModel.find({ companyId }).lean(),
+        AppSettingsModel.findById(APP_SETTINGS_ID).lean()
+    ]);
+    const employees = employeeDocs.map((doc) => doc.data);
+    const roles = roleDocs.map((doc) => ({
+        ...doc.data,
+        companyId: doc.companyId,
+        areaId: isAreaId(doc.areaId) ? doc.areaId : 'salon'
+    }));
+    const weeks = weekDocs.map((doc) => ({
+        id: doc._id,
+        label: doc.label,
+        startDateISO: doc.startDateISO
+    }));
+    // Frontend keys expected as `${areaId}::${weekId}` (legacy format) — map from internal keys.
+    const toLegacyScope = (areaId, baseWeekId) => `${areaId}::${baseWeekId}`;
+    const weekPlans = {};
+    for (const doc of weekPlanDocs) {
+        const areaId = isAreaId(doc.areaId) ? doc.areaId : 'salon';
+        const key = toLegacyScope(areaId, doc.baseWeekId);
+        weekPlans[key] = {
+            weekId: key,
+            days: doc.days
         };
-    const shiftRangesByArea = raw.shiftRangesByArea && typeof raw.shiftRangesByArea === 'object'
-        ? {
-            salon: raw.shiftRangesByArea.salon ??
-                (raw.shiftRanges ?? defaultShiftRanges),
-            cocina: raw.shiftRangesByArea.cocina ??
-                (raw.shiftRanges ?? defaultShiftRanges),
-            oficina: raw.shiftRangesByArea.oficina ??
-                (raw.shiftRanges ?? defaultShiftRanges),
-            produccion: raw.shiftRangesByArea.produccion ??
-                (raw.shiftRanges ?? defaultShiftRanges)
-        }
-        : {
-            salon: (raw.shiftRanges ?? defaultShiftRanges),
-            cocina: (raw.shiftRanges ?? defaultShiftRanges),
-            oficina: (raw.shiftRanges ?? defaultShiftRanges),
-            produccion: (raw.shiftRanges ?? defaultShiftRanges)
-        };
-    const validationRequirementsByArea = raw.validationRequirementsByArea && typeof raw.validationRequirementsByArea === 'object'
-        ? {
-            salon: raw.validationRequirementsByArea.salon ??
-                (raw.validationRequirements ?? defaultValidationRequirements),
-            cocina: raw.validationRequirementsByArea.cocina ??
-                (raw.validationRequirements ?? defaultValidationRequirements),
-            oficina: raw.validationRequirementsByArea.oficina ??
-                (raw.validationRequirements ?? defaultValidationRequirements),
-            produccion: raw.validationRequirementsByArea.produccion ??
-                (raw.validationRequirements ?? defaultValidationRequirements)
-        }
-        : {
-            salon: (raw.validationRequirements ?? defaultValidationRequirements),
-            cocina: (raw.validationRequirements ?? defaultValidationRequirements),
-            oficina: (raw.validationRequirements ?? defaultValidationRequirements),
-            produccion: (raw.validationRequirements ?? defaultValidationRequirements)
-        };
-    const breakConfigByArea = raw.breakConfigByArea && typeof raw.breakConfigByArea === 'object'
-        ? {
-            salon: raw.breakConfigByArea.salon ??
-                (raw.breakConfig ?? defaultBreakConfig),
-            cocina: raw.breakConfigByArea.cocina ??
-                (raw.breakConfig ?? defaultBreakConfig),
-            oficina: raw.breakConfigByArea.oficina ??
-                (raw.breakConfig ?? defaultBreakConfig),
-            produccion: raw.breakConfigByArea.produccion ??
-                (raw.breakConfig ?? defaultBreakConfig)
-        }
-        : {
-            salon: (raw.breakConfig ?? defaultBreakConfig),
-            cocina: (raw.breakConfig ?? defaultBreakConfig),
-            oficina: (raw.breakConfig ?? defaultBreakConfig),
-            produccion: (raw.breakConfig ?? defaultBreakConfig)
-        };
-    const validatedWeekIds = Array.isArray(raw.validatedWeekIds)
-        ? raw.validatedWeekIds.filter((value) => typeof value === 'string')
-        : [];
-    const rawWeekConfigById = raw.weekConfigById && typeof raw.weekConfigById === 'object'
-        ? raw.weekConfigById
-        : {};
+    }
     const weekConfigById = {};
-    const knownWeekConfigIds = new Set();
-    for (const week of raw.weeks) {
-        for (const areaId of AREA_IDS) {
-            knownWeekConfigIds.add(`${areaId}::${week.id}`);
+    for (const doc of weekConfigDocs) {
+        const areaId = isAreaId(doc.areaId) ? doc.areaId : 'salon';
+        const key = toLegacyScope(areaId, doc.baseWeekId);
+        weekConfigById[key] = {
+            areaId,
+            timeSlots: doc.timeSlots,
+            shiftRanges: doc.shiftRanges,
+            validationRequirements: sanitizeValidationRequirements(doc.validationRequirements),
+            breakConfig: doc.breakConfig
+        };
+    }
+    const weekAuditById = {};
+    const validatedWeekIds = [];
+    for (const doc of weekAuditDocs) {
+        const areaId = isAreaId(doc.areaId) ? doc.areaId : 'salon';
+        const key = toLegacyScope(areaId, doc.baseWeekId);
+        weekAuditById[key] = {
+            createdByName: doc.createdByName ?? null,
+            validatedByName: doc.validatedByName ?? null
+        };
+        if (doc.validated) {
+            validatedWeekIds.push(key);
         }
     }
-    for (const weekId of Object.keys(rawWeekConfigById)) {
-        const normalizedWeekId = weekId.includes('::') ? weekId : `salon::${weekId}`;
-        if (!knownWeekConfigIds.has(normalizedWeekId))
+    const defaultTimeSlots = [];
+    const defaultShiftRanges = {
+        day: { startHour: 12, endHour: 17 },
+        night: { startHour: 17, endHour: 22 }
+    };
+    const defaultBreak = { enabled: false, startHour: 16, endHour: 17 };
+    const timeSlotsByArea = {
+        salon: defaultTimeSlots,
+        cocina: defaultTimeSlots,
+        oficina: defaultTimeSlots,
+        produccion: defaultTimeSlots
+    };
+    const shiftRangesByArea = {
+        salon: defaultShiftRanges,
+        cocina: defaultShiftRanges,
+        oficina: defaultShiftRanges,
+        produccion: defaultShiftRanges
+    };
+    const validationRequirementsByArea = {
+        salon: defaultValidationRequirements(),
+        cocina: defaultValidationRequirements(),
+        oficina: defaultValidationRequirements(),
+        produccion: defaultValidationRequirements()
+    };
+    const breakConfigByArea = {
+        salon: defaultBreak,
+        cocina: defaultBreak,
+        oficina: defaultBreak,
+        produccion: defaultBreak
+    };
+    for (const doc of areaSettingsDocs) {
+        if (!isAreaId(doc.areaId))
             continue;
-        const fallbackAreaId = isAreaId(normalizedWeekId.split('::')[0]) ? normalizedWeekId.split('::')[0] : 'salon';
-        const fallbackSnapshot = buildWeekConfigurationSnapshot(fallbackAreaId, timeSlotsByArea, shiftRangesByArea, validationRequirementsByArea, breakConfigByArea);
-        weekConfigById[normalizedWeekId] = sanitizeWeekConfigurationSnapshot(rawWeekConfigById[weekId], fallbackAreaId, fallbackSnapshot);
+        timeSlotsByArea[doc.areaId] = doc.timeSlots;
+        shiftRangesByArea[doc.areaId] = doc.shiftRanges;
+        validationRequirementsByArea[doc.areaId] = sanitizeValidationRequirements(doc.validationRequirements);
+        breakConfigByArea[doc.areaId] = doc.breakConfig;
     }
-    for (const weekId of validatedWeekIds) {
-        if (weekConfigById[weekId])
-            continue;
-        const fallbackAreaId = isAreaId(weekId.split('::')[0]) ? weekId.split('::')[0] : 'salon';
-        const fallbackSnapshot = buildWeekConfigurationSnapshot(fallbackAreaId, timeSlotsByArea, shiftRangesByArea, validationRequirementsByArea, breakConfigByArea);
-        weekConfigById[weekId] = sanitizeWeekConfigurationSnapshot(rawWeekConfigById[weekId], fallbackAreaId, fallbackSnapshot);
-    }
+    const currentAreaId = isAreaId(appSettings?.currentAreaId)
+        ? appSettings.currentAreaId
+        : 'salon';
     return {
-        employees: raw.employees,
-        roles: raw.roles,
-        currentAreaId: isAreaId(raw.currentAreaId) ? raw.currentAreaId : 'salon',
-        timeSlots: raw.timeSlots,
-        shiftRanges: raw.shiftRanges ?? defaultShiftRanges,
-        validationRequirements: raw.validationRequirements ?? defaultValidationRequirements,
-        breakConfig: raw.breakConfig ?? defaultBreakConfig,
+        employees,
+        roles,
+        currentAreaId,
+        timeSlots: timeSlotsByArea[currentAreaId],
+        shiftRanges: shiftRangesByArea[currentAreaId],
+        validationRequirements: validationRequirementsByArea[currentAreaId],
+        breakConfig: breakConfigByArea[currentAreaId],
         timeSlotsByArea,
         shiftRangesByArea,
         validationRequirementsByArea,
         breakConfigByArea,
-        weeks: raw.weeks,
-        weekPlans: raw.weekPlans,
+        weeks,
+        weekPlans,
         validatedWeekIds,
-        weekAuditById: raw.weekAuditById && typeof raw.weekAuditById === 'object'
-            ? raw.weekAuditById
-            : {},
+        weekAuditById,
         weekConfigById
     };
 }
-export async function getOrCreatePlannerState() {
-    const existing = await PlannerStateModel.findOne({ key: STATE_KEY }).lean();
-    if (existing) {
-        return mapUnknownState(existing);
+async function replaceEmployees(employees) {
+    const ids = employees.map((employee) => employee.id);
+    const ops = employees.map((employee) => ({
+        updateOne: {
+            filter: { _id: employee.id },
+            update: { $set: { data: employee } },
+            upsert: true
+        }
+    }));
+    if (ops.length > 0) {
+        await EmployeeModel.bulkWrite(ops, { ordered: false });
     }
-    const seed = buildSeedState();
-    await PlannerStateModel.create({ key: STATE_KEY, ...seed });
-    return seed;
+    await EmployeeModel.deleteMany({ _id: { $nin: ids } });
 }
-export async function replacePlannerState(payload) {
-    const sanitized = sanitizePayload(payload);
-    const updated = await PlannerStateModel.findOneAndUpdate({ key: STATE_KEY }, { $set: sanitized }, { upsert: true, new: true, setDefaultsOnInsert: true, lean: true });
-    if (!updated) {
-        throw new Error('Failed to persist planner state');
+async function replaceRolesForCompany(companyId, roles) {
+    const ids = roles.map((role) => role.id);
+    const ops = roles.map((role) => {
+        const areaId = isAreaId(role.areaId) ? role.areaId : 'salon';
+        return {
+            updateOne: {
+                filter: { _id: role.id },
+                update: {
+                    $set: {
+                        companyId,
+                        areaId,
+                        data: { ...role, companyId, areaId }
+                    }
+                },
+                upsert: true
+            }
+        };
+    });
+    if (ops.length > 0) {
+        await RoleModel.bulkWrite(ops, { ordered: false });
     }
-    return mapUnknownState(updated);
+    // Only delete roles for this company that are not in the payload.
+    await RoleModel.deleteMany({ companyId, _id: { $nin: ids } });
 }
-export async function updatePlannerStatePartial(payload) {
-    const current = await getOrCreatePlannerState();
-    const nextState = {
-        ...current,
-        employees: payload.employees ?? current.employees,
-        roles: payload.roles ?? current.roles,
-        weeks: payload.weeks ?? current.weeks,
-        weekPlans: { ...current.weekPlans },
-        weekAuditById: { ...current.weekAuditById },
-        weekConfigById: { ...current.weekConfigById },
-        validatedWeekIds: [...current.validatedWeekIds]
+async function replaceWeeks(weeks) {
+    const ops = weeks.map((week) => ({
+        updateOne: {
+            filter: { _id: week.id },
+            update: {
+                $set: {
+                    label: week.label,
+                    startDateISO: week.startDateISO
+                }
+            },
+            upsert: true
+        }
+    }));
+    if (ops.length > 0) {
+        await WeekModel.bulkWrite(ops, { ordered: false });
+    }
+}
+async function upsertWeekPlan(companyId, legacyKey, plan) {
+    const parts = legacyKey.split('::');
+    if (parts.length !== 2)
+        return;
+    const [rawAreaId, baseWeekId] = parts;
+    if (!isAreaId(rawAreaId))
+        return;
+    const areaId = rawAreaId;
+    const id = scopedKey(companyId, areaId, baseWeekId);
+    await WeekPlanModel.updateOne({ _id: id }, {
+        $set: {
+            companyId,
+            areaId,
+            baseWeekId,
+            days: plan.days
+        }
+    }, { upsert: true });
+}
+async function upsertWeekConfig(companyId, legacyKey, config) {
+    const parts = legacyKey.split('::');
+    if (parts.length !== 2)
+        return;
+    const [rawAreaId, baseWeekId] = parts;
+    if (!isAreaId(rawAreaId))
+        return;
+    const areaId = isAreaId(config.areaId) ? config.areaId : rawAreaId;
+    const id = scopedKey(companyId, areaId, baseWeekId);
+    await WeekConfigModel.updateOne({ _id: id }, {
+        $set: {
+            companyId,
+            areaId,
+            baseWeekId,
+            timeSlots: config.timeSlots,
+            shiftRanges: config.shiftRanges,
+            validationRequirements: sanitizeValidationRequirements(config.validationRequirements),
+            breakConfig: config.breakConfig
+        }
+    }, { upsert: true });
+}
+async function upsertWeekAudit(companyId, rawKey, audit, validated) {
+    // Strip legacy `::company:xxx` suffix and normalize area+week.
+    const withoutCompanySuffix = rawKey.replace(/::company:[^:]*$/i, '');
+    const parts = withoutCompanySuffix.split('::');
+    if (parts.length !== 2)
+        return;
+    const [rawAreaId, baseWeekId] = parts;
+    if (!isAreaId(rawAreaId))
+        return;
+    const areaId = rawAreaId;
+    const id = scopedKey(companyId, areaId, baseWeekId);
+    const set = {
+        companyId,
+        areaId,
+        baseWeekId
     };
+    if (audit) {
+        set.createdByName = audit.createdByName ?? null;
+        set.validatedByName = audit.validatedByName ?? null;
+    }
+    if (typeof validated === 'boolean') {
+        set.validated = validated;
+    }
+    await WeekAuditModel.updateOne({ _id: id }, { $set: set }, { upsert: true });
+}
+export async function updatePlannerStatePartial(context, payload) {
+    const { companyId } = context;
+    const ops = [];
+    if (payload.employees)
+        ops.push(replaceEmployees(payload.employees));
+    if (payload.roles)
+        ops.push(replaceRolesForCompany(companyId, payload.roles));
+    if (payload.weeks)
+        ops.push(replaceWeeks(payload.weeks));
     for (const entry of payload.weekEntries ?? []) {
         if (!entry.weekId?.trim())
             continue;
         if (entry.weekPlan) {
-            nextState.weekPlans[entry.weekId] = entry.weekPlan;
-        }
-        if (entry.weekAudit) {
-            nextState.weekAuditById[entry.weekId] = entry.weekAudit;
+            ops.push(upsertWeekPlan(companyId, entry.weekId, entry.weekPlan));
         }
         if (entry.weekConfig) {
-            nextState.weekConfigById[entry.weekId] = entry.weekConfig;
+            ops.push(upsertWeekConfig(companyId, entry.weekId, entry.weekConfig));
         }
-        if (typeof entry.validated === 'boolean') {
-            const alreadyValidated = nextState.validatedWeekIds.includes(entry.weekId);
-            if (entry.validated && !alreadyValidated) {
-                nextState.validatedWeekIds.push(entry.weekId);
-            }
-            if (!entry.validated && alreadyValidated) {
-                nextState.validatedWeekIds = nextState.validatedWeekIds.filter((value) => value !== entry.weekId);
-            }
+        if (entry.weekAudit || typeof entry.validated === 'boolean') {
+            ops.push(upsertWeekAudit(companyId, entry.weekId, entry.weekAudit, entry.validated));
         }
     }
-    return replacePlannerState(nextState);
+    await Promise.all(ops);
+    return getOrCreatePlannerState(context);
 }
-export async function updateValidationRequirements(payload) {
-    const current = await getOrCreatePlannerState();
+export async function replacePlannerState(context, payload) {
+    const { companyId } = context;
+    await Promise.all([
+        replaceEmployees(payload.employees),
+        replaceRolesForCompany(companyId, payload.roles),
+        replaceWeeks(payload.weeks),
+        AppSettingsModel.updateOne({ _id: APP_SETTINGS_ID }, { $set: { currentAreaId: payload.currentAreaId } }, { upsert: true }),
+        ...AREA_IDS.map((areaId) => AreaSettingsModel.updateOne({ _id: areaSettingsKey(companyId, areaId) }, {
+            $set: {
+                companyId,
+                areaId,
+                timeSlots: payload.timeSlotsByArea[areaId],
+                shiftRanges: payload.shiftRangesByArea[areaId],
+                validationRequirements: sanitizeValidationRequirements(payload.validationRequirementsByArea[areaId]),
+                breakConfig: payload.breakConfigByArea[areaId]
+            }
+        }, { upsert: true }))
+    ]);
+    const weekPlanOps = Object.entries(payload.weekPlans).map(([key, plan]) => upsertWeekPlan(companyId, key, plan));
+    const weekConfigOps = Object.entries(payload.weekConfigById).map(([key, config]) => upsertWeekConfig(companyId, key, config));
+    const auditKeys = new Set([...Object.keys(payload.weekAuditById), ...payload.validatedWeekIds]);
+    const weekAuditOps = Array.from(auditKeys).map((key) => upsertWeekAudit(companyId, key, payload.weekAuditById[key], payload.validatedWeekIds.includes(key)));
+    await Promise.all([...weekPlanOps, ...weekConfigOps, ...weekAuditOps]);
+    return getOrCreatePlannerState(context);
+}
+export async function updateValidationRequirements(context, payload) {
+    const { companyId } = context;
     const sanitized = sanitizeValidationRequirements(payload.validationRequirements);
-    const nextState = {
-        ...current,
-        validationRequirements: sanitized,
-        validationRequirementsByArea: {
-            ...current.validationRequirementsByArea,
-            [payload.areaId]: sanitized
-        },
-        weekConfigById: current.weekConfigById
-    };
-    const updated = await PlannerStateModel.findOneAndUpdate({ key: STATE_KEY }, {
+    await AreaSettingsModel.updateOne({ _id: areaSettingsKey(companyId, payload.areaId) }, {
         $set: {
-            validationRequirements: nextState.validationRequirements,
-            validationRequirementsByArea: nextState.validationRequirementsByArea,
-            weekConfigById: nextState.weekConfigById
+            companyId,
+            areaId: payload.areaId,
+            validationRequirements: sanitized
+        },
+        $setOnInsert: {
+            timeSlots: [],
+            shiftRanges: { day: { startHour: 12, endHour: 17 }, night: { startHour: 17, endHour: 22 } },
+            breakConfig: { enabled: false, startHour: 16, endHour: 17 }
         }
-    }, { upsert: true, new: true, setDefaultsOnInsert: true, lean: true });
-    if (!updated) {
-        throw new Error('Failed to persist validation requirements');
-    }
-    return mapUnknownState(updated);
+    }, { upsert: true });
+    return getOrCreatePlannerState(context);
 }
-export async function resetPlannerState() {
-    const seed = buildSeedState();
-    const resetState = {
-        ...seed,
-        employees: seed.employees.map((employee) => ({
-            ...employee,
-            contractType: undefined,
-            shiftType: undefined,
-            weeklyHours: 0
-        }))
-    };
-    await PlannerStateModel.findOneAndUpdate({ key: STATE_KEY }, { $set: resetState }, { upsert: true, new: true, setDefaultsOnInsert: true });
-    return resetState;
+export async function resetPlannerState(context) {
+    const { companyId } = context;
+    await Promise.all([
+        EmployeeModel.deleteMany({}),
+        RoleModel.deleteMany({ companyId }),
+        WeekPlanModel.deleteMany({ companyId }),
+        WeekConfigModel.deleteMany({ companyId }),
+        WeekAuditModel.deleteMany({ companyId }),
+        AreaSettingsModel.deleteMany({ companyId })
+    ]);
+    return getOrCreatePlannerState(context);
+}
+export function buildPlannerContext(companyId) {
+    return { companyId: resolveCompanyId(companyId) };
 }

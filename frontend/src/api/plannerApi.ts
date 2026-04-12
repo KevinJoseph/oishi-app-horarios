@@ -2,12 +2,16 @@ import type { SeedState } from '../data/seed';
 import type { AreaId, ValidationRequirements, Week, WeekAudit, WeekConfigurationSnapshot, WeekPlan } from '../types';
 import { request } from './http';
 
-export function fetchPlannerState(): Promise<SeedState> {
-  return request<SeedState>('/state');
+function companyQuery(companyId?: string | null): string {
+  return companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
 }
 
-export function savePlannerState(payload: SeedState): Promise<SeedState> {
-  return request<SeedState>('/state', {
+export function fetchPlannerState(companyId?: string | null): Promise<SeedState> {
+  return request<SeedState>(`/state${companyQuery(companyId)}`);
+}
+
+export function savePlannerState(payload: SeedState, companyId?: string | null): Promise<SeedState> {
+  return request<SeedState>(`/state${companyQuery(companyId)}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
@@ -26,8 +30,8 @@ export type PlannerStatePartialUpdatePayload = {
   }>;
 };
 
-export function savePlannerStatePartial(payload: PlannerStatePartialUpdatePayload): Promise<{ ok: true }> {
-  return request<{ ok: true }>('/state/partial', {
+export function savePlannerStatePartial(payload: PlannerStatePartialUpdatePayload, companyId?: string | null): Promise<{ ok: true }> {
+  return request<{ ok: true }>(`/state/partial${companyQuery(companyId)}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
@@ -36,15 +40,15 @@ export function savePlannerStatePartial(payload: PlannerStatePartialUpdatePayloa
 export function saveValidationRequirements(payload: {
   areaId: AreaId;
   validationRequirements: ValidationRequirements;
-}): Promise<SeedState> {
-  return request<SeedState>('/state/validation-requirements', {
+}, companyId?: string | null): Promise<SeedState> {
+  return request<SeedState>(`/state/validation-requirements${companyQuery(companyId)}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
-export function resetPlannerState(): Promise<SeedState> {
-  return request<SeedState>('/state/reset', {
+export function resetPlannerState(companyId?: string | null): Promise<SeedState> {
+  return request<SeedState>(`/state/reset${companyQuery(companyId)}`, {
     method: 'POST'
   });
 }

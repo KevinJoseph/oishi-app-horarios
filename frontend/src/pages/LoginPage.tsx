@@ -7,6 +7,7 @@ import {
   FormControl,
   FormLabel,
   Heading,
+  Image,
   Input,
   InputGroup,
   InputRightElement,
@@ -61,8 +62,18 @@ export function LoginPage(): JSX.Element {
             }}
           >
             <Box textAlign="center">
+              <Image
+                src="/logo.svg"
+                alt="Logo de OishiPartners"
+                w="220px"
+                maxW="70%"
+                h="auto"
+                mx="auto"
+                mb={4}
+                objectFit="contain"
+              />
               <Heading size="md" mb={1}>
-                Sistema de Gestión de Horarios
+                Sistema de Planificación de Horarios
               </Heading>
               <Text color="gray.600" fontSize="sm">
                 Inicia sesión para gestionar turnos, colaboradores y cobertura semanal.

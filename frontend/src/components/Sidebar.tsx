@@ -1,4 +1,4 @@
-import { Box, Flex, Icon, Link, Text } from '@chakra-ui/react';
+import { Box, Flex, Icon, Image, Link, Text } from '@chakra-ui/react';
 import { NavLink } from 'react-router-dom';
 import { FiCalendar, FiGrid, FiLayers, FiSend, FiSettings, FiShield, FiUsers } from 'react-icons/fi';
 import { useAuthStore } from '../store/useAuthStore';
@@ -33,15 +33,17 @@ export function Sidebar(): JSX.Element {
       justifyContent="space-between"
     >
       <Box>
-        <Text
-          fontSize={{ base: '1xl', md: '2xl' }}
-          fontWeight="800"
-          mb={{ base: 3, md: 8 }}
-          color="#1f7ad0"
-          letterSpacing="-0.03em"
-        >
-          OishiPartners
-        </Text>
+        <Flex justify="center" align="center" mb={{ base: 3, md: 8 }} px={2}>
+          <Image
+            src="/logo.svg"
+            alt="Logo de OishiPartners"
+            w={{ base: '170px', md: '200px' }}
+            maxW="100%"
+            h="auto"
+            objectFit="contain"
+            display="block"
+          />
+        </Flex>
         <Flex
           direction={{ base: 'row', md: 'column' }}
           gap={2}

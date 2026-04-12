@@ -877,8 +877,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   initialize: async () => {
     if (get().hydrated) return;
 
+    const companyId = getSelectedCompanyId();
+    if (!companyId) {
+      set({ hydrated: true, syncError: null });
+      return;
+    }
+
     try {
-      const remote = await fetchPlannerState(getSelectedCompanyId());
+      const remote = await fetchPlannerState(companyId);
       const normalized = normalizePlannerState(remote);
       const todayWeekISO = getCurrentWeekStartDateISO();
       // Ensure today's week exists in the weeks array

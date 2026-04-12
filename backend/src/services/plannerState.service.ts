@@ -107,47 +107,14 @@ function normalizeIncomingScopedKey(rawKey: string, companyId: string): string |
 }
 
 async function ensureSeeded(): Promise<void> {
-  const [empCount, weekCount, appSettings] = await Promise.all([
-    EmployeeModel.estimatedDocumentCount(),
-    WeekModel.estimatedDocumentCount(),
-    AppSettingsModel.findById(APP_SETTINGS_ID).lean()
-  ]);
-
-  if (empCount > 0 || weekCount > 0 || appSettings) {
-    return;
-  }
+  const appSettings = await AppSettingsModel.findById(APP_SETTINGS_ID).lean();
+  if (appSettings) return;
 
   const seed = buildSeedState();
-  const ops: Promise<unknown>[] = [];
-
-  if (seed.employees.length > 0) {
-    ops.push(
-      EmployeeModel.insertMany(
-        seed.employees.map((employee) => ({ _id: employee.id, data: employee })),
-        { ordered: false }
-      )
-    );
-  }
-  if (seed.weeks.length > 0) {
-    ops.push(
-      WeekModel.insertMany(
-        seed.weeks.map((week) => ({
-          _id: week.id,
-          label: week.label,
-          startDateISO: week.startDateISO
-        })),
-        { ordered: false }
-      )
-    );
-  }
-  ops.push(
-    AppSettingsModel.create({
-      _id: APP_SETTINGS_ID,
-      currentAreaId: seed.currentAreaId
-    })
-  );
-
-  await Promise.all(ops);
+  await AppSettingsModel.create({
+    _id: APP_SETTINGS_ID,
+    currentAreaId: seed.currentAreaId
+  });
 }
 
 type PlannerStateContext = {
@@ -169,9 +136,9 @@ export async function getOrCreatePlannerState(context: PlannerStateContext): Pro
     areaSettingsDocs,
     appSettings
   ] = await Promise.all([
-    EmployeeModel.find({}).lean(),
+    EmployeeModel.find({ companyId }).lean(),
     RoleModel.find({ companyId }).lean(),
-    WeekModel.find({}).lean(),
+    WeekModel.find({ companyId }).lean(),
     WeekPlanModel.find({ companyId }).lean(),
     WeekConfigModel.find({ companyId }).lean(),
     WeekAuditModel.find({ companyId }).lean(),
@@ -186,7 +153,7 @@ export async function getOrCreatePlannerState(context: PlannerStateContext): Pro
     areaId: isAreaId(doc.areaId) ? (doc.areaId as AreaId) : 'salon'
   }));
   const weeks: Week[] = weekDocs.map((doc) => ({
-    id: doc._id,
+    id: doc.baseWeekId,
     label: doc.label,
     startDateISO: doc.startDateISO
   }));
@@ -295,20 +262,24 @@ export async function getOrCreatePlannerState(context: PlannerStateContext): Pro
   };
 }
 
-async function replaceEmployees(employees: Employee[]): Promise<void> {
-  const ids = employees.map((employee) => employee.id);
-  const ops = employees.map((employee) => ({
-    updateOne: {
-      filter: { _id: employee.id },
-      update: { $set: { data: employee } },
-      upsert: true
-    }
-  }));
+async function replaceEmployeesForCompany(companyId: string, employees: Employee[]): Promise<void> {
+  const ids: string[] = [];
+  const ops = employees.map((employee) => {
+    const id = `${companyId}::${employee.id}`;
+    ids.push(id);
+    return {
+      updateOne: {
+        filter: { _id: id },
+        update: { $set: { companyId, baseEmployeeId: employee.id, data: employee } },
+        upsert: true
+      }
+    };
+  });
 
   if (ops.length > 0) {
     await EmployeeModel.bulkWrite(ops, { ordered: false });
   }
-  await EmployeeModel.deleteMany({ _id: { $nin: ids } });
+  await EmployeeModel.deleteMany({ companyId, _id: { $nin: ids } });
 }
 
 async function replaceRolesForCompany(companyId: string, roles: Role[]): Promise<void> {
@@ -337,23 +308,31 @@ async function replaceRolesForCompany(companyId: string, roles: Role[]): Promise
   await RoleModel.deleteMany({ companyId, _id: { $nin: ids } });
 }
 
-async function replaceWeeks(weeks: Week[]): Promise<void> {
-  const ops = weeks.map((week) => ({
-    updateOne: {
-      filter: { _id: week.id },
-      update: {
-        $set: {
-          label: week.label,
-          startDateISO: week.startDateISO
-        }
-      },
-      upsert: true
-    }
-  }));
+async function replaceWeeksForCompany(companyId: string, weeks: Week[]): Promise<void> {
+  const ids: string[] = [];
+  const ops = weeks.map((week) => {
+    const id = `${companyId}::${week.id}`;
+    ids.push(id);
+    return {
+      updateOne: {
+        filter: { _id: id },
+        update: {
+          $set: {
+            companyId,
+            baseWeekId: week.id,
+            label: week.label,
+            startDateISO: week.startDateISO
+          }
+        },
+        upsert: true
+      }
+    };
+  });
 
   if (ops.length > 0) {
     await WeekModel.bulkWrite(ops, { ordered: false });
   }
+  await WeekModel.deleteMany({ companyId, _id: { $nin: ids } });
 }
 
 async function upsertWeekPlan(companyId: string, legacyKey: string, plan: WeekPlan): Promise<void> {
@@ -444,9 +423,9 @@ export async function updatePlannerStatePartial(
   const { companyId } = context;
   const ops: Promise<unknown>[] = [];
 
-  if (payload.employees) ops.push(replaceEmployees(payload.employees));
+  if (payload.employees) ops.push(replaceEmployeesForCompany(companyId, payload.employees));
   if (payload.roles) ops.push(replaceRolesForCompany(companyId, payload.roles));
-  if (payload.weeks) ops.push(replaceWeeks(payload.weeks));
+  if (payload.weeks) ops.push(replaceWeeksForCompany(companyId, payload.weeks));
 
   for (const entry of payload.weekEntries ?? []) {
     if (!entry.weekId?.trim()) continue;
@@ -472,9 +451,9 @@ export async function replacePlannerState(
   const { companyId } = context;
 
   await Promise.all([
-    replaceEmployees(payload.employees),
+    replaceEmployeesForCompany(companyId, payload.employees),
     replaceRolesForCompany(companyId, payload.roles),
-    replaceWeeks(payload.weeks),
+    replaceWeeksForCompany(companyId, payload.weeks),
     AppSettingsModel.updateOne(
       { _id: APP_SETTINGS_ID },
       { $set: { currentAreaId: payload.currentAreaId } },
@@ -539,8 +518,9 @@ export async function updateValidationRequirements(
 export async function resetPlannerState(context: PlannerStateContext): Promise<PlannerStatePayload> {
   const { companyId } = context;
   await Promise.all([
-    EmployeeModel.deleteMany({}),
+    EmployeeModel.deleteMany({ companyId }),
     RoleModel.deleteMany({ companyId }),
+    WeekModel.deleteMany({ companyId }),
     WeekPlanModel.deleteMany({ companyId }),
     WeekConfigModel.deleteMany({ companyId }),
     WeekAuditModel.deleteMany({ companyId }),

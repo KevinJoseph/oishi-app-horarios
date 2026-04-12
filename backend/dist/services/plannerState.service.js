@@ -401,7 +401,7 @@ export async function replacePlannerState(context, payload) {
         replaceEmployeesForCompany(companyId, payload.employees),
         replaceRolesForCompany(companyId, payload.roles),
         replaceWeeksForCompany(companyId, payload.weeks),
-        AppSettingsModel.updateOne({ _id: APP_SETTINGS_ID }, { $set: { currentAreaId: payload.currentAreaId } }, { upsert: true }),
+        AppSettingsModel.updateOne({ _id: APP_SETTINGS_ID }, { $set: { currentAreaId: payload.currentAreaId?.trim() ? payload.currentAreaId : null } }, { upsert: true }),
         ...Object.keys(payload.timeSlotsByArea).map((areaId) => AreaSettingsModel.updateOne({ _id: areaSettingsKey(companyId, areaId) }, {
             $set: {
                 companyId,

@@ -486,7 +486,7 @@ export async function replacePlannerState(
     replaceWeeksForCompany(companyId, payload.weeks),
     AppSettingsModel.updateOne(
       { _id: APP_SETTINGS_ID },
-      { $set: { currentAreaId: payload.currentAreaId } },
+      { $set: { currentAreaId: payload.currentAreaId?.trim() ? payload.currentAreaId : null } },
       { upsert: true }
     ),
     ...Object.keys(payload.timeSlotsByArea).map((areaId) =>

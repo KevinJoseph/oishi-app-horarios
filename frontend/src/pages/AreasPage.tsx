@@ -78,8 +78,16 @@ export function AreasPage(): JSX.Element {
   const refreshStoreAreas = useCallback(async () => {
     try {
       const updated = await fetchAreas(selectedCompanyId);
-      useAppStore.setState({
-        areas: updated.map((a) => ({ code: a.code, label: a.label, order: a.order }))
+      useAppStore.setState((state) => {
+        const nextAreas = updated.map((a) => ({ code: a.code, label: a.label, order: a.order }));
+        const nextCurrentAreaId =
+          nextAreas.some((area) => area.code === state.currentAreaId)
+            ? state.currentAreaId
+            : (nextAreas[0]?.code ?? '');
+        return {
+          areas: nextAreas,
+          currentAreaId: nextCurrentAreaId
+        };
       });
     } catch { /* silent */ }
   }, [selectedCompanyId]);

@@ -10,7 +10,7 @@ type AppSettingsDocument = {
 const AppSettingsSchema = new Schema<AppSettingsDocument>(
   {
     _id: { type: String, required: true },
-    currentAreaId: { type: String, required: true, default: 'salon' }
+    currentAreaId: { type: String, required: true, default: '' }
   },
   { timestamps: true, versionKey: false, _id: false }
 );

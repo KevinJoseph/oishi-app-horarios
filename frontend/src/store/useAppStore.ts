@@ -684,6 +684,7 @@ function isWeekUnlockedForPlanning(weeks: Week[], validatedWeekIds: string[], sc
 }
 
 function getSelectedScopedWeekId(state: Pick<PersistableState, 'weeks' | 'currentAreaId'> & { currentWeekStartDateISO: string }): string | null {
+  if (!state.currentAreaId) return null;
   const currentWeek = state.weeks.find((week) => week.startDateISO === state.currentWeekStartDateISO);
   if (!currentWeek) return null;
   return toScopedWeekId(state.currentAreaId, currentWeek.id);
@@ -693,12 +694,14 @@ function getSelectedScopedWeekIdForArea(
   state: Pick<PersistableState, 'weeks'> & { currentWeekStartDateISO: string },
   areaId: AreaId
 ): string | null {
+  if (!areaId) return null;
   const currentWeek = state.weeks.find((week) => week.startDateISO === state.currentWeekStartDateISO);
   if (!currentWeek) return null;
   return toScopedWeekId(areaId, currentWeek.id);
 }
 
 function getConfigurationTargetWeekIds(state: PersistableState & { currentWeekStartDateISO: string }, areaId: AreaId): Set<string> {
+  if (!areaId) return new Set<string>();
   const scopedWeekId = getSelectedScopedWeekId({ ...state, currentAreaId: areaId });
   if (!scopedWeekId) return new Set<string>();
   if (state.validatedWeekIds.includes(scopedWeekId)) return new Set<string>();
@@ -997,6 +1000,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         currentWeekStartDateISO: result.week.startDateISO
       };
       if (result.created) {
+        if (!state.currentAreaId) {
+          return nextState;
+        }
         const scopedWeekId = resolveScopedWeekId(state.currentAreaId, result.week.id);
         nextState.weekPlans = {
           ...state.weekPlans,
@@ -1535,6 +1541,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   ensureWeekPlan: (week) => {
     let created = false;
     set((state) => {
+      if (!state.currentAreaId) return {};
       const scopedWeekId = resolveScopedWeekId(state.currentAreaId, week.id);
       if (state.weekPlans[scopedWeekId]) return {};
       const weekConfig = getWeekConfigurationSnapshot(state, scopedWeekId);

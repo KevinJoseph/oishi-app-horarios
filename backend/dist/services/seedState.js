@@ -204,35 +204,15 @@ export function buildSeedState() {
         areas: [],
         employees,
         roles,
-        currentAreaId: 'salon',
+        currentAreaId: '',
         timeSlots,
         shiftRanges,
         validationRequirements,
         breakConfig,
-        timeSlotsByArea: {
-            salon: [...timeSlots],
-            cocina: [...timeSlots],
-            oficina: [...timeSlots],
-            produccion: [...timeSlots]
-        },
-        shiftRangesByArea: {
-            salon: shiftRanges,
-            cocina: shiftRanges,
-            oficina: shiftRanges,
-            produccion: shiftRanges
-        },
-        validationRequirementsByArea: {
-            salon: validationRequirements,
-            cocina: validationRequirements,
-            oficina: validationRequirements,
-            produccion: validationRequirements
-        },
-        breakConfigByArea: {
-            salon: breakConfig,
-            cocina: breakConfig,
-            oficina: breakConfig,
-            produccion: breakConfig
-        },
+        timeSlotsByArea: {},
+        shiftRangesByArea: {},
+        validationRequirementsByArea: {},
+        breakConfigByArea: {},
         weeks,
         weekPlans,
         validatedWeekIds: [],

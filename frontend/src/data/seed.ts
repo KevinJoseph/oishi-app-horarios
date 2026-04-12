@@ -19,9 +19,6 @@ import type {
 } from '../types';
 import { buildWeekLabel, formatDayNameEs, getCurrentWeekStartDateISO } from '../utils/dates';
 
-const AREA_IDS: AreaId[] = ['salon', 'cocina', 'oficina', 'produccion'];
-const DEFAULT_AREA_ID: AreaId = 'salon';
-
 export type SeedState = {
   areas: AreaInfo[];
   employees: typeof mockEmployees;
@@ -50,15 +47,12 @@ function normalizeValidationWeekKey(rawKey: string): string {
   const companyMarkerIndex = rawKey.indexOf('::company:');
   const baseKey = companyMarkerIndex >= 0 ? rawKey.slice(0, companyMarkerIndex) : rawKey;
   const companySuffix = companyMarkerIndex >= 0 ? rawKey.slice(companyMarkerIndex) : '';
-  const normalizedBaseKey = baseKey.includes('::') ? baseKey : scopedWeekKey(DEFAULT_AREA_ID, baseKey);
+  const normalizedBaseKey = baseKey;
   return `${normalizedBaseKey}${companySuffix}`;
 }
 
 function normalizeRolesByArea(roles: Role[]): Role[] {
-  return roles.map((role) => ({
-    ...role,
-    areaId: role.areaId ?? DEFAULT_AREA_ID
-  }));
+  return roles.map((role) => ({ ...role }));
 }
 
 function cloneTimeSlots(timeSlots: TimeSlot[]): TimeSlot[] {
@@ -188,7 +182,7 @@ function normalizeWeekConfigurationSnapshot(
   fallback: WeekConfigurationSnapshot
 ): WeekConfigurationSnapshot {
   const source = (input ?? {}) as Partial<WeekConfigurationSnapshot>;
-  const areaId = AREA_IDS.includes(source.areaId as AreaId) ? (source.areaId as AreaId) : fallbackAreaId;
+  const areaId = typeof source.areaId === 'string' && source.areaId.trim().length > 0 ? source.areaId : fallbackAreaId;
   const normalizedTimeSlots =
     Array.isArray(source.timeSlots) && source.timeSlots.length > 0
       ? cloneTimeSlots(source.timeSlots)
@@ -242,7 +236,7 @@ function normalizeWeekPlan(weekStartDateISO: string, sourcePlan: WeekPlan | unde
 
 export function normalizePlannerState(input: SeedState): SeedState {
   const areas = input.areas ?? [];
-  const baseAreaCodes = areas.length > 0 ? areas.map((a) => a.code) : AREA_IDS as unknown as string[];
+  const baseAreaCodes = areas.map((a) => a.code);
   const extraAreaCodes = new Set<string>();
   for (const key of Object.keys(input.timeSlotsByArea ?? {})) extraAreaCodes.add(key);
   for (const key of Object.keys(input.breakConfigByArea ?? {})) extraAreaCodes.add(key);
@@ -255,7 +249,7 @@ export function normalizePlannerState(input: SeedState): SeedState {
     if (areaId) extraAreaCodes.add(areaId);
   }
   const areaCodes = Array.from(new Set([...baseAreaCodes, ...extraAreaCodes]));
-  const firstArea = areaCodes[0] ?? DEFAULT_AREA_ID;
+  const firstArea = areaCodes[0] ?? '';
 
   const baseWeeks = input.weeks.length >= 4 ? input.weeks : buildMockWeeks();
   const normalizedWeeks = [...baseWeeks]
@@ -411,54 +405,19 @@ export function loadSeedState(): SeedState {
   const shiftRanges = buildDefaultShiftRanges(timeSlots);
   const validationRequirements = buildDefaultValidationRequirements();
   const breakConfig = buildDefaultBreakConfig(timeSlots);
-  const timeSlotsByArea: TimeSlotsByArea = {
-    salon: cloneTimeSlots(timeSlots),
-    cocina: cloneTimeSlots(timeSlots),
-    oficina: cloneTimeSlots(timeSlots),
-    produccion: cloneTimeSlots(timeSlots)
-  };
-  const shiftRangesByArea: ShiftRangesByArea = {
-    salon: buildDefaultShiftRanges(timeSlotsByArea.salon),
-    cocina: buildDefaultShiftRanges(timeSlotsByArea.cocina),
-    oficina: buildDefaultShiftRanges(timeSlotsByArea.oficina),
-    produccion: buildDefaultShiftRanges(timeSlotsByArea.produccion)
-  };
-  const validationRequirementsByArea: ValidationRequirementsByArea = {
-    salon: buildDefaultValidationRequirements(),
-    cocina: buildDefaultValidationRequirements(),
-    oficina: buildDefaultValidationRequirements(),
-    produccion: buildDefaultValidationRequirements()
-  };
-  const breakConfigByArea: BreakConfigByArea = {
-    salon: buildDefaultBreakConfig(timeSlotsByArea.salon),
-    cocina: buildDefaultBreakConfig(timeSlotsByArea.cocina),
-    oficina: buildDefaultBreakConfig(timeSlotsByArea.oficina),
-    produccion: buildDefaultBreakConfig(timeSlotsByArea.produccion)
-  };
+  const timeSlotsByArea: TimeSlotsByArea = {};
+  const shiftRangesByArea: ShiftRangesByArea = {};
+  const validationRequirementsByArea: ValidationRequirementsByArea = {};
+  const breakConfigByArea: BreakConfigByArea = {};
   const weeks = buildMockWeeks();
   const weekPlans: Record<string, WeekPlan> = {};
-
-  const employeeIds = employees.map((employee) => employee.id);
-  const timeSlotIds = timeSlots.map((timeSlot) => timeSlot.id);
-
-  for (const week of weeks) {
-    for (const areaId of AREA_IDS) {
-      weekPlans[scopedWeekKey(areaId, week.id)] = buildEmptyWeekPlan(week, employeeIds, timeSlotIds);
-    }
-  }
-
   const weekAuditById: Record<string, WeekAudit> = {};
-  for (const week of weeks) {
-    for (const areaId of AREA_IDS) {
-      weekAuditById[scopedWeekKey(areaId, week.id)] = { createdByName: null, validatedByName: null };
-    }
-  }
 
   return {
     areas: [],
     employees,
     roles,
-    currentAreaId: DEFAULT_AREA_ID,
+    currentAreaId: '',
     timeSlots,
     shiftRanges,
     validationRequirements,

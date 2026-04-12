@@ -125,6 +125,7 @@ export function EmployeesPage(): JSX.Element {
   } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
+  const areas = useAppStore((state) => state.areas);
   const areaTimeSlots = useAppStore((state) => state.timeSlotsByArea[state.currentAreaId] ?? state.timeSlots);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
@@ -645,6 +646,7 @@ export function EmployeesPage(): JSX.Element {
         onClose={onClose}
         editing={editing}
         roles={roles}
+        areas={areas}
         companies={companies}
         currentAreaId={currentAreaId}
         selectedCompanyId={selectedGeoVictoriaCompanyId}

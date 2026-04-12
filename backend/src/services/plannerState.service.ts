@@ -290,7 +290,7 @@ async function replaceEmployeesForCompany(companyId: string, employees: Employee
 async function replaceRolesForCompany(companyId: string, roles: Role[]): Promise<void> {
   const ids = roles.map((role) => role.id);
   const ops = roles.map((role) => {
-    const areaId: AreaId = isValidAreaCode(role.areaId) ? (role.areaId as AreaId) : 'salon';
+    const areaId: AreaId = isValidAreaCode(role.areaId) ? (role.areaId as AreaId) : '';
     return {
       updateOne: {
         filter: { _id: role.id },

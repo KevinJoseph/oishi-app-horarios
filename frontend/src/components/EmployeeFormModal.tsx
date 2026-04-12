@@ -18,7 +18,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { fetchGeoVictoriaPositions } from '../api/plannerApi';
 import type { GeoVictoriaCompany, GeoVictoriaPosition } from '../api/plannerApi';
-import type { AreaId, Employee, Role } from '../types';
+import type { AreaId, AreaInfo, Employee, Role } from '../types';
 import { createId } from '../store/useAppStore';
 import { normalizeRestDay, WEEKDAY_OPTIONS } from '../utils/weekdays';
 
@@ -44,6 +44,7 @@ type Props = {
   onClose: () => void;
   editing?: Employee;
   roles: Role[];
+  areas: AreaInfo[];
   companies: GeoVictoriaCompany[];
   currentAreaId: AreaId;
   selectedCompanyId?: string | null;
@@ -75,8 +76,7 @@ function splitEmployeeName(employee?: Employee): { firstName: string; lastName: 
 }
 
 function getRoleDisplayLabel(role: Role): string {
-  const code = role.validCodes[0]?.trim();
-  return code ? `${code} - ${role.name}` : role.name;
+  return role.name;
 }
 
 export function EmployeeFormModal({
@@ -84,6 +84,7 @@ export function EmployeeFormModal({
   onClose,
   editing,
   roles,
+  areas,
   companies,
   currentAreaId,
   selectedCompanyId,
@@ -91,7 +92,7 @@ export function EmployeeFormModal({
   onSave
 }: Props): JSX.Element {
   const toast = useToast();
-  const [areaId, setAreaId] = useState<AreaId>('salon');
+  const [areaId, setAreaId] = useState<AreaId>('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [identityDocument, setIdentityDocument] = useState('');
@@ -136,8 +137,8 @@ export function EmployeeFormModal({
 
   useEffect(() => {
     const initialArea = (editing
-      ? editing?.areaId ?? roles.find((role) => role.id === editing?.mainRoleId)?.areaId ?? 'salon'
-      : currentAreaId ?? 'salon') as AreaId;
+      ? editing?.areaId ?? roles.find((role) => role.id === editing?.mainRoleId)?.areaId ?? currentAreaId ?? ''
+      : currentAreaId ?? '') as AreaId;
     const nameParts = splitEmployeeName(editing);
     setAreaId(initialArea);
     setFirstName(nameParts.firstName);
@@ -186,7 +187,7 @@ export function EmployeeFormModal({
       setMainRoleCode('');
       return;
     }
-    if ((selectedRole.areaId ?? 'salon') !== areaId) {
+    if ((selectedRole.areaId ?? '') !== areaId) {
       setMainRoleId('');
       setMainRoleCode('');
       return;
@@ -247,6 +248,7 @@ export function EmployeeFormModal({
     lastName: !trimmedLastName,
     identityDocument: !trimmedIdentityDocument,
     email: !trimmedEmail,
+    areaId: !areaId,
     companyAlias: !companyAlias,
     reciboGroupCode: requiresReciboGroup && !selectedReciboGroup
   };
@@ -325,10 +327,12 @@ export function EmployeeFormModal({
           <FormControl mb={3}>
             <FormLabel>Área</FormLabel>
             <Select value={areaId} onChange={(event) => setAreaId(event.target.value as AreaId)}>
-              <option value="salon">Salón</option>
-              <option value="cocina">Cocina</option>
-              <option value="oficina">Oficina</option>
-              <option value="produccion">Producción</option>
+              <option value="">Selecciona un área</option>
+              {areas.map((area) => (
+                <option key={area.code} value={area.code}>
+                  {area.label}
+                </option>
+              ))}
             </Select>
           </FormControl>
           <FormControl mb={3}>
@@ -434,6 +438,7 @@ export function EmployeeFormModal({
                   hasRequiredErrors.lastName ||
                   hasRequiredErrors.identityDocument ||
                   hasRequiredErrors.email ||
+                  hasRequiredErrors.areaId ||
                   hasRequiredErrors.companyAlias ||
                   hasRequiredErrors.reciboGroupCode
                 ) {

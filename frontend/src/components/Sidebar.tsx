@@ -7,7 +7,7 @@ const links = [
   { to: '/employees', label: 'Colaboradores', icon: FiUsers },
   { to: '/planning', label: 'Planificación', icon: FiCalendar, end: true },
   { to: '/planning/weekly-overview', label: 'Vista General', icon: FiGrid },
-  { to: '/roles', label: 'Leyenda / Zonas', icon: FiLayers },
+  { to: '/roles', label: 'Zonas', icon: FiLayers },
   { to: '/areas', label: 'Áreas', icon: FiMap },
   { to: '/geo-migration', label: 'Migrar a Geo', icon: FiSend },
   { to: '/users', label: 'Usuarios', icon: FiShield },

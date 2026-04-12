@@ -29,7 +29,7 @@ export function LegendDrawer({ isOpen, onClose, roles, canManage }: Props): JSX.
       <DrawerOverlay />
       <DrawerContent>
         <DrawerCloseButton />
-        <DrawerHeader>Leyenda de Zonas</DrawerHeader>
+        <DrawerHeader>Zonas</DrawerHeader>
         <DrawerBody>
           <Flex direction="column" gap={4}>
             {roles.map((role) => (
@@ -51,7 +51,7 @@ export function LegendDrawer({ isOpen, onClose, roles, canManage }: Props): JSX.
               </Box>
             ))}
             <Button onClick={() => navigate('/roles')} isDisabled={!canManage}>
-              Administrar Leyenda
+              Administrar Zona
             </Button>
           </Flex>
         </DrawerBody>

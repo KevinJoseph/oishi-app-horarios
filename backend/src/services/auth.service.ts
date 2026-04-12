@@ -251,19 +251,27 @@ export async function resetPassword(payload: ResetPasswordPayload): Promise<void
   await SessionModel.deleteMany({ userId: user._id });
 }
 
-export async function adminResetPassword(payload: AdminResetPasswordPayload): Promise<void> {
+export async function adminResetPassword(payload: AdminResetPasswordPayload): Promise<{ success: boolean; message: string }> {
   const userId = (payload.userId ?? '').trim();
   const newPassword = (payload.newPassword ?? '').trim();
 
   if (!userId || !newPassword) {
-    throw new HttpError(400, 'El ID del usuario y la nueva contraseña son obligatorios.');
+    return { success: false, message: 'El ID del usuario y la nueva contraseña son obligatorios.' };
   }
 
-  validatePassword(newPassword);
+  if (!/^[a-f\d]{24}$/i.test(userId)) {
+    return { success: false, message: 'El ID del usuario no es válido.' };
+  }
+
+  try {
+    validatePassword(newPassword);
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'La contraseña no cumple los requisitos.' };
+  }
 
   const user = await UserModel.findById(userId);
   if (!user) {
-    throw new HttpError(404, 'Usuario no encontrado.');
+    return { success: false, message: 'Usuario no encontrado.' };
   }
 
   const { passwordHash, passwordSalt } = hashPassword(newPassword);
@@ -272,4 +280,5 @@ export async function adminResetPassword(payload: AdminResetPasswordPayload): Pr
   await user.save();
 
   await SessionModel.deleteMany({ userId: user._id });
+  return { success: true, message: 'Contraseña restablecida correctamente.' };
 }

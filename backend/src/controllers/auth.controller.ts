@@ -85,10 +85,10 @@ export async function forgotPasswordController(req: Request, res: Response): Pro
 export async function adminResetPasswordController(req: Request, res: Response): Promise<void> {
   try {
     const payload = req.body as AdminResetPasswordPayload;
-    await adminResetPassword(payload);
-    res.status(200).json({ message: 'Contraseña restablecida correctamente.' });
+    const result = await adminResetPassword(payload);
+    res.status(200).json(result);
   } catch (error) {
-    res.status(resolveStatus(error)).json({ error: resolveMessage(error) });
+    res.status(resolveStatus(error)).json({ success: false, message: resolveMessage(error) });
   }
 }
 

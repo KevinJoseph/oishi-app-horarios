@@ -180,3 +180,20 @@ export async function resetPassword(payload) {
     await resetEntry.save();
     await SessionModel.deleteMany({ userId: user._id });
 }
+export async function adminResetPassword(payload) {
+    const userId = (payload.userId ?? '').trim();
+    const newPassword = (payload.newPassword ?? '').trim();
+    if (!userId || !newPassword) {
+        throw new HttpError(400, 'El ID del usuario y la nueva contraseña son obligatorios.');
+    }
+    validatePassword(newPassword);
+    const user = await UserModel.findById(userId);
+    if (!user) {
+        throw new HttpError(404, 'Usuario no encontrado.');
+    }
+    const { passwordHash, passwordSalt } = hashPassword(newPassword);
+    user.passwordHash = passwordHash;
+    user.passwordSalt = passwordSalt;
+    await user.save();
+    await SessionModel.deleteMany({ userId: user._id });
+}

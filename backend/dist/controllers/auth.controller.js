@@ -1,4 +1,4 @@
-import { changePassword, login, logoutByToken, requestPasswordReset, resetPassword } from '../services/auth.service.js';
+import { adminResetPassword, changePassword, login, logoutByToken, requestPasswordReset, resetPassword } from '../services/auth.service.js';
 import { HttpError } from '../utils/httpError.js';
 function resolveStatus(error) {
     if (error instanceof HttpError) {
@@ -60,6 +60,16 @@ export async function forgotPasswordController(req, res) {
         const payload = req.body;
         const result = await requestPasswordReset(payload);
         res.status(200).json(result);
+    }
+    catch (error) {
+        res.status(resolveStatus(error)).json({ error: resolveMessage(error) });
+    }
+}
+export async function adminResetPasswordController(req, res) {
+    try {
+        const payload = req.body;
+        await adminResetPassword(payload);
+        res.status(200).json({ message: 'Contraseña restablecida correctamente.' });
     }
     catch (error) {
         res.status(resolveStatus(error)).json({ error: resolveMessage(error) });

@@ -236,5 +236,9 @@ export async function validateCellphoneExists(celular) {
         throw new HttpError(400, 'El celular es obligatorio.');
     }
     const users = await UserModel.find({ celular: { $ne: null } }).lean();
-    return users.some((user) => normalizeCellularKey(user.celular) === target);
+    const match = users.find((user) => normalizeCellularKey(user.celular) === target);
+    return {
+        exists: Boolean(match),
+        userId: match ? String(match._id) : null
+    };
 }

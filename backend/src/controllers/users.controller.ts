@@ -72,10 +72,11 @@ export async function deleteUserController(req: Request, res: Response): Promise
 export async function validateCellphoneController(req: Request, res: Response): Promise<void> {
   try {
     const payload = req.body as ValidateCellphonePayload;
-    const exists = await validateCellphoneExists(payload.celular ?? '');
+    const result = await validateCellphoneExists(payload.celular ?? '');
     res.status(200).json({
-      exists,
-      message: exists ? 'Celular válido' : 'Celular no registrado'
+      exists: result.exists,
+      userId: result.userId,
+      message: result.exists ? 'Celular válido' : 'Celular no registrado'
     });
   } catch (error) {
     res.status(resolveStatus(error)).json({ error: resolveMessage(error) });

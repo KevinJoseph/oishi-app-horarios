@@ -33,6 +33,11 @@ export type ResetPasswordPayload = {
   confirmNewPassword?: string;
 };
 
+export type AdminResetPasswordPayload = {
+  userId: string;
+  newPassword: string;
+};
+
 export type ValidateCellphonePayload = {
   celular: string;
 };

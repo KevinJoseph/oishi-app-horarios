@@ -970,13 +970,22 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         }
       }
+      const storedAreaId = getStoredCurrentAreaId();
+      const areaCodes = getAreaCodes(normalized);
+      const resolvedAreaId = storedAreaId && areaCodes.includes(storedAreaId)
+        ? storedAreaId
+        : areaCodes[0] ?? normalized.currentAreaId;
       set({
         ...normalized,
         weeks: weeksWithToday,
         weekPlans,
         weekAuditById,
         weekConfigById,
-        currentAreaId: getStoredCurrentAreaId() ?? normalized.currentAreaId,
+        currentAreaId: resolvedAreaId,
+        timeSlots: normalized.timeSlotsByArea[resolvedAreaId] ?? normalized.timeSlots,
+        shiftRanges: normalized.shiftRangesByArea[resolvedAreaId] ?? normalized.shiftRanges,
+        validationRequirements: normalized.validationRequirementsByArea[resolvedAreaId] ?? normalized.validationRequirements,
+        breakConfig: normalized.breakConfigByArea[resolvedAreaId] ?? normalized.breakConfig,
         currentWeekStartDateISO: todayWeekISO,
         currentMonthStartDateISO: monthStartDateISO(parseISO(todayWeekISO)),
         hydrated: true,
@@ -1038,6 +1047,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentMonthStartDateISO: monthStartDateISO(addMonths(parseISO(state.currentMonthStartDateISO), direction))
     })),
   setCurrentArea: (areaId) => {
+    try {
     const prev = get();
     const prevAreaId = prev.currentAreaId;
     // Persist the outgoing area's current week plan before switching so data is not lost.
@@ -1127,6 +1137,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekConfigById
       };
     });
+    } catch (err) {
+      console.error('[setCurrentArea] crash:', err);
+      // Fallback: at minimum switch the area ID so UI doesn't stay stuck
+      set({ currentAreaId: areaId });
+    }
   },
 
   resetAll: () => {

@@ -194,7 +194,7 @@ export function GeoMigrationPage(): JSX.Element {
     }
 
     let cancelled = false;
-    fetchMigrationLogs(currentScopedWeekId, selectedGeoVictoriaCompanyId)
+    fetchMigrationLogs(currentScopedWeekId)
       .then(({ logs }) => {
         if (cancelled) return;
         const next: Record<string, StoredMigrationResult> = {};
@@ -217,7 +217,7 @@ export function GeoMigrationPage(): JSX.Element {
       });
 
     return () => { cancelled = true; };
-  }, [currentScopedWeekId, selectedGeoVictoriaCompanyId]);
+  }, [currentScopedWeekId]);
 
   const allMigratableSelected = migratableKeys.length > 0 && migratableKeys.every((key) => selectedKeys.includes(key));
 
@@ -289,7 +289,9 @@ export function GeoMigrationPage(): JSX.Element {
           migratedBy,
           migratedAt
         }));
-        saveMigrationLogs(logs).catch(() => {});
+        saveMigrationLogs(logs).catch((err) => {
+          console.error('Failed to save migration logs:', err);
+        });
       }
 
       toast.close(migrationToastId);

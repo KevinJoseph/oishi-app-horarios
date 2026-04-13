@@ -1144,8 +1144,9 @@ export async function saveMigrationLogsController(req: Request, res: Response): 
     return;
   }
 
-  const ops = logs.map((log) =>
-    MigrationLogModel.updateOne(
+  let saved = 0;
+  for (const log of logs) {
+    const result = await MigrationLogModel.updateOne(
       { companyId: log.companyId, scopedWeekId: log.scopedWeekId, groupKey: log.groupKey },
       {
         $set: {
@@ -1160,11 +1161,14 @@ export async function saveMigrationLogsController(req: Request, res: Response): 
         $setOnInsert: { _id: randomUUID() }
       },
       { upsert: true }
-    )
-  );
+    ).exec();
+    if (result.upsertedCount > 0 || result.modifiedCount > 0 || result.matchedCount > 0) {
+      saved++;
+    }
+    console.log('[MigrationLog] upsert result:', JSON.stringify({ filter: { companyId: log.companyId, scopedWeekId: log.scopedWeekId, groupKey: log.groupKey }, result }));
+  }
 
-  await Promise.all(ops);
-  res.status(200).json({ saved: logs.length });
+  res.status(200).json({ saved });
 }
 
 export async function getMigrationLogsController(req: Request, res: Response): Promise<void> {

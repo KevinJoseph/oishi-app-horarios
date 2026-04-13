@@ -430,6 +430,36 @@ function cloneWeekConfigurationSnapshot(snapshot: WeekConfigurationSnapshot): We
   };
 }
 
+function cloneWeekPlanForNextWeek(source: WeekPlan, nextWeek: Week): WeekPlan {
+  const basePlan = buildEmptyWeekPlan(
+    nextWeek,
+    [],
+    []
+  );
+
+  return {
+    weekId: nextWeek.id,
+    restDayOverrides: source.restDayOverrides ? { ...source.restDayOverrides } : undefined,
+    days: basePlan.days.map((nextDay, index) => {
+      const sourceDay = source.days[index];
+      if (!sourceDay) return nextDay;
+
+      const assignments: WeekPlan['days'][number]['assignments'] = {};
+      for (const [slotId, byEmployee] of Object.entries(sourceDay.assignments)) {
+        assignments[slotId] = {};
+        for (const [employeeId, assignment] of Object.entries(byEmployee)) {
+          assignments[slotId][employeeId] = { ...assignment };
+        }
+      }
+
+      return {
+        ...nextDay,
+        assignments
+      };
+    })
+  };
+}
+
 function getWeekConfigurationSnapshot(state: PersistableState, scopedWeekId: string): WeekConfigurationSnapshot {
   const existing = state.weekConfigById[scopedWeekId];
   if (existing && existing.timeSlots.length > 0) {
@@ -2091,11 +2121,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       const auditWithCreator = ensureWeekCreator(state.weekAuditById, validationKey, actorName);
       const currentAudit = auditWithCreator[validationKey] ?? { createdByName: null, validatedByName: null };
 
-      // Inicializar la semana siguiente para todas las áreas con la configuración actual
+      // Generar la semana siguiente: copiar la planificación del área validada y mantener listas las demás áreas
       const baseWeekId = baseWeekIdFromScopedWeekId(scopedWeekId);
       const currentWeek = state.weeks.find((w) => w.id === baseWeekId);
       let nextWeeks = state.weeks;
       let nextWeekPlans = { ...state.weekPlans };
+      let nextWeekConfigById = { ...state.weekConfigById };
       const nextWeekAuditById: typeof state.weekAuditById = {
         ...auditWithCreator,
         [validationKey]: {
@@ -2112,13 +2143,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         for (const areaId of getAreaCodes(state)) {
           const nextScopedId = toScopedWeekId(areaId, nextWeek.id);
-          if (!nextWeekPlans[nextScopedId]) {
-            const weekConfig = getWeekConfigurationSnapshot(state, toScopedWeekId(areaId, baseWeekId));
+          const currentScopedId = toScopedWeekId(areaId, baseWeekId);
+          const weekConfig = getWeekConfigurationSnapshot(state, currentScopedId);
+          nextWeekConfigById[nextScopedId] = cloneWeekConfigurationSnapshot(weekConfig);
+
+          if (areaId === areaFromWeekId(scopedWeekId) && state.weekPlans[currentScopedId]) {
+            nextWeekPlans[nextScopedId] = cloneWeekPlanForNextWeek(state.weekPlans[currentScopedId], nextWeek);
+          } else if (!nextWeekPlans[nextScopedId]) {
             nextWeekPlans[nextScopedId] = buildEmptyWeekPlan(
               nextWeek,
               state.employees.map((e) => e.id),
               weekConfig.timeSlots.map((s) => s.id)
             );
+          }
+
+          if (!nextWeekAuditById[nextScopedId]) {
             nextWeekAuditById[nextScopedId] = { createdByName: null, validatedByName: null };
           }
         }
@@ -2129,14 +2168,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         validatedWeekIds: [...state.validatedWeekIds, validationKey],
         weekAuditById: nextWeekAuditById,
         weekConfigById: {
-          ...state.weekConfigById,
+          ...nextWeekConfigById,
           [scopedWeekId]: getWeekConfigurationSnapshot(state, scopedWeekId)
         },
         weekPlans: nextWeekPlans
       };
     });
 
-    // Persistir la semana actual validada + la semana siguiente inicializada (todas las áreas)
+    // Persistir la semana actual validada + la semana siguiente generada (todas las áreas)
     const stateAfterValidation = get();
     const baseWeekIdAfter = baseWeekIdFromScopedWeekId(resolveScopedWeekId(stateAfterValidation.currentAreaId, weekId));
     const validatedWeek = stateAfterValidation.weeks.find((w) => w.id === baseWeekIdAfter);

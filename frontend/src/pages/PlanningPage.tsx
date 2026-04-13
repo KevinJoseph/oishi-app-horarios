@@ -437,6 +437,7 @@ export function PlanningPage(): JSX.Element {
                       employeeHoursById={employeeHoursById}
                       showEmployeeCodeInCells
                       readOnly={!canEditWeek}
+                      showInactiveEmployees={isCurrentWeekValidated}
                       allowCellClickWhenReadOnly={shouldPromptValidateCurrentWeekFirst}
                       onCellClick={(cell) => {
                         if (canEditWeek) {

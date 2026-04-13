@@ -29,6 +29,7 @@ type Props = {
   showEmployeeCodeInCells?: boolean;
   readOnly?: boolean;
   allowCellClickWhenReadOnly?: boolean;
+  showInactiveEmployees?: boolean;
   compact?: boolean;
   maxTableHeight?: string;
 };
@@ -46,13 +47,14 @@ export function DayGrid({
   showEmployeeCodeInCells = false,
   readOnly = false,
   allowCellClickWhenReadOnly = false,
+  showInactiveEmployees = false,
   compact = false,
   maxTableHeight
 }: Props): JSX.Element {
   const roleById = new Map(roles.map((role) => [role.id, role]));
   const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
   const visibleSlots = orderedSlots;
-  const visibleEmployees = employees.filter((employee) => employee.active);
+  const visibleEmployees = employees.filter((employee) => employee.active || showInactiveEmployees);
   const headerCellPadding = compact ? 2 : 3;
   const rowCellPadding = compact ? 2 : 3;
   const slotMinWidth = compact ? '140px' : '170px';

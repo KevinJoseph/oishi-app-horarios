@@ -79,6 +79,7 @@ type AppState = PersistableState & {
   syncError: string | null;
   flushPersistence: () => Promise<{ ok: boolean; error?: string }>;
   initialize: () => Promise<void>;
+  refreshState: () => Promise<void>;
   setCurrentWeekStartDate: (startDateISO: string) => void;
   goToAdjacentWeek: (direction: -1 | 1) => void;
   goToAdjacentMonth: (direction: -1 | 1) => void;
@@ -972,9 +973,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       const storedAreaId = getStoredCurrentAreaId();
       const areaCodes = getAreaCodes(normalized);
-      const resolvedAreaId = storedAreaId && areaCodes.includes(storedAreaId)
+      const candidateAreaId = storedAreaId && areaCodes.includes(storedAreaId)
         ? storedAreaId
         : areaCodes[0] ?? normalized.currentAreaId;
+      // If the candidate area has no roles, prefer the first area that has roles.
+      const candidateHasRoles = normalized.roles.some((r) => (r.areaId ?? 'salon') === candidateAreaId);
+      const resolvedAreaId = candidateHasRoles
+        ? candidateAreaId
+        : (areaCodes.find((code) => normalized.roles.some((r) => (r.areaId ?? 'salon') === code)) ?? candidateAreaId);
       set({
         ...normalized,
         weeks: weeksWithToday,
@@ -998,6 +1004,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         syncError: error instanceof Error ? error.message : 'No se pudo cargar el backend. Se usa estado local temporal.'
       });
     }
+  },
+
+  refreshState: async () => {
+    set({ hydrated: false });
+    await get().initialize();
   },
 
   setCurrentWeekStartDate: (startDateISO) => {
@@ -1047,7 +1058,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentMonthStartDateISO: monthStartDateISO(addMonths(parseISO(state.currentMonthStartDateISO), direction))
     })),
   setCurrentArea: (areaId) => {
-    try {
     const prev = get();
     const prevAreaId = prev.currentAreaId;
     // Persist the outgoing area's current week plan before switching so data is not lost.
@@ -1137,11 +1147,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekConfigById
       };
     });
-    } catch (err) {
-      console.error('[setCurrentArea] crash:', err);
-      // Fallback: at minimum switch the area ID so UI doesn't stay stuck
-      set({ currentAreaId: areaId });
-    }
   },
 
   resetAll: () => {

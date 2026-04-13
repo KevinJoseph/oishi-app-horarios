@@ -168,7 +168,7 @@ export function Topbar(): JSX.Element {
           {hideAreaSelector ? null : (
             <HStack spacing={2}>
               <Text fontSize="xs" fontWeight="700" color="gray.600" textTransform="uppercase">
-                Zona
+                Area
               </Text>
               <AreaSelector maxW={{ base: '140px', md: '170px' }} size="sm" />
             </HStack>

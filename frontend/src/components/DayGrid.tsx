@@ -54,7 +54,15 @@ export function DayGrid({
   const roleById = new Map(roles.map((role) => [role.id, role]));
   const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
   const visibleSlots = orderedSlots;
-  const visibleEmployees = employees.filter((employee) => employee.active || showInactiveEmployees);
+  const visibleEmployees = employees.filter((employee) => {
+    if (employee.active) return true;
+    if (!showInactiveEmployees) return false;
+    // Only show inactive employees who have real assignments (not all LIBRE)
+    return orderedSlots.some((slot) => {
+      const assignment = dayPlan.assignments[slot.id]?.[employee.id];
+      return assignment && assignment.roleId !== null;
+    });
+  });
   const headerCellPadding = compact ? 2 : 3;
   const rowCellPadding = compact ? 2 : 3;
   const slotMinWidth = compact ? '140px' : '170px';

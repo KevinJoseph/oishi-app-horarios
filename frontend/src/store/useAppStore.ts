@@ -102,6 +102,7 @@ type AppState = PersistableState & {
   setShiftRanges: (input: ShiftRanges) => { ok: boolean; error?: string };
   setValidationRequirements: (input: ValidationRequirements) => { ok: boolean; error?: string };
   setBreakConfig: (input: BreakConfig) => { ok: boolean; error?: string };
+  migrateFromPreviousWeek: () => { ok: boolean; error?: string };
 };
 
 const seeded = rebuildUnlockedWeekPlansForAllAreas(loadSeedState());
@@ -2060,6 +2061,56 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { ok: true };
   },
 
+  migrateFromPreviousWeek: () => {
+    const stateSnapshot = get();
+    const scopedWeekId = getSelectedScopedWeekId(stateSnapshot);
+    if (!scopedWeekId) {
+      return { ok: false, error: 'No existe una semana seleccionada.' };
+    }
+    if (stateSnapshot.validatedWeekIds.includes(scopedWeekId)) {
+      return { ok: false, error: 'La semana actual ya está validada. No se puede sobrescribir.' };
+    }
+    // Find previous week
+    const currentBaseWeekId = baseWeekIdFromScopedWeekId(scopedWeekId);
+    const areaId = areaFromWeekId(scopedWeekId);
+    const orderedWeeks = [...stateSnapshot.weeks].sort((a, b) => a.startDateISO.localeCompare(b.startDateISO));
+    const currentIndex = orderedWeeks.findIndex((week) => week.id === currentBaseWeekId);
+    if (currentIndex <= 0) {
+      return { ok: false, error: 'No existe una semana anterior para migrar.' };
+    }
+    const previousWeek = orderedWeeks[currentIndex - 1];
+    const previousScopedWeekId = toScopedWeekId(areaId, previousWeek.id);
+    const previousPlan = stateSnapshot.weekPlans[previousScopedWeekId];
+    if (!previousPlan || previousPlan.days.length === 0) {
+      return { ok: false, error: 'La semana anterior no tiene planificación.' };
+    }
+
+    set((state) => {
+      const currentPlan = state.weekPlans[scopedWeekId];
+      if (!currentPlan) return {};
+      // Copy assignments from previous week, mapping by day index (Mon→Mon, Tue→Tue, etc.)
+      const migratedDays = currentPlan.days.map((day, dayIndex) => {
+        const sourceDay = previousPlan.days[dayIndex];
+        if (!sourceDay) return day;
+        return {
+          ...day,
+          assignments: { ...sourceDay.assignments }
+        };
+      });
+      const migratedPlan: WeekPlan = {
+        ...currentPlan,
+        days: migratedDays,
+        restDayOverrides: previousPlan.restDayOverrides ? { ...previousPlan.restDayOverrides } : currentPlan.restDayOverrides
+      };
+      return {
+        weekPlans: { ...state.weekPlans, [scopedWeekId]: migratedPlan },
+        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, scopedWeekId)
+      };
+    });
+    persistSnapshot(get, set, { currentWeek: true });
+    return { ok: true };
+  },
+
   setExceptionalRestDay: ({ weekId, dateISO, employeeId, active }) => {
     const stateSnapshot = get();
     const scopedWeekId = resolveScopedWeekId(stateSnapshot.currentAreaId, weekId);
@@ -2141,15 +2192,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         nextWeeks = existResult.weeks;
         const nextWeek = existResult.week;
 
+        // Ensure next week has empty plans for all areas (no copy from validated week)
         for (const areaId of getAreaCodes(state)) {
           const nextScopedId = toScopedWeekId(areaId, nextWeek.id);
           const currentScopedId = toScopedWeekId(areaId, baseWeekId);
           const weekConfig = getWeekConfigurationSnapshot(state, currentScopedId);
-          nextWeekConfigById[nextScopedId] = cloneWeekConfigurationSnapshot(weekConfig);
+          nextWeekConfigById[nextScopedId] = nextWeekConfigById[nextScopedId] ?? cloneWeekConfigurationSnapshot(weekConfig);
 
-          if (areaId === areaFromWeekId(scopedWeekId) && state.weekPlans[currentScopedId]) {
-            nextWeekPlans[nextScopedId] = cloneWeekPlanForNextWeek(state.weekPlans[currentScopedId], nextWeek);
-          } else if (!nextWeekPlans[nextScopedId]) {
+          if (!nextWeekPlans[nextScopedId]) {
             nextWeekPlans[nextScopedId] = buildEmptyWeekPlan(
               nextWeek,
               state.employees.map((e) => e.id),

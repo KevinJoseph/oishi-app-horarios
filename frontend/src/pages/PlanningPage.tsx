@@ -23,7 +23,7 @@ import {
 } from '@chakra-ui/react';
 import { differenceInCalendarWeeks, formatISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
-import { FiAlertTriangle, FiCheckCircle, FiDownload, FiEye, FiXCircle } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheckCircle, FiCopy, FiDownload, FiEye, FiXCircle } from 'react-icons/fi';
 import { CellEditorModal } from '../components/CellEditorModal';
 import { DayGrid } from '../components/DayGrid';
 import { WeekSelector } from '../components/WeekSelector';
@@ -57,6 +57,11 @@ export function PlanningPage(): JSX.Element {
     onOpen: openBlockedNextWeekModal,
     onClose: closeBlockedNextWeekModal
   } = useDisclosure();
+  const {
+    isOpen: isMigrateModalOpen,
+    onOpen: openMigrateModal,
+    onClose: closeMigrateModal
+  } = useDisclosure();
 
   const allEmployees = useAppStore((state) => state.employees);
   const allRoles = useAppStore((state) => state.roles);
@@ -79,6 +84,7 @@ export function PlanningPage(): JSX.Element {
   const setExceptionalRestDay = useAppStore((state) => state.setExceptionalRestDay);
   const validateWeekPlan = useAppStore((state) => state.validateWeekPlan);
   const desvalidateWeekPlan = useAppStore((state) => state.desvalidateWeekPlan);
+  const migrateFromPreviousWeek = useAppStore((state) => state.migrateFromPreviousWeek);
   const flushPersistence = useAppStore((state) => state.flushPersistence);
   const currentUser = useAuthStore((state) => state.currentUser);
   const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
@@ -384,6 +390,17 @@ export function PlanningPage(): JSX.Element {
                 >
                   Exportar PDF
                 </Button>
+                {canEdit && !isCurrentWeekValidated && (
+                  <Button
+                    colorScheme="brand"
+                    variant="outline"
+                    leftIcon={<FiCopy />}
+                    isDisabled={!currentWeek}
+                    onClick={openMigrateModal}
+                  >
+                    Migrar Semana Anterior
+                  </Button>
+                )}
                 {canValidate ? (
                   <Tooltip
                     label={
@@ -800,6 +817,36 @@ export function PlanningPage(): JSX.Element {
           <ModalFooter>
             <Button colorScheme="brand" onClick={closeBlockedNextWeekModal}>
               Entendido
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={isMigrateModalOpen} onClose={closeMigrateModal} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Migrar Semana Anterior</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>Se copiarán las asignaciones de la semana anterior a la semana actual. Esto sobrescribirá la planificación actual.</Text>
+          </ModalBody>
+          <ModalFooter gap={3}>
+            <Button variant="ghost" onClick={closeMigrateModal}>
+              Cancelar
+            </Button>
+            <Button
+              colorScheme="brand"
+              onClick={() => {
+                const result = migrateFromPreviousWeek();
+                if (result.ok) {
+                  toast({ status: 'success', title: 'Planificación migrada desde la semana anterior.' });
+                } else {
+                  toast({ status: 'error', title: result.error ?? 'No se pudo migrar.' });
+                }
+                closeMigrateModal();
+              }}
+            >
+              Confirmar
             </Button>
           </ModalFooter>
         </ModalContent>

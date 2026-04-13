@@ -171,3 +171,32 @@ export function migrateGeoVictoriaPlanning(
     }
   );
 }
+
+export type MigrationLogEntry = {
+  companyId: string;
+  areaId: string;
+  scopedWeekId: string;
+  employeeId: string;
+  employeeName: string;
+  userIdentifier: string;
+  groupKey: string;
+  results: GeoVictoriaPlanningMigrationResult[];
+  migratedBy: string | null;
+  migratedAt: string;
+};
+
+export function saveMigrationLogs(logs: MigrationLogEntry[]): Promise<{ saved: number }> {
+  return request<{ saved: number }>('/geovictoria/migration-logs', {
+    method: 'POST',
+    body: JSON.stringify({ logs })
+  });
+}
+
+export function fetchMigrationLogs(
+  scopedWeekId: string,
+  companyId?: string | null
+): Promise<{ logs: MigrationLogEntry[] }> {
+  const params = new URLSearchParams({ scopedWeekId });
+  if (companyId) params.set('companyId', companyId);
+  return request<{ logs: MigrationLogEntry[] }>(`/geovictoria/migration-logs?${params.toString()}`);
+}

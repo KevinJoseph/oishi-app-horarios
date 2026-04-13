@@ -28,7 +28,12 @@ import {
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
 import { FiEye, FiSend } from 'react-icons/fi';
-import { migrateGeoVictoriaPlanning, type GeoVictoriaPlanningMigrationResult } from '../api/plannerApi';
+import {
+  fetchMigrationLogs,
+  migrateGeoVictoriaPlanning,
+  saveMigrationLogs,
+  type GeoVictoriaPlanningMigrationResult
+} from '../api/plannerApi';
 import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
 import { useAuthStore } from '../store/useAuthStore';
 import { WeekSelector } from '../components/WeekSelector';
@@ -40,10 +45,6 @@ function scopedWeekKey(areaId: AreaId, weekId: string): string {
   return `${areaId}::${weekId}`;
 }
 
-function buildMigrationResultStorageKey(scopedWeekId: string | null, companyId: string | null): string | null {
-  if (!scopedWeekId) return null;
-  return `geo-migration-results:${scopedWeekId}:company:${companyId ?? '__all__'}`;
-}
 
 type GeoMigrationGroup = {
   key: string;
@@ -65,16 +66,6 @@ type StoredMigrationResult = {
   migratedBy: string | null;
 };
 
-function isStoredMigrationResult(value: unknown): value is StoredMigrationResult {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as StoredMigrationResult;
-  return (
-    typeof candidate.migratedAt === 'string' &&
-    typeof candidate.result === 'object' &&
-    candidate.result !== null &&
-    (typeof candidate.migratedBy === 'string' || candidate.migratedBy === null || typeof candidate.migratedBy === 'undefined')
-  );
-}
 
 function formatMigrationDateTime(value: string): string {
   const date = new Date(value);
@@ -114,10 +105,6 @@ export function GeoMigrationPage(): JSX.Element {
   const timeSlots = effectiveWeekConfig?.timeSlots?.length ? effectiveWeekConfig.timeSlots : areaTimeSlots;
   const breakConfig = effectiveWeekConfig?.breakConfig ?? areaBreakConfig;
   const weekPlan = currentScopedWeekId ? weekPlans[currentScopedWeekId] : undefined;
-  const migrationResultStorageKey = useMemo(
-    () => buildMigrationResultStorageKey(currentScopedWeekId, selectedGeoVictoriaCompanyId),
-    [currentScopedWeekId, selectedGeoVictoriaCompanyId]
-  );
   const scopedEmployees = useMemo(
     () =>
       employees.filter(
@@ -201,49 +188,36 @@ export function GeoMigrationPage(): JSX.Element {
   }, [migratableKeys]);
 
   useEffect(() => {
-    if (!migrationResultStorageKey) {
+    if (!currentScopedWeekId) {
       setResultByKey({});
       return;
     }
 
-    try {
-      const raw = window.localStorage.getItem(migrationResultStorageKey);
-      if (!raw) {
-        setResultByKey({});
-        return;
-      }
-
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      const next: Record<string, StoredMigrationResult> = {};
-      for (const [key, value] of Object.entries(parsed)) {
-        if (isStoredMigrationResult(value)) {
-          next[key] = {
-            ...value,
-            migratedBy: value.migratedBy ?? null
-          };
-        } else if (value && typeof value === 'object') {
-          next[key] = {
-            result: value as GeoVictoriaPlanningMigrationResult,
-            migratedAt: new Date().toISOString(),
-            migratedBy: null
-          };
+    let cancelled = false;
+    fetchMigrationLogs(currentScopedWeekId, selectedGeoVictoriaCompanyId)
+      .then(({ logs }) => {
+        if (cancelled) return;
+        const next: Record<string, StoredMigrationResult> = {};
+        for (const log of logs) {
+          for (const result of log.results) {
+            const r = result as GeoVictoriaPlanningMigrationResult;
+            const rowKey =
+              r.assignmentType === 'rest'
+                ? `${r.employeeId}:${r.dateISO}:rest`
+                : r.assignmentType === 'free'
+                  ? `${r.employeeId}:${r.dateISO}:free`
+                  : `${r.employeeId}:${r.dateISO}:${r.startHour}:${r.endHour}:${r.breakStartHour ?? ''}:${r.breakEndHour ?? ''}`;
+            next[rowKey] = { result: r, migratedAt: log.migratedAt, migratedBy: log.migratedBy };
+          }
         }
-      }
-      setResultByKey(next);
-    } catch {
-      setResultByKey({});
-    }
-  }, [migrationResultStorageKey]);
+        setResultByKey(next);
+      })
+      .catch(() => {
+        if (!cancelled) setResultByKey({});
+      });
 
-  useEffect(() => {
-    if (!migrationResultStorageKey) return;
-
-    try {
-      window.localStorage.setItem(migrationResultStorageKey, JSON.stringify(resultByKey));
-    } catch {
-      // Si el navegador bloquea localStorage, seguimos sin persistencia pero sin romper la UI.
-    }
-  }, [migrationResultStorageKey, resultByKey]);
+    return () => { cancelled = true; };
+  }, [currentScopedWeekId, selectedGeoVictoriaCompanyId]);
 
   const allMigratableSelected = migratableKeys.length > 0 && migratableKeys.every((key) => selectedKeys.includes(key));
 
@@ -299,6 +273,25 @@ export function GeoMigrationPage(): JSX.Element {
         nextResults[rowKey] = { result, migratedAt, migratedBy };
       }
       setResultByKey(nextResults);
+
+      // Persist migration logs to backend
+      if (currentScopedWeekId) {
+        const migratedGroups = groups.filter((group) => keys.includes(group.key) && group.canMigrate);
+        const logs = migratedGroups.map((group) => ({
+          companyId: group.companyId,
+          areaId: currentAreaId,
+          scopedWeekId: currentScopedWeekId,
+          employeeId: group.employeeId,
+          employeeName: group.employeeName,
+          userIdentifier: group.userIdentifier,
+          groupKey: group.key,
+          results: response.results.filter((r) => r.employeeId === group.employeeId),
+          migratedBy,
+          migratedAt
+        }));
+        saveMigrationLogs(logs).catch(() => {});
+      }
+
       toast.close(migrationToastId);
       toast({
         status: response.failed > 0 ? 'warning' : 'success',

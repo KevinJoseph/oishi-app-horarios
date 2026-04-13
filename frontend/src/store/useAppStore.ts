@@ -431,36 +431,6 @@ function cloneWeekConfigurationSnapshot(snapshot: WeekConfigurationSnapshot): We
   };
 }
 
-function cloneWeekPlanForNextWeek(source: WeekPlan, nextWeek: Week): WeekPlan {
-  const basePlan = buildEmptyWeekPlan(
-    nextWeek,
-    [],
-    []
-  );
-
-  return {
-    weekId: nextWeek.id,
-    restDayOverrides: source.restDayOverrides ? { ...source.restDayOverrides } : undefined,
-    days: basePlan.days.map((nextDay, index) => {
-      const sourceDay = source.days[index];
-      if (!sourceDay) return nextDay;
-
-      const assignments: WeekPlan['days'][number]['assignments'] = {};
-      for (const [slotId, byEmployee] of Object.entries(sourceDay.assignments)) {
-        assignments[slotId] = {};
-        for (const [employeeId, assignment] of Object.entries(byEmployee)) {
-          assignments[slotId][employeeId] = { ...assignment };
-        }
-      }
-
-      return {
-        ...nextDay,
-        assignments
-      };
-    })
-  };
-}
-
 function getWeekConfigurationSnapshot(state: PersistableState, scopedWeekId: string): WeekConfigurationSnapshot {
   const existing = state.weekConfigById[scopedWeekId];
   if (existing && existing.timeSlots.length > 0) {
@@ -1216,7 +1186,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
       const selectedRole = state.roles.find((role) => role.id === employee.mainRoleId);
-      const normalizedAreaId = (selectedRole?.areaId ?? employee.areaId ?? previous?.areaId ?? state.currentAreaId) as AreaId;
+      const normalizedAreaId = (selectedRole?.areaId ?? employee.areaId ?? previous?.areaId) as AreaId | undefined;
       const normalizedEmployee: Employee = {
         ...employee,
         areaId: normalizedAreaId,
@@ -1246,7 +1216,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         return { employees };
       }
 
-      const employeeAreaId = normalizedEmployee.areaId ?? previous?.areaId ?? state.currentAreaId;
+      const employeeAreaId = normalizedEmployee.areaId ?? previous?.areaId;
+      if (!employeeAreaId) {
+        return { employees };
+      }
       const selectedScopedWeekId = getSelectedScopedWeekIdForArea(state, employeeAreaId);
       if (!selectedScopedWeekId) {
         return { employees };
@@ -1321,7 +1294,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (duplicated) continue;
         }
         const selectedRole = state.roles.find((role) => role.id === employee.mainRoleId);
-        const normalizedAreaId = (selectedRole?.areaId ?? employee.areaId ?? previous?.areaId ?? state.currentAreaId) as AreaId;
+        const normalizedAreaId = (selectedRole?.areaId ?? employee.areaId ?? previous?.areaId) as AreaId | undefined;
         const normalizedEmployee: Employee = {
           ...employee,
           areaId: normalizedAreaId,
@@ -1348,7 +1321,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           previous?.active !== normalizedEmployee.active;
 
         if (planningChanged) {
-          const areaId = (normalizedEmployee.areaId ?? previous?.areaId ?? state.currentAreaId) as AreaId;
+          const areaId = normalizedEmployee.areaId ?? previous?.areaId;
+          if (!areaId) continue;
           planningChangedAreas.add(areaId);
         }
       }

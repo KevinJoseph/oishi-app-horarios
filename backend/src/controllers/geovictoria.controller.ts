@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import { env } from '../config/env.js';
 import { isSuperAdmin } from '../middlewares/auth.middleware.js';
+import { MigrationLogModel } from '../models/MigrationLog.js';
 
 interface GeoVictoriaUser {
   Id: string;
@@ -1119,4 +1121,74 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
   const migrated = results.filter((item) => item.ok).length;
   const failed = results.length - migrated;
   res.status(200).json({ migrated, failed, results });
+}
+
+export async function saveMigrationLogsController(req: Request, res: Response): Promise<void> {
+  const { logs } = req.body as {
+    logs: Array<{
+      companyId: string;
+      areaId: string;
+      scopedWeekId: string;
+      employeeId: string;
+      employeeName: string;
+      userIdentifier: string;
+      groupKey: string;
+      results: unknown[];
+      migratedBy: string | null;
+      migratedAt: string;
+    }>;
+  };
+
+  if (!Array.isArray(logs) || logs.length === 0) {
+    res.status(400).json({ error: 'logs array required' });
+    return;
+  }
+
+  const ops = logs.map((log) =>
+    MigrationLogModel.updateOne(
+      { companyId: log.companyId, scopedWeekId: log.scopedWeekId, groupKey: log.groupKey },
+      {
+        $set: {
+          employeeId: log.employeeId,
+          employeeName: log.employeeName,
+          userIdentifier: log.userIdentifier,
+          areaId: log.areaId,
+          results: log.results,
+          migratedBy: log.migratedBy,
+          migratedAt: new Date(log.migratedAt)
+        },
+        $setOnInsert: { _id: randomUUID() }
+      },
+      { upsert: true }
+    )
+  );
+
+  await Promise.all(ops);
+  res.status(200).json({ saved: logs.length });
+}
+
+export async function getMigrationLogsController(req: Request, res: Response): Promise<void> {
+  const { companyId, scopedWeekId } = req.query as { companyId?: string; scopedWeekId?: string };
+
+  if (!scopedWeekId) {
+    res.status(400).json({ error: 'scopedWeekId query param required' });
+    return;
+  }
+
+  const filter: Record<string, string> = { scopedWeekId };
+  if (companyId) filter.companyId = companyId;
+
+  const docs = await MigrationLogModel.find(filter).sort({ migratedAt: -1 }).lean();
+  const logs = docs.map((doc) => ({
+    groupKey: doc.groupKey,
+    employeeId: doc.employeeId,
+    employeeName: doc.employeeName,
+    userIdentifier: doc.userIdentifier,
+    areaId: doc.areaId,
+    results: doc.results,
+    migratedBy: doc.migratedBy,
+    migratedAt: doc.migratedAt.toISOString()
+  }));
+
+  res.status(200).json({ logs });
 }

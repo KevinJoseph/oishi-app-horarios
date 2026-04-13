@@ -5,7 +5,9 @@ import {
   getGeoVictoriaEmployeesController,
   getGeoVictoriaPositionsController,
   getGeoVictoriaReciboEmployeesController,
-  migrateGeoVictoriaPlanningController
+  migrateGeoVictoriaPlanningController,
+  saveMigrationLogsController,
+  getMigrationLogsController
 } from '../controllers/geovictoria.controller.js';
 import { requireAdmin, requireAuth, requirePlannerWrite } from '../middlewares/auth.middleware.js';
 
@@ -17,3 +19,5 @@ geoVictoriaRouter.get('/geovictoria/recibo-employees', requireAuth, requireAdmin
 geoVictoriaRouter.get('/geovictoria/companies', requireAuth, getGeoVictoriaCompaniesController);
 geoVictoriaRouter.post('/geovictoria/users', requireAuth, requirePlannerWrite, addGeoVictoriaUserController);
 geoVictoriaRouter.post('/geovictoria/planning/migrate', requireAuth, requirePlannerWrite, migrateGeoVictoriaPlanningController);
+geoVictoriaRouter.post('/geovictoria/migration-logs', requireAuth, requirePlannerWrite, saveMigrationLogsController);
+geoVictoriaRouter.get('/geovictoria/migration-logs', requireAuth, getMigrationLogsController);

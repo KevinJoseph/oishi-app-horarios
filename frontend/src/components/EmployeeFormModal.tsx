@@ -137,8 +137,8 @@ export function EmployeeFormModal({
 
   useEffect(() => {
     const initialArea = (editing
-      ? editing?.areaId ?? roles.find((role) => role.id === editing?.mainRoleId)?.areaId ?? currentAreaId ?? ''
-      : currentAreaId ?? '') as AreaId;
+      ? editing?.areaId ?? roles.find((role) => role.id === editing?.mainRoleId)?.areaId ?? ''
+      : '') as AreaId;
     const nameParts = splitEmployeeName(editing);
     setAreaId(initialArea);
     setFirstName(nameParts.firstName);
@@ -248,7 +248,6 @@ export function EmployeeFormModal({
     lastName: !trimmedLastName,
     identityDocument: !trimmedIdentityDocument,
     email: !trimmedEmail,
-    areaId: !areaId,
     companyAlias: !companyAlias,
     reciboGroupCode: requiresReciboGroup && !selectedReciboGroup
   };
@@ -327,7 +326,7 @@ export function EmployeeFormModal({
           <FormControl mb={3}>
             <FormLabel>Área</FormLabel>
             <Select value={areaId} onChange={(event) => setAreaId(event.target.value as AreaId)}>
-              <option value="">Selecciona un área</option>
+              <option value="">Sin área</option>
               {areas.map((area) => (
                 <option key={area.code} value={area.code}>
                   {area.label}
@@ -438,7 +437,6 @@ export function EmployeeFormModal({
                   hasRequiredErrors.lastName ||
                   hasRequiredErrors.identityDocument ||
                   hasRequiredErrors.email ||
-                  hasRequiredErrors.areaId ||
                   hasRequiredErrors.companyAlias ||
                   hasRequiredErrors.reciboGroupCode
                 ) {
@@ -475,7 +473,7 @@ export function EmployeeFormModal({
                   companyRuc: selectedCompany?.ruc,
                   geoVictoriaGroupName: selectedReciboGroup?.name,
                   geoVictoriaCostCenterCode: selectedReciboGroup?.code_centro_costo ?? selectedCompany?.ruc,
-                  areaId,
+                  areaId: areaId || undefined,
                   active,
                   weeklyHours: isWithoutContract ? 0 : parsedWeeklyHours,
                   contractType: contractType || undefined,

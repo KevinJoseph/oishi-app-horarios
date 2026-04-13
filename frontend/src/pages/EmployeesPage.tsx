@@ -654,10 +654,7 @@ export function EmployeesPage(): JSX.Element {
         adminAssignedCompanyId={currentUser?.role === 'administrador' ? currentUser.companyId ?? null : null}
         onSave={(employee) => {
           if (!canEdit) return { ok: false, error: 'No tienes permisos para guardar colaboradores.' };
-          const payload = {
-            ...employee,
-            areaId: editing ? employee.areaId : currentAreaId
-          };
+          const payload = employee;
           const result = upsertEmployee(payload);
           if (result.ok && payload.areaId) {
             setCurrentArea(payload.areaId);

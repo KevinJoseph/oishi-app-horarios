@@ -398,7 +398,7 @@ export function PlanningPage(): JSX.Element {
                     isDisabled={!currentWeek}
                     onClick={openMigrateModal}
                   >
-                    Migrar Semana Anterior
+                    Duplicar Semana Anterior
                   </Button>
                 )}
                 {canValidate ? (
@@ -825,7 +825,7 @@ export function PlanningPage(): JSX.Element {
       <Modal isOpen={isMigrateModalOpen} onClose={closeMigrateModal} isCentered>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Migrar Semana Anterior</ModalHeader>
+          <ModalHeader>Duplicar Semana Anterior</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <Text>Se copiarán las asignaciones de la semana anterior a la semana actual. Esto sobrescribirá la planificación actual.</Text>
@@ -839,9 +839,9 @@ export function PlanningPage(): JSX.Element {
               onClick={() => {
                 const result = migrateFromPreviousWeek();
                 if (result.ok) {
-                  toast({ status: 'success', title: 'Planificación migrada desde la semana anterior.' });
+                  toast({ status: 'success', title: 'Planificación duplicada desde la semana anterior.' });
                 } else {
-                  toast({ status: 'error', title: result.error ?? 'No se pudo migrar.' });
+                  toast({ status: 'error', title: result.error ?? 'No se pudo duplicar.' });
                 }
                 closeMigrateModal();
               }}

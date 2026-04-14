@@ -8,6 +8,10 @@ export function isFreeAssignment(assignment: Assignment | null | undefined): boo
   return Boolean(assignment && assignment.roleId === null && assignment.code === 'LIBRE' && !assignment.isBreak);
 }
 
+export function isExplicitFreeAssignment(assignment: Assignment | null | undefined): boolean {
+  return Boolean(isFreeAssignment(assignment) && assignment?.explicitFree);
+}
+
 export function suppressesConfiguredBreak(assignment: Assignment | null | undefined): boolean {
   return Boolean(assignment?.suppressConfiguredBreak);
 }
@@ -16,8 +20,8 @@ export function isWorkAssignment(assignment: Assignment | null | undefined): boo
   return Boolean(assignment && assignment.roleId !== null && assignment.code !== 'LIBRE');
 }
 
-export function createFreeAssignment(): Assignment {
-  return { roleId: null, code: 'LIBRE', suppressConfiguredBreak: false };
+export function createFreeAssignment(explicitFree = false): Assignment {
+  return { roleId: null, code: 'LIBRE', suppressConfiguredBreak: false, explicitFree };
 }
 
 export function createBreakAssignment(): Assignment {

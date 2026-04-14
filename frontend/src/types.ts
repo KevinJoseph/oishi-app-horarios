@@ -102,6 +102,7 @@ export type Assignment = {
   code: string;
   isBreak?: boolean;
   suppressConfiguredBreak?: boolean;
+  explicitFree?: boolean;
 };
 
 export type DayPlan = {

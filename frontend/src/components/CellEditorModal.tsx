@@ -78,6 +78,7 @@ export function CellEditorModal({
   const selectedRole = useMemo(() => roles.find((role) => role.id === roleId), [roles, roleId]);
   const options = selectedRole?.validCodes ?? [];
   const isFree = !roleId || exRestDay || exBreak;
+  const shouldShowDayHours = applyToEmployeeDay;
 
   useEffect(() => {
     if (isFree) {
@@ -89,8 +90,8 @@ export function CellEditorModal({
     }
   }, [selectedRole, isFree, code]);
 
-  // Mostrar el checkbox de descanso excepcional solo en la semana actual y si no es el día de descanso normal
-  const showExRestDayOption = isCurrentWeek && !isNormalRestDay;
+  // Permitir marcar descanso también en el día de descanso normal para restaurarlo si fue sobrescrito.
+  const showExRestDayOption = isCurrentWeek;
   const showExBreakOption = isCurrentWeek;
 
   return (
@@ -119,7 +120,9 @@ export function CellEditorModal({
                 </Checkbox>
                 {exRestDay && (
                   <Text fontSize="xs" color="orange.600" mt={1}>
-                    Este día será el descanso excepcional. El día de descanso habitual quedará libre para trabajar.
+                    {isNormalRestDay
+                      ? 'Se restaurará este día como descanso y se limpiarán las asignaciones del colaborador.'
+                      : 'Este día será el descanso excepcional. El día de descanso habitual quedará libre para trabajar.'}
                   </Text>
                 )}
               </FormControl>
@@ -190,9 +193,9 @@ export function CellEditorModal({
                   Se aplicará a toda la columna (día actual)
                 </Checkbox>
               </FormControl>
-              {applyToEmployeeDay ? (
+              {shouldShowDayHours ? (
                 <FormControl mt={4}>
-                  <FormLabel>Horas a asignar en el día</FormLabel>
+                  <FormLabel>{isFree ? 'Horas sin asignar en el día' : 'Horas a asignar en el día'}</FormLabel>
                   <Input type="number" min={0} step={0.5} value={dayHours} onChange={(event) => setDayHours(event.target.value)} />
                 </FormControl>
               ) : null}
@@ -221,10 +224,11 @@ export function CellEditorModal({
                     exceptionalBreak: exBreak
                   });
                 } else {
+                  const nextAssignment = roleId ? { roleId, code, explicitFree: false } : createFreeAssignment(true);
                   onSave({
-                    assignment: { roleId: roleId || null, code: roleId ? code : 'LIBRE' },
+                    assignment: nextAssignment,
                     applyToEmployeeDay,
-                    dayHours: applyToEmployeeDay ? Math.max(0, Number.parseFloat(dayHours) || 0) : undefined
+                    dayHours: shouldShowDayHours ? Math.max(0, Number.parseFloat(dayHours) || 0) : undefined
                   });
                 }
                 onClose();

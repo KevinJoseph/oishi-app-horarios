@@ -1,7 +1,7 @@
 import { Box, Button, Text } from '@chakra-ui/react';
 import type { Assignment, BreakConfig, DayPlan, Employee, Role, TimeSlot } from '../types';
 import { isTimeSlotInBreak } from '../utils/breaks';
-import { isBreakAssignment, suppressesConfiguredBreak } from '../utils/assignments';
+import { isBreakAssignment, isExplicitFreeAssignment, suppressesConfiguredBreak } from '../utils/assignments';
 import { isRestDayForDate } from '../utils/weekdays';
 import { AssignmentCell } from './AssignmentCell';
 
@@ -141,7 +141,10 @@ export function DayGrid({
                       !suppressesConfiguredBreak(assignment) &&
                       isTimeSlotInBreak(slot, breakConfig));
                   const effectiveRestDay = restDayOverrides?.[employee.id] ?? employee.restDay;
-                  const isRestDay = assignment.roleId === null && isRestDayForDate(dayPlan.dateISO, effectiveRestDay);
+                  const isRestDay =
+                    assignment.roleId === null &&
+                    !isExplicitFreeAssignment(assignment) &&
+                    isRestDayForDate(dayPlan.dateISO, effectiveRestDay);
                   return (
                     <Box as="td" key={employee.id} p={0}>
                       <AssignmentCell

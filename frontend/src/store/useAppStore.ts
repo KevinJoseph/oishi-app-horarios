@@ -1629,6 +1629,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const isConfiguredBreakSlot = Boolean(selectedSlot && isTimeSlotInBreak(selectedSlot, weekConfig.breakConfig));
     const normalizedAssignment = assignment.isBreak
       ? createBreakAssignment()
+      : assignment.roleId === null
+        ? createFreeAssignment(true)
       : {
           ...assignment,
           isBreak: false,
@@ -1684,6 +1686,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const weekConfig = getWeekConfigurationSnapshot(stateSnapshot, scopedWeekId);
 
+    const normalizedAssignment =
+      assignment.isBreak
+        ? createBreakAssignment()
+        : assignment.roleId === null
+          ? createFreeAssignment(true)
+          : assignment;
+
     set((state) => {
       const plan = state.weekPlans[scopedWeekId];
       if (!plan) return {};
@@ -1694,11 +1703,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         for (const timeSlotId of timeSlotIds) {
           const byEmployee = { ...(assignmentsBySlot[timeSlotId] ?? {}) };
           byEmployee[employeeId] =
-            breakSlotIds.has(timeSlotId) && assignment.roleId !== null && assignment.code !== 'LIBRE'
+            breakSlotIds.has(timeSlotId) && normalizedAssignment.roleId !== null && normalizedAssignment.code !== 'LIBRE'
               ? createFreeAssignment()
-              : assignment.isBreak
+              : normalizedAssignment.isBreak
                 ? createBreakAssignment()
-                : assignment;
+                : normalizedAssignment;
           assignmentsBySlot[timeSlotId] = byEmployee;
         }
         return { ...day, assignments: assignmentsBySlot };
@@ -1742,6 +1751,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { ok: false, error: 'Las horas deben ser un número mayor o igual a 0.' };
     }
 
+    const normalizedAssignment =
+      assignment.isBreak
+        ? createBreakAssignment()
+        : assignment.roleId === null
+          ? createFreeAssignment(true)
+          : assignment;
+
     set((state) => {
       const plan = state.weekPlans[scopedWeekId];
       if (!plan) return {};
@@ -1764,16 +1780,16 @@ export const useAppStore = create<AppState>((set, get) => ({
           const slotHours = getSlotDurationHours(slot.start, slot.end);
           const shouldApplyInSlot = remaining > 0 && slotHours > 0;
 
-          if (assignment.isBreak) {
+          if (normalizedAssignment.isBreak) {
             byEmployee[employeeId] = createBreakAssignment();
             assignmentsBySlot[timeSlotId] = byEmployee;
             continue;
           }
 
-          if (assignment.roleId === null) {
+          if (normalizedAssignment.roleId === null) {
             // LIBRE + N horas: solo libera los primeros N bloques y mantiene intacto el resto del día.
             if (shouldApplyInSlot) {
-              byEmployee[employeeId] = createFreeAssignment();
+              byEmployee[employeeId] = createFreeAssignment(true);
               assignmentsBySlot[timeSlotId] = byEmployee;
               remaining = Number((remaining - slotHours).toFixed(4));
             }
@@ -1781,7 +1797,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
 
           // Zona + N horas: asigna los primeros N bloques y libera el resto del día.
-          byEmployee[employeeId] = shouldApplyInSlot ? assignment : createFreeAssignment();
+          byEmployee[employeeId] = shouldApplyInSlot ? normalizedAssignment : createFreeAssignment();
           assignmentsBySlot[timeSlotId] = byEmployee;
 
           if (shouldApplyInSlot) {

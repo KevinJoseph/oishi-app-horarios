@@ -143,8 +143,10 @@ export function EmployeeFormModal({
     setAreaId(initialArea);
     setFirstName(nameParts.firstName);
     setLastName(nameParts.lastName);
-    setIdentityDocument(editing?.identityDocument ?? '');
-    setEmail(editing?.email ?? '');
+    const initialDni = editing?.identityDocument ?? '';
+    setIdentityDocument(initialDni);
+    const trimmedInitialDni = initialDni.trim();
+    setEmail(trimmedInitialDni ? `${trimmedInitialDni}@almoud.pe` : '');
     const selectedModuleCompany = selectedCompanyId
       ? companies.find((company) => company.companyId === selectedCompanyId)
       : null;
@@ -269,14 +271,22 @@ export function EmployeeFormModal({
           </FormControl>
           <FormControl mb={3} isRequired>
             <FormLabel>DNI</FormLabel>
-            <Input value={identityDocument} onChange={(event) => setIdentityDocument(event.target.value)} />
+            <Input
+              value={identityDocument}
+              onChange={(event) => {
+                const next = event.target.value;
+                setIdentityDocument(next);
+                const trimmed = next.trim();
+                setEmail(trimmed ? `${trimmed}@almoud.pe` : '');
+              }}
+            />
             <FormLabel mt={1} mb={0} fontSize="xs" fontWeight="400" color="gray.500">
               (*) Si cambias DNI se creará un nuevo usuario GEOVICTORIA
             </FormLabel>
           </FormControl>
           <FormControl mb={3} isRequired>
             <FormLabel>Email</FormLabel>
-            <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <Input type="email" value={email} isDisabled />
           </FormControl>
           <FormControl mb={3} isRequired>
             <FormLabel>Empresa</FormLabel>

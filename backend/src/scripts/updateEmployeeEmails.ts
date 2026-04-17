@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
-import { env } from '../config/env';
-import { connectToDatabase } from '../config/db';
-import { EmployeeModel } from '../models/Employee';
+import { env } from '../config/env.js';
+import { connectToDatabase } from '../config/db.js';
+import { EmployeeModel } from '../models/Employee.js';
 
 async function run(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');

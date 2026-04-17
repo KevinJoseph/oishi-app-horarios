@@ -146,8 +146,7 @@ export function EmployeeFormModal({
     setLastName(nameParts.lastName);
     const initialDni = editing?.identityDocument ?? '';
     setIdentityDocument(initialDni);
-    const trimmedInitialDni = initialDni.trim();
-    setEmail(trimmedInitialDni ? `${trimmedInitialDni}@almoud.pe` : '');
+    setEmail(editing?.email ?? '');
     const selectedModuleCompany = selectedCompanyId
       ? companies.find((company) => company.companyId === selectedCompanyId)
       : null;
@@ -286,12 +285,7 @@ export function EmployeeFormModal({
             <FormLabel>DNI</FormLabel>
             <Input
               value={identityDocument}
-              onChange={(event) => {
-                const next = event.target.value;
-                setIdentityDocument(next);
-                const trimmed = next.trim();
-                setEmail(trimmed ? `${trimmed}@almoud.pe` : '');
-              }}
+              onChange={(event) => setIdentityDocument(event.target.value)}
             />
             <FormLabel mt={1} mb={0} fontSize="xs" fontWeight="400" color="gray.500">
               (*) Si cambias DNI se creará un nuevo usuario GEOVICTORIA
@@ -299,7 +293,7 @@ export function EmployeeFormModal({
           </FormControl>
           <FormControl mb={3} isRequired>
             <FormLabel>Email</FormLabel>
-            <Input type="email" value={email} isDisabled />
+            <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
           </FormControl>
           <FormControl mb={3} isRequired>
             <FormLabel>Empresa</FormLabel>

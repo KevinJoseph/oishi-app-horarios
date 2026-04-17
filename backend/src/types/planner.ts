@@ -28,6 +28,7 @@ export type Employee = {
   phone?: string;
   groupDescription?: string;
   positionDescription?: string;
+  displayOrder?: number;
 };
 
 export type ShiftRange = {

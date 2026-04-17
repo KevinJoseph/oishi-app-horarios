@@ -109,6 +109,7 @@ export function EmployeeFormModal({
   const [restDay, setRestDay] = useState('0');
   const [mainRoleId, setMainRoleId] = useState('');
   const [mainRoleCode, setMainRoleCode] = useState('');
+  const [displayOrder, setDisplayOrder] = useState('');
   const filteredRoles = useMemo(
     () => roles.filter((role) => (role.areaId ?? 'salon') === areaId),
     [roles, areaId]
@@ -177,6 +178,7 @@ export function EmployeeFormModal({
         roles.find((role) => role.id === editing?.mainRoleId)?.validCodes[0] ??
         ''
     );
+    setDisplayOrder(editing?.displayOrder !== undefined ? String(editing.displayOrder) : '');
   }, [editing, isOpen, roles, currentAreaId, selectedCompanyId, companies]);
 
   useEffect(() => {
@@ -261,6 +263,17 @@ export function EmployeeFormModal({
         <ModalHeader>{editing ? 'Editar Colaborador' : 'Nuevo Colaborador'}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
+          <FormControl mb={3}>
+            <FormLabel>Orden (planificación)</FormLabel>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={displayOrder}
+              onChange={(event) => setDisplayOrder(event.target.value)}
+              placeholder="Ej: 1, 2, 3..."
+            />
+          </FormControl>
           <FormControl mb={3} isRequired>
             <FormLabel>Nombre</FormLabel>
             <Input value={firstName} onChange={(event) => setFirstName(event.target.value)} />
@@ -344,32 +357,34 @@ export function EmployeeFormModal({
               ))}
             </Select>
           </FormControl>
-          <FormControl mb={3}>
-            <FormLabel>Zona asignada</FormLabel>
-            <Select value={mainRoleId} onChange={(event) => setMainRoleId(event.target.value)}>
-              <option value="">Sin zona asignada</option>
-              {filteredRoles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {getRoleDisplayLabel(role)}
-                </option>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl mb={3}>
-            <FormLabel>Código de zona</FormLabel>
-            <Select
-              value={mainRoleCode}
-              onChange={(event) => setMainRoleCode(event.target.value)}
-              isDisabled={!selectedRole}
-            >
-              <option value="">{selectedRole ? 'Selecciona un código' : 'Primero elige una zona'}</option>
-              {codeOptions.map((code) => (
-                <option key={code} value={code}>
-                  {code}
-                </option>
-              ))}
-            </Select>
-          </FormControl>
+          <HStack mb={3} align="flex-start" spacing={3}>
+            <FormControl flex="1">
+              <FormLabel>Zona asignada</FormLabel>
+              <Select value={mainRoleId} onChange={(event) => setMainRoleId(event.target.value)}>
+                <option value="">Sin zona asignada</option>
+                {filteredRoles.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {getRoleDisplayLabel(role)}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl flex="1">
+              <FormLabel>Código de zona</FormLabel>
+              <Select
+                value={mainRoleCode}
+                onChange={(event) => setMainRoleCode(event.target.value)}
+                isDisabled={!selectedRole}
+              >
+                <option value="">{selectedRole ? 'Selecciona un código' : 'Primero elige una zona'}</option>
+                {codeOptions.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+          </HStack>
           <HStack mb={3} align="flex-start" spacing={3}>
             <FormControl flex="1">
               <FormLabel>Tipo de jornada</FormLabel>
@@ -494,7 +509,11 @@ export function EmployeeFormModal({
                   mainRoleId: mainRoleId || undefined,
                   mainRoleCode: mainRoleId ? mainRoleCode || undefined : undefined,
                   groupDescription: selectedGroupDescription,
-                  positionDescription: positionDescription || undefined
+                  positionDescription: positionDescription || undefined,
+                  displayOrder: (() => {
+                    const parsed = Number.parseInt(displayOrder, 10);
+                    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+                  })()
                 });
                 if (!result.ok) {
                   toast({

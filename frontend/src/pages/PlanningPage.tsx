@@ -104,12 +104,20 @@ export function PlanningPage(): JSX.Element {
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const employees = useMemo(
     () =>
-      allEmployees.filter(
-        (employee) =>
-          (employee.areaId ?? 'salon') === currentAreaId &&
-          (!selectedGeoVictoriaCompanyId ||
-            (employee.moduleCompanyId ?? employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
-      ),
+      allEmployees
+        .filter(
+          (employee) =>
+            (employee.areaId ?? 'salon') === currentAreaId &&
+            (!selectedGeoVictoriaCompanyId ||
+              (employee.moduleCompanyId ?? employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
+        )
+        .slice()
+        .sort((a, b) => {
+          const orderA = a.displayOrder ?? Number.POSITIVE_INFINITY;
+          const orderB = b.displayOrder ?? Number.POSITIVE_INFINITY;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.name.localeCompare(b.name);
+        }),
     [allEmployees, currentAreaId, selectedGeoVictoriaCompanyId]
   );
   const roles = useMemo(

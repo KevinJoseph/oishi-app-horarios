@@ -181,13 +181,20 @@ export function EmployeesPage(): JSX.Element {
   );
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return companyScopedEmployees;
-    return companyScopedEmployees.filter(
-      (employee) =>
-        employee.name.toLowerCase().includes(term) ||
-        (employee.code ?? '').toLowerCase().includes(term) ||
-        (employee.identityDocument ?? '').toLowerCase().includes(term)
-    );
+    const base = !term
+      ? companyScopedEmployees
+      : companyScopedEmployees.filter(
+          (employee) =>
+            employee.name.toLowerCase().includes(term) ||
+            (employee.code ?? '').toLowerCase().includes(term) ||
+            (employee.identityDocument ?? '').toLowerCase().includes(term)
+        );
+    return [...base].sort((a, b) => {
+      const orderA = a.displayOrder ?? Number.POSITIVE_INFINITY;
+      const orderB = b.displayOrder ?? Number.POSITIVE_INFINITY;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.name.localeCompare(b.name);
+    });
   }, [companyScopedEmployees, search]);
 
   const findCompanyFromGeoVictoriaUser = (groupDescription: string | undefined, userCompanyIdentifier: string | undefined): GeoVictoriaCompany | undefined => {
@@ -524,6 +531,7 @@ export function EmployeesPage(): JSX.Element {
             <Table size="sm" bg="white" minW="980px">
               <Thead>
                 <Tr>
+                  <Th>Orden</Th>
                   <Th>Código</Th>
                   <Th>Nombre</Th>
                   <Th>Documento</Th>
@@ -542,6 +550,7 @@ export function EmployeesPage(): JSX.Element {
               <Tbody>
                 {filteredEmployees.map((employee) => (
                   <Tr key={employee.id}>
+                    <Td>{employee.displayOrder ?? '-'}</Td>
                     <Td>{employee.code ?? '-'}</Td>
                     <Td>{employee.name}</Td>
                     <Td>{employee.identityDocument ?? '-'}</Td>

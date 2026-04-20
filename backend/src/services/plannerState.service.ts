@@ -207,7 +207,8 @@ export async function getOrCreatePlannerState(context: PlannerStateContext): Pro
     const key = toLegacyScope(areaId, doc.baseWeekId);
     weekAuditById[key] = {
       createdByName: doc.createdByName ?? null,
-      validatedByName: doc.validatedByName ?? null
+      validatedByName: doc.validatedByName ?? null,
+      inactiveEmployeeIds: Array.isArray(doc.inactiveEmployeeIds) ? doc.inactiveEmployeeIds : undefined
     };
     if (doc.validated) validatedWeekIds.push(key);
   }
@@ -414,6 +415,9 @@ async function upsertWeekAudit(
   if (audit) {
     set.createdByName = audit.createdByName ?? null;
     set.validatedByName = audit.validatedByName ?? null;
+    if (Array.isArray(audit.inactiveEmployeeIds)) {
+      set.inactiveEmployeeIds = audit.inactiveEmployeeIds;
+    }
   }
   if (typeof validated === 'boolean') {
     set.validated = validated;

@@ -30,14 +30,12 @@ import type { GeoVictoriaCompany } from '../api/plannerApi';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  currentAreaId: AreaId;
   selectedCompany: GeoVictoriaCompany | null;
 }
 
 export function GeoVictoriaReciboModal({
   isOpen,
   onClose,
-  currentAreaId,
   selectedCompany
 }: Props): JSX.Element {
   const toast = useToast();
@@ -145,7 +143,7 @@ export function GeoVictoriaReciboModal({
           geoVictoriaCostCenterCode: user.CostCenterCode || existing.geoVictoriaCostCenterCode,
           groupDescription: user.GroupDescription || existing.groupDescription,
           positionDescription: user.PositionDescription || existing.positionDescription,
-          areaId: currentAreaId
+          areaId: existing.areaId
         });
         updated++;
       } else {
@@ -167,7 +165,7 @@ export function GeoVictoriaReciboModal({
           groupDescription: user.GroupDescription || undefined,
           positionDescription: user.PositionDescription || undefined,
           active: true,
-          areaId: currentAreaId
+          areaId: '' as AreaId
         });
         created++;
       }

@@ -391,7 +391,7 @@ export function EmployeesPage(): JSX.Element {
             groupDescription: user.GroupDescription || undefined,
             positionDescription: user.PositionDescription || undefined,
             active: true,
-            areaId: currentAreaId
+            areaId: '' as AreaId
           });
           created++;
         }
@@ -647,7 +647,6 @@ export function EmployeesPage(): JSX.Element {
       <GeoVictoriaReciboModal
         isOpen={isReciboModalOpen}
         onClose={closeReciboModal}
-        currentAreaId={currentAreaId}
         selectedCompany={selectedGeoVictoriaCompany}
       />
 

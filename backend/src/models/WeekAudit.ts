@@ -8,6 +8,7 @@ type WeekAuditDocument = {
   createdByName: string | null;
   validatedByName: string | null;
   validated: boolean;
+  inactiveEmployeeIds?: string[];
   updatedAt: Date;
   createdAt: Date;
 };
@@ -20,7 +21,8 @@ const WeekAuditSchema = new Schema<WeekAuditDocument>(
     baseWeekId: { type: String, required: true, index: true },
     createdByName: { type: String, default: null },
     validatedByName: { type: String, default: null },
-    validated: { type: Boolean, required: true, default: false, index: true }
+    validated: { type: Boolean, required: true, default: false, index: true },
+    inactiveEmployeeIds: { type: [String], default: undefined }
   },
   { timestamps: true, versionKey: false, _id: false }
 );

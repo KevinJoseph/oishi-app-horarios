@@ -121,4 +121,5 @@ export type WeekPlan = {
 export type WeekAudit = {
   createdByName: string | null;
   validatedByName: string | null;
+  inactiveEmployeeIds?: string[];
 };

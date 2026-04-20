@@ -2188,11 +2188,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       let nextWeeks = state.weeks;
       let nextWeekPlans = { ...state.weekPlans };
       let nextWeekConfigById = { ...state.weekConfigById };
+      const inactiveEmployeeIdsSnapshot = state.employees
+        .filter((employee) => !employee.active)
+        .map((employee) => employee.id);
       const nextWeekAuditById: typeof state.weekAuditById = {
         ...auditWithCreator,
         [validationKey]: {
           ...currentAudit,
-          validatedByName: actorName?.trim() || 'No registrado'
+          validatedByName: actorName?.trim() || 'No registrado',
+          inactiveEmployeeIds: inactiveEmployeeIdsSnapshot
         }
       };
 

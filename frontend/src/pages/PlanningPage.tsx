@@ -102,9 +102,13 @@ export function PlanningPage(): JSX.Element {
   const validationToastId = 'planning-validation-save';
 
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
+  const currentWeek = weeks.find((week) => week.startDateISO === currentWeekStartDateISO);
+  const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
+  const currentWeekAudit = getWeekAuditForCompany(weekAuditById, currentScopedWeekId, selectedGeoVictoriaCompanyId);
+  const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const employees = useMemo(
-    () =>
-      allEmployees
+    () => {
+      const base = allEmployees
         .filter(
           (employee) =>
             (employee.areaId ?? 'salon') === currentAreaId &&
@@ -117,17 +121,23 @@ export function PlanningPage(): JSX.Element {
           const orderB = b.displayOrder ?? Number.POSITIVE_INFINITY;
           if (orderA !== orderB) return orderA - orderB;
           return a.name.localeCompare(b.name);
-        }),
-    [allEmployees, currentAreaId, selectedGeoVictoriaCompanyId]
+        });
+      if (isCurrentWeekValidated && currentWeekAudit?.inactiveEmployeeIds) {
+        const inactiveSet = new Set(currentWeekAudit.inactiveEmployeeIds);
+        return base.map((employee) =>
+          inactiveSet.has(employee.id)
+            ? { ...employee, active: false }
+            : { ...employee, active: true }
+        );
+      }
+      return base;
+    },
+    [allEmployees, currentAreaId, selectedGeoVictoriaCompanyId, isCurrentWeekValidated, currentWeekAudit]
   );
   const roles = useMemo(
     () => allRoles.filter((role) => (role.areaId ?? 'salon') === currentAreaId),
     [allRoles, currentAreaId]
   );
-  const currentWeek = weeks.find((week) => week.startDateISO === currentWeekStartDateISO);
-  const currentScopedWeekId = currentWeek ? scopedWeekKey(currentAreaId, currentWeek.id) : null;
-  const currentWeekAudit = getWeekAuditForCompany(weekAuditById, currentScopedWeekId, selectedGeoVictoriaCompanyId);
-  const isCurrentWeekValidated = isWeekValidatedForCompany(validatedWeekIds, currentScopedWeekId, selectedGeoVictoriaCompanyId);
   const effectiveWeekConfig = currentScopedWeekId ? weekConfigById[currentScopedWeekId] : undefined;
   const timeSlots = useMemo(() => {
     const candidateSlots = effectiveWeekConfig?.timeSlots?.length ? effectiveWeekConfig.timeSlots : areaTimeSlots;

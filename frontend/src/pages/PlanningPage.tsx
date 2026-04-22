@@ -111,7 +111,7 @@ export function PlanningPage(): JSX.Element {
       const base = allEmployees
         .filter(
           (employee) =>
-            (employee.areaId ?? 'salon') === currentAreaId &&
+            employee.areaId === currentAreaId &&
             (!selectedGeoVictoriaCompanyId ||
               (employee.moduleCompanyId ?? employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
         )

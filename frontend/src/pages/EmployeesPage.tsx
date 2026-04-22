@@ -391,7 +391,7 @@ export function EmployeesPage(): JSX.Element {
             groupDescription: user.GroupDescription || undefined,
             positionDescription: user.PositionDescription || undefined,
             active: true,
-            areaId: '' as AreaId
+            areaId: undefined
           });
           created++;
         }

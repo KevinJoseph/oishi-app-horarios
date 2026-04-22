@@ -24,7 +24,7 @@ import {
 import { useEffect, useState } from 'react';
 import { fetchGeoVictoriaReciboEmployees, type GeoVictoriaEmployee } from '../api/plannerApi';
 import { useAppStore } from '../store/useAppStore';
-import type { AreaId, Employee } from '../types';
+import type { Employee } from '../types';
 import type { GeoVictoriaCompany } from '../api/plannerApi';
 
 interface Props {
@@ -165,7 +165,7 @@ export function GeoVictoriaReciboModal({
           groupDescription: user.GroupDescription || undefined,
           positionDescription: user.PositionDescription || undefined,
           active: true,
-          areaId: '' as AreaId
+          areaId: undefined
         });
         created++;
       }

@@ -49,7 +49,7 @@ export function WeeklyByWeeksOverviewContent(): JSX.Element {
     () =>
       allEmployees.filter(
         (employee) =>
-          (employee.areaId ?? 'salon') === currentAreaId &&
+          employee.areaId === currentAreaId &&
           (!selectedGeoVictoriaCompanyId ||
             (employee.moduleCompanyId ?? employee.companyId ?? '') === selectedGeoVictoriaCompanyId)
       ),

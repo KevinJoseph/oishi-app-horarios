@@ -396,7 +396,8 @@ export function PlanningPage(): JSX.Element {
                           currentScopedWeekId,
                           selectedGeoVictoriaCompanyId
                         ),
-                        validatedByName: currentWeekAudit?.validatedByName ?? null
+                        validatedByName: currentWeekAudit?.validatedByName ?? null,
+                        restDayOverrides: currentWeekPlan?.restDayOverrides
                       });
                       toast({ status: 'success', title: `PDF generado para ${activeDay.dayName}.` });
                     } catch {
@@ -675,8 +676,8 @@ export function PlanningPage(): JSX.Element {
         isExceptionalRestDay={(() => {
           if (!activeDay || !selectedCell || !currentWeekPlan?.restDayOverrides) return false;
           const override = currentWeekPlan.restDayOverrides[selectedCell.employeeId];
-          if (override === undefined) return false;
-          return new Date(`${activeDay.dateISO}T00:00:00`).getDay() === override;
+          if (!override || override.length === 0) return false;
+          return override.includes(new Date(`${activeDay.dateISO}T00:00:00`).getDay());
         })()}
         isExceptionalBreak={selectedCellIsExceptionalBreak}
         onSave={({ assignment, applyToEmployeeDay, dayHours, exceptionalRestDay, exceptionalBreak }) => {

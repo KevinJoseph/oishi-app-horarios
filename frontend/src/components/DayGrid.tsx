@@ -2,7 +2,7 @@ import { Box, Button, Text } from '@chakra-ui/react';
 import type { Assignment, BreakConfig, DayPlan, Employee, Role, TimeSlot } from '../types';
 import { isTimeSlotInBreak } from '../utils/breaks';
 import { isBreakAssignment, isExplicitFreeAssignment, suppressesConfiguredBreak } from '../utils/assignments';
-import { isRestDayForDate } from '../utils/weekdays';
+import { isAnyRestDayForDate, isRestDayForDate } from '../utils/weekdays';
 import { AssignmentCell } from './AssignmentCell';
 
 type CellPayload = {
@@ -22,7 +22,7 @@ type Props = {
   roles: Role[];
   timeSlots: TimeSlot[];
   breakConfig: BreakConfig;
-  restDayOverrides?: Record<string, number>;
+  restDayOverrides?: Record<string, number[]>;
   employeeHoursById?: Record<string, EmployeeHoursSummary>;
   onCellClick?: (payload: CellPayload) => void;
   onEmployeeClick?: (employeeId: string) => void;
@@ -140,11 +140,13 @@ export function DayGrid({
                     (assignment.roleId === null &&
                       !suppressesConfiguredBreak(assignment) &&
                       isTimeSlotInBreak(slot, breakConfig));
-                  const effectiveRestDay = restDayOverrides?.[employee.id] ?? employee.restDay;
+                  const override = restDayOverrides?.[employee.id];
                   const isRestDay =
                     assignment.roleId === null &&
                     !isExplicitFreeAssignment(assignment) &&
-                    isRestDayForDate(dayPlan.dateISO, effectiveRestDay);
+                    (override
+                      ? isAnyRestDayForDate(dayPlan.dateISO, override)
+                      : isRestDayForDate(dayPlan.dateISO, employee.restDay));
                   return (
                     <Box as="td" key={employee.id} p={0}>
                       <AssignmentCell

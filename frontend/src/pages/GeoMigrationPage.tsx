@@ -571,6 +571,7 @@ export function GeoMigrationPage(): JSX.Element {
                   roles={scopedRoles}
                   timeSlots={timeSlots}
                   breakConfig={breakConfig}
+                  restDayOverrides={weekPlan.restDayOverrides?.[selectedEmployee.id]}
                   maxTableHeight="60vh"
                 />
               </VStack>

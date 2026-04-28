@@ -1,7 +1,7 @@
 import type { BreakConfig, Employee, Role, TimeSlot, WeekPlan } from '../types';
 import { isTimeSlotInBreak } from './breaks';
 import { isBreakAssignment, isWorkAssignment } from './assignments';
-import { isRestDayForDate } from './weekdays';
+import { isAnyRestDayForDate, isRestDayForDate } from './weekdays';
 
 export type GeoMigrationRow = {
   key: string;
@@ -82,7 +82,11 @@ export function buildGeoMigrationRows(
         | null = null;
       let hasWorkAssignments = false;
       let hasAnyAssignments = false;
-      const employeeRestDay = isRestDayForDate(day.dateISO, employee.restDay);
+      const overrideList = weekPlan.restDayOverrides?.[employee.id];
+      const employeeRestDay =
+        overrideList && overrideList.length > 0
+          ? isAnyRestDayForDate(day.dateISO, overrideList)
+          : isRestDayForDate(day.dateISO, employee.restDay);
 
       const flushCurrentSegment = (): void => {
         if (!currentSegment) return;

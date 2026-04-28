@@ -2,7 +2,7 @@ import { Box, Text } from '@chakra-ui/react';
 import type { BreakConfig, DayPlan, Employee, Role, TimeSlot } from '../types';
 import { isTimeSlotInBreak } from '../utils/breaks';
 import { isBreakAssignment, isExplicitFreeAssignment, suppressesConfiguredBreak } from '../utils/assignments';
-import { isRestDayForDate } from '../utils/weekdays';
+import { isAnyRestDayForDate, isRestDayForDate } from '../utils/weekdays';
 import { AssignmentCell } from './AssignmentCell';
 
 type Props = {
@@ -11,10 +11,11 @@ type Props = {
   roles: Role[];
   timeSlots: TimeSlot[];
   breakConfig: BreakConfig;
+  restDayOverrides?: number[];
   maxTableHeight?: string;
 };
 
-export function EmployeeWeekGrid({ employee, days, roles, timeSlots, breakConfig, maxTableHeight = '46vh' }: Props): JSX.Element {
+export function EmployeeWeekGrid({ employee, days, roles, timeSlots, breakConfig, restDayOverrides, maxTableHeight = '46vh' }: Props): JSX.Element {
   const roleById = new Map(roles.map((role) => [role.id, role]));
   const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
   const visibleSlots = orderedSlots;
@@ -66,7 +67,9 @@ export function EmployeeWeekGrid({ employee, days, roles, timeSlots, breakConfig
                   const isRestDay =
                     assignment.roleId === null &&
                     !isExplicitFreeAssignment(assignment) &&
-                    isRestDayForDate(day.dateISO, employee.restDay);
+                    (restDayOverrides && restDayOverrides.length > 0
+                      ? isAnyRestDayForDate(day.dateISO, restDayOverrides)
+                      : isRestDayForDate(day.dateISO, employee.restDay));
                   return (
                     <Box as="td" key={`${day.dateISO}-${slot.id}`} p={0}>
                       <AssignmentCell

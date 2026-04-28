@@ -26,7 +26,7 @@ import type {
   WeekPlan
 } from '../types';
 import { getCurrentWeekStartDateISO } from '../utils/dates';
-import { normalizeRestDay } from '../utils/weekdays';
+import { normalizeRestDay, normalizeRestDayList } from '../utils/weekdays';
 import { useAuthStore } from './useAuthStore';
 
 type UpdateAssignmentInput = {
@@ -182,7 +182,7 @@ function buildAutoWeekPlanForEmployee(
   roleId: string,
   preferredRoleCode: string | undefined,
   weeklyHours: number,
-  restDay: number,
+  restDays: number[],
   shiftType: Employee['shiftType'],
   shiftRanges: ShiftRanges,
   breakConfig: BreakConfig,
@@ -206,7 +206,7 @@ function buildAutoWeekPlanForEmployee(
 
   const days = plan.days.map((day) => {
     const assignments = { ...day.assignments };
-    const isRestDay = parseISODateToDay(day.dateISO) === restDay;
+    const isRestDay = restDays.includes(parseISODateToDay(day.dateISO));
     for (const slot of assignableSlots) {
       const byEmployee = { ...(assignments[slot.id] ?? {}) };
       const existing = byEmployee[employeeId];
@@ -265,7 +265,7 @@ function rebuildWeekPlansFromEmployees(
         employee.mainRoleId as string,
         employee.mainRoleCode,
         weeklyHours,
-        plan.restDayOverrides?.[employee.id] ?? normalizeRestDay(employee.restDay),
+        plan.restDayOverrides?.[employee.id] ?? [normalizeRestDay(employee.restDay)],
         employee.shiftType,
         shiftRanges,
         breakConfig,
@@ -2135,10 +2135,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       const plan = state.weekPlans[scopedWeekId];
       if (!plan) return {};
       const restDayOverrides = { ...(plan.restDayOverrides ?? {}) };
+      const currentList = normalizeRestDayList(restDayOverrides[employeeId]);
+      let nextList: number[];
       if (active) {
-        restDayOverrides[employeeId] = dayNumber;
+        nextList = currentList.includes(dayNumber) ? currentList : [...currentList, dayNumber];
       } else {
+        nextList = currentList.filter((d) => d !== dayNumber);
+      }
+      if (nextList.length === 0) {
         delete restDayOverrides[employeeId];
+      } else {
+        restDayOverrides[employeeId] = nextList;
       }
       // Al activar: limpiar todas las celdas del nuevo día de descanso para ese colaborador
       const days = plan.days.map((day) => {

@@ -23,3 +23,20 @@ export function isRestDayForDate(dateISO: string, restDay: number | undefined): 
   const date = new Date(`${dateISO}T00:00:00`);
   return date.getDay() === normalized;
 }
+
+export function normalizeRestDayList(value: number | number[] | undefined): number[] {
+  if (value === undefined || value === null) return [];
+  const arr = Array.isArray(value) ? value : [value];
+  const out: number[] = [];
+  for (const v of arr) {
+    if (typeof v !== 'number' || v < 0 || v > 6) continue;
+    if (!out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
+export function isAnyRestDayForDate(dateISO: string, restDays: number[] | undefined): boolean {
+  if (!restDays || restDays.length === 0) return false;
+  const dow = new Date(`${dateISO}T00:00:00`).getDay();
+  return restDays.includes(dow);
+}

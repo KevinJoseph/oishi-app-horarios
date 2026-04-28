@@ -6,6 +6,7 @@ type WeekPlanDocument = {
   areaId: string;
   baseWeekId: string;
   days: unknown[];
+  restDayOverrides?: Record<string, number[]>;
   updatedAt: Date;
   createdAt: Date;
 };
@@ -16,7 +17,8 @@ const WeekPlanSchema = new Schema<WeekPlanDocument>(
     companyId: { type: String, required: true, index: true },
     areaId: { type: String, required: true, index: true },
     baseWeekId: { type: String, required: true, index: true },
-    days: { type: [Schema.Types.Mixed], required: true }
+    days: { type: [Schema.Types.Mixed], required: true },
+    restDayOverrides: { type: Schema.Types.Mixed }
   },
   { timestamps: true, versionKey: false, _id: false }
 );

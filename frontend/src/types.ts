@@ -115,7 +115,7 @@ export type DayPlan = {
 export type WeekPlan = {
   weekId: string;
   days: DayPlan[];
-  restDayOverrides?: Record<string, number>; // employeeId → day number (0-6), solo para esa semana
+  restDayOverrides?: Record<string, number[]>; // employeeId → días (0-6), solo para esa semana
 };
 
 export type WeekAudit = {

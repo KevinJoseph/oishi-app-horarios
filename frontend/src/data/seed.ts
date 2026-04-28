@@ -18,6 +18,7 @@ import type {
   WeekPlan
 } from '../types';
 import { buildWeekLabel, formatDayNameEs, getCurrentWeekStartDateISO } from '../utils/dates';
+import { normalizeRestDayList } from '../utils/weekdays';
 
 export type SeedState = {
   areas: AreaInfo[];
@@ -214,6 +215,18 @@ function normalizeBreakConfig(input: BreakConfig | undefined, timeSlots: SeedSta
   };
 }
 
+function normalizeRestDayOverridesMap(
+  raw: Record<string, number | number[]> | undefined
+): Record<string, number[]> | undefined {
+  if (!raw) return undefined;
+  const out: Record<string, number[]> = {};
+  for (const [empId, value] of Object.entries(raw)) {
+    const list = normalizeRestDayList(value);
+    if (list.length > 0) out[empId] = list;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function normalizeWeekPlan(weekStartDateISO: string, sourcePlan: WeekPlan | undefined): WeekPlan {
   const start = parseISO(weekStartDateISO);
   const days = Array.from({ length: 7 }).map((_, idx) => {
@@ -227,10 +240,13 @@ function normalizeWeekPlan(weekStartDateISO: string, sourcePlan: WeekPlan | unde
     };
   });
 
+  const overrides = normalizeRestDayOverridesMap(
+    sourcePlan?.restDayOverrides as Record<string, number | number[]> | undefined
+  );
   return {
     weekId: sourcePlan?.weekId ?? '',
     days,
-    ...(sourcePlan?.restDayOverrides ? { restDayOverrides: sourcePlan.restDayOverrides } : {})
+    ...(overrides ? { restDayOverrides: overrides } : {})
   };
 }
 

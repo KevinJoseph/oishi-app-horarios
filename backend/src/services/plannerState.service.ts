@@ -184,7 +184,11 @@ export async function getOrCreatePlannerState(context: PlannerStateContext): Pro
   for (const doc of weekPlanDocs) {
     const areaId = isValidAreaCode(doc.areaId) ? doc.areaId : areaCodes[0] ?? 'default';
     const key = toLegacyScope(areaId, doc.baseWeekId);
-    weekPlans[key] = { weekId: key, days: doc.days as WeekPlan['days'] };
+    weekPlans[key] = {
+      weekId: key,
+      days: doc.days as WeekPlan['days'],
+      ...(doc.restDayOverrides ? { restDayOverrides: doc.restDayOverrides as Record<string, number[]> } : {})
+    };
   }
 
   const weekConfigById: PlannerStatePayload['weekConfigById'] = {};
@@ -349,6 +353,7 @@ async function upsertWeekPlan(companyId: string, legacyKey: string, plan: WeekPl
   const areaId = rawAreaId as AreaId;
   const id = scopedKey(companyId, areaId, baseWeekId);
 
+  const hasOverrides = plan.restDayOverrides && Object.keys(plan.restDayOverrides).length > 0;
   await WeekPlanModel.updateOne(
     { _id: id },
     {
@@ -356,8 +361,10 @@ async function upsertWeekPlan(companyId: string, legacyKey: string, plan: WeekPl
         companyId,
         areaId,
         baseWeekId,
-        days: plan.days
-      }
+        days: plan.days,
+        ...(hasOverrides ? { restDayOverrides: plan.restDayOverrides } : {})
+      },
+      ...(hasOverrides ? {} : { $unset: { restDayOverrides: '' } })
     },
     { upsert: true }
   );

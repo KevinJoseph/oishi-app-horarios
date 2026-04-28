@@ -103,6 +103,7 @@ export type DayPlan = {
 export type WeekPlan = {
   weekId: string;
   days: DayPlan[];
+  restDayOverrides?: Record<string, number[]>;
 };
 
 export type WeekAudit = {

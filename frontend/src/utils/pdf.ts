@@ -2,7 +2,17 @@ import { jsPDF } from 'jspdf';
 import type { BreakConfig, DayPlan, Employee, Role, TimeSlot, Week, WeekPlan } from '../types';
 import { isTimeSlotInBreak } from './breaks';
 import { isBreakAssignment, isWorkAssignment } from './assignments';
-import { isRestDayForDate } from './weekdays';
+import { isAnyRestDayForDate, isRestDayForDate } from './weekdays';
+
+function isEmployeeRestForDate(
+  dateISO: string,
+  employee: Employee,
+  overridesById?: Record<string, number[]>
+): boolean {
+  const override = overridesById?.[employee.id];
+  if (override && override.length > 0) return isAnyRestDayForDate(dateISO, override);
+  return isRestDayForDate(dateISO, employee.restDay);
+}
 
 type DownloadEmployeeWeekPdfInput = {
   employee: Employee;
@@ -46,6 +56,7 @@ type DownloadDaySchedulePdfInput = {
   week: Week;
   isValidated: boolean;
   validatedByName: string | null;
+  restDayOverrides?: Record<string, number[]>;
 };
 
 export function downloadEmployeeWeekPdf({
@@ -116,10 +127,11 @@ export function downloadDaySchedulePdf({
   breakConfig,
   week,
   isValidated,
-  validatedByName
+  validatedByName,
+  restDayOverrides
 }: DownloadDaySchedulePdfInput): void {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
-  drawDaySchedulePage(doc, { dayPlan, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName });
+  drawDaySchedulePage(doc, { dayPlan, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName, restDayOverrides });
 
   const safeDay = `${dayPlan.dayName}-${dayPlan.dateISO}`.replace(/[^\w-]+/g, '-').toLowerCase();
   doc.save(`horario-dia-${safeDay}.pdf`);
@@ -144,7 +156,8 @@ export function downloadWeeklyGridPdf({
     breakConfig,
     week,
     isValidated,
-    validatedByName
+    validatedByName,
+    restDayOverrides: weekPlan.restDayOverrides
   });
 
   const safeWeek = week.label.replace(/[^\w-]+/g, '-');
@@ -162,9 +175,10 @@ function drawWeeklyGridSinglePage(
     week: Week;
     isValidated: boolean;
     validatedByName: string | null;
+    restDayOverrides?: Record<string, number[]>;
   }
 ): void {
-  const { dayPlans, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName } = input;
+  const { dayPlans, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName, restDayOverrides } = input;
   const roleColorById = new Map(roles.map((role) => [role.id, role.colorHex]));
   const activeEmployees = employees.filter((employee) => employee.active);
   const visibleTimeSlots = getVisibleTimeSlots(timeSlots);
@@ -198,26 +212,26 @@ function drawWeeklyGridSinglePage(
   const [monday, tuesday, wednesday, thursday, friday, saturday, sunday] = dayPlans;
 
   if (monday) {
-    drawCompactDayTable(doc, monday, marginX, topY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+    drawCompactDayTable(doc, monday, marginX, topY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap, restDayOverrides);
   }
   if (tuesday) {
-    drawCompactDayTable(doc, tuesday, marginX + thirdWidth + blockGap, topY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+    drawCompactDayTable(doc, tuesday, marginX + thirdWidth + blockGap, topY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap, restDayOverrides);
   }
   if (wednesday) {
-    drawCompactDayTable(doc, wednesday, marginX + (thirdWidth + blockGap) * 2, topY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+    drawCompactDayTable(doc, wednesday, marginX + (thirdWidth + blockGap) * 2, topY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap, restDayOverrides);
   }
   if (thursday) {
-    drawCompactDayTable(doc, thursday, marginX, bottomY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+    drawCompactDayTable(doc, thursday, marginX, bottomY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap, restDayOverrides);
   }
   if (friday) {
-    drawCompactDayTable(doc, friday, marginX + thirdWidth + blockGap, bottomY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+    drawCompactDayTable(doc, friday, marginX + thirdWidth + blockGap, bottomY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap, restDayOverrides);
   }
   if (saturday) {
-    drawCompactDayTable(doc, saturday, marginX + (thirdWidth + blockGap) * 2, bottomY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+    drawCompactDayTable(doc, saturday, marginX + (thirdWidth + blockGap) * 2, bottomY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap, restDayOverrides);
   }
   if (sunday) {
     const sundayY = Math.min(bottomY + topRowHeight + blockGap, pageHeight - (headerHeight + visibleTimeSlots.length * rowHeight + sectionTitleGap) - 8);
-    drawCompactDayTable(doc, sunday, marginX, sundayY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap);
+    drawCompactDayTable(doc, sunday, marginX, sundayY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap, restDayOverrides);
     drawLegendBottom(doc, roles, marginX + thirdWidth + blockGap + 2, sundayY + 2, thirdWidth * 2 - 2, 7);
   } else {
     drawLegendBottom(doc, roles, marginX, bottomY + topRowHeight + 6, contentWidth, 7);
@@ -236,7 +250,8 @@ function drawCompactDayTable(
   roleColorById: Map<string, string>,
   rowHeight: number,
   headerHeight: number,
-  sectionTitleGap: number
+  sectionTitleGap: number,
+  restDayOverrides?: Record<string, number[]>
 ): void {
   const firstColumnWidth = Math.min(18, tableWidth * 0.22);
   const employeeColumnWidth = (tableWidth - firstColumnWidth) / Math.max(activeEmployees.length, 1);
@@ -261,7 +276,7 @@ function drawCompactDayTable(
       const isBreak = isBreakAssignment(assignment);
       const isWork = isWorkAssignment(assignment);
       const label = !assignment
-        ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
+        ? isEmployeeRestForDate(dayPlan.dateISO, employee, restDayOverrides)
           ? 'Descanso'
           : isTimeSlotInBreak(slot, breakConfig)
             ? 'Break'
@@ -269,7 +284,7 @@ function drawCompactDayTable(
         : isBreak
           ? 'Break'
           : !isWork
-            ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
+            ? isEmployeeRestForDate(dayPlan.dateISO, employee, restDayOverrides)
               ? 'Descanso'
               : isTimeSlotInBreak(slot, breakConfig)
                 ? 'Break'
@@ -300,9 +315,10 @@ function drawDaySchedulePage(
     week: Week;
     isValidated: boolean;
     validatedByName: string | null;
+    restDayOverrides?: Record<string, number[]>;
   }
 ): void {
-  const { dayPlan, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName } = input;
+  const { dayPlan, employees, roles, timeSlots, breakConfig, week, isValidated, validatedByName, restDayOverrides } = input;
   const roleColorById = new Map(roles.map((role) => [role.id, role.colorHex]));
   const activeEmployees = employees.filter((employee) => employee.active);
   const visibleTimeSlots = getVisibleTimeSlots(timeSlots);
@@ -343,7 +359,7 @@ function drawDaySchedulePage(
       const isBreak = isBreakAssignment(assignment);
       const isWork = isWorkAssignment(assignment);
       const label = !assignment
-        ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
+        ? isEmployeeRestForDate(dayPlan.dateISO, employee, restDayOverrides)
           ? 'Descanso'
           : isTimeSlotInBreak(slot, breakConfig)
             ? 'Break'
@@ -351,7 +367,7 @@ function drawDaySchedulePage(
         : isBreak
           ? 'Break'
           : !isWork
-            ? isRestDayForDate(dayPlan.dateISO, employee.restDay)
+            ? isEmployeeRestForDate(dayPlan.dateISO, employee, restDayOverrides)
               ? 'Descanso'
               : isTimeSlotInBreak(slot, breakConfig)
                 ? 'Break'
@@ -435,8 +451,9 @@ function drawEmployeeSchedulePage(
       const assignment = day.assignments[slot.id]?.[employee.id];
       const isBreak = isBreakAssignment(assignment);
       const isWork = isWorkAssignment(assignment);
+      const overrideMap = weekPlan.restDayOverrides;
       const label = !assignment
-        ? isRestDayForDate(day.dateISO, employee.restDay)
+        ? isEmployeeRestForDate(day.dateISO, employee, overrideMap)
           ? 'Descanso'
           : isTimeSlotInBreak(slot, breakConfig)
             ? 'Break'
@@ -444,7 +461,7 @@ function drawEmployeeSchedulePage(
         : isBreak
           ? 'Break'
           : !isWork
-            ? isRestDayForDate(day.dateISO, employee.restDay)
+            ? isEmployeeRestForDate(day.dateISO, employee, overrideMap)
               ? 'Descanso'
               : isTimeSlotInBreak(slot, breakConfig)
                 ? 'Break'

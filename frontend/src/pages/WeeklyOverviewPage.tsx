@@ -313,6 +313,7 @@ export function WeeklyOverviewPage(): JSX.Element {
                     roles={roles}
                     timeSlots={timeSlots}
                     breakConfig={breakConfig}
+                    restDayOverrides={currentWeekPlan?.restDayOverrides?.[employee.id]}
                     maxTableHeight="42vh"
                   />
                 </CardBody>

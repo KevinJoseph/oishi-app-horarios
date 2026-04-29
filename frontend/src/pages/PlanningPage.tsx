@@ -36,7 +36,7 @@ import type { AreaId, Assignment } from '../types';
 import { isBreakAssignment, suppressesConfiguredBreak } from '../utils/assignments';
 import { isTimeSlotInBreak } from '../utils/breaks';
 import { getCurrentMonday } from '../utils/dates';
-import { isRestDayForDate } from '../utils/weekdays';
+import { isAnyRestDayForDate, isRestDayForDate } from '../utils/weekdays';
 import { downloadDaySchedulePdf } from '../utils/pdf';
 import { getOpeningClosingSummary } from '../utils/summary';
 
@@ -485,6 +485,52 @@ export function PlanningPage(): JSX.Element {
                           openBlockedNextWeekModal();
                         }
                       }}
+                      onApplyRange={({ sourceCell, untilTimeSlotId }) => {
+                        if (!canEditWeek || !activeDay || !currentWeek) return;
+                        if (isBreakAssignment(sourceCell.assignment)) return;
+                        const employee = employees.find((item) => item.id === sourceCell.employeeId);
+                        const override = currentWeekPlan?.restDayOverrides?.[sourceCell.employeeId];
+                        const isRestToday = override
+                          ? isAnyRestDayForDate(activeDay.dateISO, override)
+                          : isRestDayForDate(activeDay.dateISO, employee?.restDay);
+                        if (isRestToday) return;
+                        const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
+                        const sourceIndex = orderedSlots.findIndex((slot) => slot.id === sourceCell.timeSlotId);
+                        const untilIndex = orderedSlots.findIndex((slot) => slot.id === untilTimeSlotId);
+                        if (sourceIndex < 0 || untilIndex < 0 || untilIndex === sourceIndex) return;
+                        const [fromIdx, toIdx] =
+                          sourceIndex < untilIndex
+                            ? [sourceIndex + 1, untilIndex + 1]
+                            : [untilIndex, sourceIndex];
+                        const targetSlotIds = orderedSlots
+                          .slice(fromIdx, toIdx)
+                          .filter((slot) => {
+                            if (isTimeSlotInBreak(slot, breakConfig)) return false;
+                            const existing = activeDay.assignments[slot.id]?.[sourceCell.employeeId];
+                            return !(existing && isBreakAssignment(existing));
+                          })
+                          .map((slot) => slot.id);
+                        if (targetSlotIds.length === 0) {
+                          toast({ status: 'info', title: 'No hay celdas válidas en el rango.' });
+                          return;
+                        }
+                        const isFreeSource = sourceCell.assignment.roleId === null;
+                        const result = updateEmployeeDayAssignments({
+                          weekId: currentScopedWeekId ?? currentWeek.id,
+                          dateISO: activeDay.dateISO,
+                          employeeId: sourceCell.employeeId,
+                          assignment: isFreeSource
+                            ? { roleId: null, code: 'LIBRE', explicitFree: true }
+                            : { roleId: sourceCell.assignment.roleId, code: sourceCell.assignment.code, explicitFree: false },
+                          timeSlotIds: targetSlotIds,
+                          actorName: currentUser?.name
+                        });
+                        if (!result.ok) {
+                          toast({ status: 'error', title: result.error ?? 'No se pudo rellenar.' });
+                        } else {
+                          toast({ status: 'success', title: `Se rellenaron ${targetSlotIds.length} celda(s).` });
+                        }
+                      }}
                       onEmployeeClick={(employeeId) => {
                         setSelectedEmployeeId(employeeId);
                         openProfile();
@@ -662,6 +708,10 @@ export function PlanningPage(): JSX.Element {
         assignment={selectedCell?.assignment ?? null}
         employeeName={employees.find((employee) => employee.id === selectedCell?.employeeId)?.name}
         roles={roles}
+        defaultDayHours={timeSlots.reduce((sum, slot) => {
+          if (isTimeSlotInBreak(slot, breakConfig)) return sum;
+          return sum + getDurationHours(slot.start, slot.end);
+        }, 0)}
         isCurrentWeek={currentWeek?.startDateISO === currentWorkflowWeekStartDateISO}
         isNormalRestDay={(() => {
           if (!activeDay || !selectedCell) return false;

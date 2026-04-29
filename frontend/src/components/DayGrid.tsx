@@ -1,4 +1,5 @@
 import { Box, Button, Text } from '@chakra-ui/react';
+import { useEffect, useState } from 'react';
 import type { Assignment, BreakConfig, DayPlan, Employee, Role, TimeSlot } from '../types';
 import { isTimeSlotInBreak } from '../utils/breaks';
 import { isBreakAssignment, isExplicitFreeAssignment, suppressesConfiguredBreak } from '../utils/assignments';
@@ -9,6 +10,19 @@ type CellPayload = {
   timeSlotId: string;
   employeeId: string;
   assignment: Assignment;
+};
+
+type DragFillState = {
+  sourceSlotId: string;
+  sourceSlotOrder: number;
+  employeeId: string;
+  assignment: Assignment;
+  targetSlotOrder: number;
+};
+
+type ApplyRangePayload = {
+  sourceCell: CellPayload;
+  untilTimeSlotId: string;
 };
 
 type EmployeeHoursSummary = {
@@ -25,6 +39,7 @@ type Props = {
   restDayOverrides?: Record<string, number[]>;
   employeeHoursById?: Record<string, EmployeeHoursSummary>;
   onCellClick?: (payload: CellPayload) => void;
+  onApplyRange?: (payload: ApplyRangePayload) => void;
   onEmployeeClick?: (employeeId: string) => void;
   showEmployeeCodeInCells?: boolean;
   readOnly?: boolean;
@@ -43,6 +58,7 @@ export function DayGrid({
   restDayOverrides,
   employeeHoursById,
   onCellClick,
+  onApplyRange,
   onEmployeeClick,
   showEmployeeCodeInCells = false,
   readOnly = false,
@@ -54,6 +70,31 @@ export function DayGrid({
   const roleById = new Map(roles.map((role) => [role.id, role]));
   const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
   const visibleSlots = orderedSlots;
+  const [drag, setDrag] = useState<DragFillState | null>(null);
+
+  useEffect(() => {
+    if (!drag) return;
+    const handleUp = (): void => {
+      setDrag((current) => {
+        if (current && current.targetSlotOrder !== current.sourceSlotOrder) {
+          const targetSlot = orderedSlots.find((slot) => slot.order === current.targetSlotOrder);
+          if (targetSlot) {
+            onApplyRange?.({
+              sourceCell: {
+                timeSlotId: current.sourceSlotId,
+                employeeId: current.employeeId,
+                assignment: current.assignment
+              },
+              untilTimeSlotId: targetSlot.id
+            });
+          }
+        }
+        return null;
+      });
+    };
+    window.addEventListener('mouseup', handleUp);
+    return () => window.removeEventListener('mouseup', handleUp);
+  }, [drag, orderedSlots, onApplyRange]);
   const visibleEmployees = employees.filter((employee) => {
     if (employee.active) return true;
     if (!showInactiveEmployees) return false;
@@ -147,6 +188,22 @@ export function DayGrid({
                     (override
                       ? isAnyRestDayForDate(dayPlan.dateISO, override)
                       : isRestDayForDate(dayPlan.dateISO, employee.restDay));
+                  const canDragFill =
+                    !readOnly &&
+                    Boolean(onApplyRange) &&
+                    !isBreakSlot &&
+                    !isRestDay;
+                  const dragMinOrder = drag ? Math.min(drag.sourceSlotOrder, drag.targetSlotOrder) : 0;
+                  const dragMaxOrder = drag ? Math.max(drag.sourceSlotOrder, drag.targetSlotOrder) : 0;
+                  const isDragHighlight =
+                    drag !== null &&
+                    drag.employeeId === employee.id &&
+                    slot.order >= dragMinOrder &&
+                    slot.order <= dragMaxOrder;
+                  const isDragSameColumn =
+                    drag !== null &&
+                    drag.employeeId === employee.id &&
+                    slot.order !== drag.sourceSlotOrder;
                   return (
                     <Box as="td" key={employee.id} p={0}>
                       <AssignmentCell
@@ -168,6 +225,27 @@ export function DayGrid({
                             ? undefined
                             : () => onCellClick?.({ timeSlotId: slot.id, employeeId: employee.id, assignment })
                         }
+                        onDragFillStart={
+                          canDragFill
+                            ? () =>
+                                setDrag({
+                                  sourceSlotId: slot.id,
+                                  sourceSlotOrder: slot.order,
+                                  employeeId: employee.id,
+                                  assignment,
+                                  targetSlotOrder: slot.order
+                                })
+                            : undefined
+                        }
+                        onCellMouseEnter={
+                          isDragSameColumn
+                            ? () =>
+                                setDrag((current) =>
+                                  current ? { ...current, targetSlotOrder: slot.order } : current
+                                )
+                            : undefined
+                        }
+                        isDragHighlight={isDragHighlight}
                       />
                     </Box>
                   );

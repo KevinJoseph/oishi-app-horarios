@@ -26,6 +26,7 @@ type Props = {
   assignment: Assignment | null;
   employeeName?: string;
   roles: Role[];
+  defaultDayHours?: number;
   isCurrentWeek?: boolean;
   isNormalRestDay?: boolean;
   isNormalBreakSlot?: boolean;
@@ -46,6 +47,7 @@ export function CellEditorModal({
   assignment,
   employeeName,
   roles,
+  defaultDayHours = 0,
   isCurrentWeek = false,
   isNormalRestDay = false,
   isNormalBreakSlot = false,
@@ -70,10 +72,10 @@ export function CellEditorModal({
   useEffect(() => {
     if (!isOpen) return;
     setApplyToEmployeeDay(false);
-    setDayHours('0');
+    setDayHours(String(defaultDayHours));
     setExRestDay(isExceptionalRestDay);
     setExBreak(isExceptionalBreak);
-  }, [isExceptionalBreak, isExceptionalRestDay, isOpen]);
+  }, [defaultDayHours, isExceptionalBreak, isExceptionalRestDay, isOpen]);
 
   const selectedRole = useMemo(() => roles.find((role) => role.id === roleId), [roles, roleId]);
   const options = selectedRole?.validCodes ?? [];

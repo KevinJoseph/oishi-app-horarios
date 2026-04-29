@@ -1,4 +1,5 @@
-import { Badge, Box } from '@chakra-ui/react';
+import { Badge, Box, Tooltip } from '@chakra-ui/react';
+import { useState } from 'react';
 import type { Assignment, Role } from '../types';
 import { isBreakAssignment } from '../utils/assignments';
 
@@ -7,23 +8,42 @@ type Props = {
   role?: Role;
   labelOverride?: string;
   onClick?: () => void;
+  onDragFillStart?: () => void;
+  onCellMouseEnter?: () => void;
+  isDragHighlight?: boolean;
 };
 
-export function AssignmentCell({ assignment, role, labelOverride, onClick }: Props): JSX.Element {
+export function AssignmentCell({
+  assignment,
+  role,
+  labelOverride,
+  onClick,
+  onDragFillStart,
+  onCellMouseEnter,
+  isDragHighlight = false
+}: Props): JSX.Element {
+  const [hover, setHover] = useState(false);
   const isBreak = isBreakAssignment(assignment);
   const isFree = assignment.roleId === null && !isBreak;
   const label = labelOverride ?? (isBreak ? 'Break' : isFree ? 'SIN ASIGNAR' : assignment.code);
+  const baseBg = isBreak ? 'gray.100' : isFree ? 'white' : `${role?.colorHex ?? '#EDF2F7'}22`;
   return (
     <Box
+      position="relative"
       minH="48px"
       borderWidth="1px"
-      borderColor="blackAlpha.100"
+      borderColor={isDragHighlight ? 'blue.400' : 'blackAlpha.100'}
       display="flex"
       alignItems="center"
       justifyContent="center"
       cursor={onClick ? 'pointer' : 'default'}
-      bg={isBreak ? 'gray.100' : isFree ? 'white' : `${role?.colorHex ?? '#EDF2F7'}22`}
+      bg={isDragHighlight ? 'blue.50' : baseBg}
       onClick={onClick}
+      onMouseEnter={() => {
+        setHover(true);
+        onCellMouseEnter?.();
+      }}
+      onMouseLeave={() => setHover(false)}
     >
       <Badge
         colorScheme={isBreak ? 'gray' : isFree ? 'gray' : 'blue'}
@@ -35,6 +55,29 @@ export function AssignmentCell({ assignment, role, labelOverride, onClick }: Pro
       >
         {label}
       </Badge>
+      {onDragFillStart && hover ? (
+        <Tooltip label="Arrastra hacia abajo para rellenar" hasArrow openDelay={400}>
+          <Box
+            position="absolute"
+            right="3px"
+            bottom="3px"
+            w="16px"
+            h="16px"
+            bg="blue.500"
+            borderRadius="3px"
+            cursor="ns-resize"
+            border="2px solid white"
+            boxShadow="0 0 0 1px rgba(0,0,0,0.15)"
+            _hover={{ bg: 'blue.600' }}
+            onMouseDown={(event) => {
+              event.stopPropagation();
+              event.preventDefault();
+              onDragFillStart();
+            }}
+            onClick={(event) => event.stopPropagation()}
+          />
+        </Tooltip>
+      ) : null}
     </Box>
   );
 }

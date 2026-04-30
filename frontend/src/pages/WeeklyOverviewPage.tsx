@@ -225,7 +225,7 @@ export function WeeklyOverviewPage(): JSX.Element {
       <Card mb={4}>
         <CardBody>
           <Flex direction={{ base: 'column', xl: 'row' }} justify="space-between" align={{ base: 'stretch', xl: 'center' }} gap={3}>
-            <Heading size="md">Vista General</Heading>
+            <Heading size="md">Exportar Horarios</Heading>
             <HStack spacing={2} align="center" wrap={{ base: 'wrap', xl: 'nowrap' }} justify="flex-end">
               <Select
                 maxW="220px"

@@ -321,7 +321,7 @@ export function GeoMigrationPage(): JSX.Element {
         <CardHeader pb={0}>
           <VStack align="stretch" spacing={1}>
             <Text fontSize="2xl" fontWeight="700" color="gray.800">
-              Migrar a Geo
+              Migrar Turnos
             </Text>
             <Text color="gray.600">
               Revisa la semana seleccionada y migra los turnos diarios a GeoVictoria. Si eliges una empresa global en el

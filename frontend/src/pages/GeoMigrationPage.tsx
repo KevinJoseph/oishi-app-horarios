@@ -23,6 +23,7 @@ import {
   Tooltip,
   Tr,
   VStack,
+  Progress,
   useDisclosure,
   useToast
 } from '@chakra-ui/react';
@@ -64,6 +65,14 @@ type StoredMigrationResult = {
   result: GeoVictoriaPlanningMigrationResult;
   migratedAt: string;
   migratedBy: string | null;
+};
+
+type BatchMigrationProgress = {
+  total: number;
+  completed: number;
+  migrated: number;
+  failed: number;
+  currentEmployeeName: string | null;
 };
 
 
@@ -177,6 +186,7 @@ export function GeoMigrationPage(): JSX.Element {
   const [selectedGroup, setSelectedGroup] = useState<GeoMigrationGroup | null>(null);
   const [pendingMigrationKeys, setPendingMigrationKeys] = useState<string[]>([]);
   const [pendingMigrationLabel, setPendingMigrationLabel] = useState('');
+  const [batchProgress, setBatchProgress] = useState<BatchMigrationProgress | null>(null);
   const selectedEmployee = useMemo(
     () => scopedEmployees.find((employee) => employee.id === selectedGroup?.employeeId) ?? null,
     [scopedEmployees, selectedGroup]
@@ -221,25 +231,78 @@ export function GeoMigrationPage(): JSX.Element {
 
   const allMigratableSelected = migratableKeys.length > 0 && migratableKeys.every((key) => selectedKeys.includes(key));
 
+  const buildMigrationItems = (group: GeoMigrationGroup) =>
+    group.rows.map((row) => ({
+      assignmentType: row.assignmentType,
+      employeeId: row.employeeId,
+      employeeName: row.employeeName,
+      companyId: row.companyId,
+      companyAlias: row.companyAlias,
+      userIdentifier: row.userIdentifier,
+      dateISO: row.dateISO,
+      startHour: row.startHour,
+      endHour: row.endHour,
+      breakStartHour: row.breakStartHour,
+      breakEndHour: row.breakEndHour,
+      costCenterCode: row.costCenterCode,
+      custom: row.custom
+    }));
+
+  const persistMigrationResults = (
+    group: GeoMigrationGroup,
+    response: { migrated: number; failed: number; results: GeoVictoriaPlanningMigrationResult[] },
+    migratedAt: string,
+    migratedBy: string | null
+  ): void => {
+    setResultByKey((current) => {
+      const nextResults = { ...current };
+      for (const result of response.results) {
+        const rowKey =
+          result.assignmentType === 'rest'
+            ? `${result.employeeId}:${result.dateISO}:rest`
+            : result.assignmentType === 'free'
+              ? `${result.employeeId}:${result.dateISO}:free`
+              : `${result.employeeId}:${result.dateISO}:${result.startHour}:${result.endHour}:${result.breakStartHour ?? ''}:${result.breakEndHour ?? ''}`;
+        nextResults[rowKey] = { result, migratedAt, migratedBy };
+      }
+      return nextResults;
+    });
+
+    if (!currentScopedWeekId) return;
+
+    const log = {
+      companyId: group.companyId,
+      areaId: currentAreaId,
+      scopedWeekId: currentScopedWeekId,
+      employeeId: group.employeeId,
+      employeeName: group.employeeName,
+      userIdentifier: group.userIdentifier,
+      groupKey: group.key,
+      results: response.results,
+      migratedBy,
+      migratedAt
+    };
+    saveMigrationLogs([log]).catch((err) => {
+      console.error('Failed to save migration logs:', err);
+    });
+  };
+
+  const migrateSingleGroup = async (group: GeoMigrationGroup): Promise<{ migrated: number; failed: number }> => {
+    const items = buildMigrationItems(group);
+    if (items.length === 0) {
+      return { migrated: 0, failed: 0 };
+    }
+
+    const response = await migrateGeoVictoriaPlanning(items);
+    const migratedAt = new Date().toISOString();
+    const migratedBy = currentUser?.name?.trim() || currentUser?.username?.trim() || null;
+    persistMigrationResults(group, response, migratedAt, migratedBy);
+    return { migrated: response.migrated, failed: response.failed };
+  };
+
   const handleMigrate = async (keys: string[]): Promise<void> => {
-    const items = groups
-      .filter((group) => keys.includes(group.key) && group.canMigrate)
-      .flatMap((group) => group.rows)
-      .map((row) => ({
-        assignmentType: row.assignmentType,
-        employeeId: row.employeeId,
-        employeeName: row.employeeName,
-        companyId: row.companyId,
-        companyAlias: row.companyAlias,
-        userIdentifier: row.userIdentifier,
-        dateISO: row.dateISO,
-        startHour: row.startHour,
-        endHour: row.endHour,
-        breakStartHour: row.breakStartHour,
-        breakEndHour: row.breakEndHour,
-        costCenterCode: row.costCenterCode,
-        custom: row.custom
-      }));
+    const groupsToMigrate = groups.filter((group) => keys.includes(group.key) && group.canMigrate);
+    const items = groupsToMigrate.flatMap((group) => buildMigrationItems(group));
 
     if (items.length === 0) {
       toast({
@@ -249,8 +312,20 @@ export function GeoMigrationPage(): JSX.Element {
       return;
     }
 
+    const isBatchSelection = keys.length > 1 && keys.every((key) => selectedKeys.includes(key));
+    const shouldShowBatchProgress = isBatchSelection;
+
     setIsMigrating(true);
     setMigratingKeys(keys);
+    if (shouldShowBatchProgress) {
+      setBatchProgress({
+        total: groupsToMigrate.length,
+        completed: 0,
+        migrated: 0,
+        failed: 0,
+        currentEmployeeName: null
+      });
+    }
     toast({
       id: migrationToastId,
       status: 'info',
@@ -258,40 +333,64 @@ export function GeoMigrationPage(): JSX.Element {
       duration: null,
       isClosable: false
     });
+
     try {
+      if (shouldShowBatchProgress) {
+        let migrated = 0;
+        let failed = 0;
+
+        for (const [index, group] of groupsToMigrate.entries()) {
+          setBatchProgress((current) =>
+            current
+              ? {
+                  ...current,
+                  currentEmployeeName: group.employeeName
+                }
+              : current
+          );
+
+          try {
+            const response = await migrateSingleGroup(group);
+            migrated += response.migrated;
+            failed += response.failed;
+          } catch (error) {
+            failed += group.rows.length;
+            throw new Error(
+              error instanceof Error
+                ? `No se pudo migrar a ${group.employeeName}: ${error.message}`
+                : `No se pudo migrar a ${group.employeeName}.`
+            );
+          } finally {
+            setBatchProgress((current) =>
+              current
+                ? {
+                    ...current,
+                    completed: index + 1,
+                    migrated,
+                    failed
+                  }
+                : current
+            );
+          }
+        }
+
+        toast.close(migrationToastId);
+        toast({
+          status: failed > 0 ? 'warning' : 'success',
+          title: `Migracion completada: ${migrated} ok, ${failed} con error.`
+        });
+        return;
+      }
+
       const response = await migrateGeoVictoriaPlanning(items);
       const migratedAt = new Date().toISOString();
       const migratedBy = currentUser?.name?.trim() || currentUser?.username?.trim() || null;
-      const nextResults = { ...resultByKey };
-      for (const result of response.results) {
-        const rowKey =
-          result.assignmentType === 'rest'
-            ? `${result.employeeId}:${result.dateISO}:rest`
-            : result.assignmentType === 'free'
-              ? `${result.employeeId}:${result.dateISO}:free`
-            : `${result.employeeId}:${result.dateISO}:${result.startHour}:${result.endHour}:${result.breakStartHour ?? ''}:${result.breakEndHour ?? ''}`;
-        nextResults[rowKey] = { result, migratedAt, migratedBy };
-      }
-      setResultByKey(nextResults);
-
-      // Persist migration logs to backend
-      if (currentScopedWeekId) {
-        const migratedGroups = groups.filter((group) => keys.includes(group.key) && group.canMigrate);
-        const logs = migratedGroups.map((group) => ({
-          companyId: group.companyId,
-          areaId: currentAreaId,
-          scopedWeekId: currentScopedWeekId,
-          employeeId: group.employeeId,
-          employeeName: group.employeeName,
-          userIdentifier: group.userIdentifier,
-          groupKey: group.key,
-          results: response.results.filter((r) => r.employeeId === group.employeeId),
-          migratedBy,
-          migratedAt
-        }));
-        saveMigrationLogs(logs).catch((err) => {
-          console.error('Failed to save migration logs:', err);
-        });
+      for (const group of groupsToMigrate) {
+        persistMigrationResults(group, {
+          migrated: response.migrated,
+          failed: response.failed,
+          results: response.results.filter((result) => result.employeeId === group.employeeId)
+        }, migratedAt, migratedBy);
       }
 
       toast.close(migrationToastId);
@@ -311,6 +410,7 @@ export function GeoMigrationPage(): JSX.Element {
       setMigratingKeys([]);
       setPendingMigrationKeys([]);
       setPendingMigrationLabel('');
+      setBatchProgress(null);
       closeConfirm();
     }
   };
@@ -359,19 +459,18 @@ export function GeoMigrationPage(): JSX.Element {
               >
                 Migrar seleccionados
               </Button>
-              <Button
-                variant="outline"
-                colorScheme="teal"
-                onClick={() => {
-                  setPendingMigrationKeys(migratableKeys);
-                  setPendingMigrationLabel('migrar la semana');
-                  openConfirm();
-                }}
-                isDisabled={migratableKeys.length === 0}
-                isLoading={isMigrating && migratingKeys.length === migratableKeys.length}
-              >
-                Migrar semana
-              </Button>
+            <Button
+              display="none"
+              variant="outline"
+              colorScheme="teal"
+              onClick={() => {
+                setPendingMigrationKeys(migratableKeys);
+                setPendingMigrationLabel('migrar la semana');
+                openConfirm();
+              }}
+            >
+              Migrar semana
+            </Button>
             </HStack>
           </HStack>
         </CardBody>
@@ -591,12 +690,39 @@ export function GeoMigrationPage(): JSX.Element {
       >
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Confirmar migración</ModalHeader>
+          <ModalHeader>{isMigrating && batchProgress ? 'Migrando seleccionados' : 'Confirmar migración'}</ModalHeader>
           <ModalCloseButton isDisabled={isMigrating} />
           <ModalBody>
-            <Text>
-              ¿Deseas {pendingMigrationLabel || 'ejecutar la migración'}?
-            </Text>
+            {isMigrating && batchProgress ? (
+              <VStack align="stretch" spacing={4}>
+                <Box>
+                  <Text fontWeight="600" color="gray.800">
+                    {batchProgress.completed} de {batchProgress.total} colaboradores migrados
+                  </Text>
+                  <Text fontSize="sm" color="gray.600">
+                    {batchProgress.currentEmployeeName
+                      ? `Procesando a ${batchProgress.currentEmployeeName}`
+                      : 'Preparando migración...'}
+                  </Text>
+                </Box>
+                <Progress
+                  value={batchProgress.total > 0 ? (batchProgress.completed / batchProgress.total) * 100 : 0}
+                  colorScheme="teal"
+                  size="md"
+                  borderRadius="md"
+                  hasStripe
+                  isAnimated
+                />
+                <HStack justify="space-between" fontSize="sm" color="gray.600">
+                  <Text>Ok: {batchProgress.migrated}</Text>
+                  <Text>Errores: {batchProgress.failed}</Text>
+                </HStack>
+              </VStack>
+            ) : (
+              <Text>
+                ¿Deseas {pendingMigrationLabel || 'ejecutar la migración'}?
+              </Text>
+            )}
           </ModalBody>
           <ModalFooter>
             <HStack>
@@ -608,7 +734,7 @@ export function GeoMigrationPage(): JSX.Element {
                 onClick={() => void handleMigrate(pendingMigrationKeys)}
                 isLoading={isMigrating}
                 loadingText="Migrando"
-                isDisabled={pendingMigrationKeys.length === 0}
+                isDisabled={pendingMigrationKeys.length === 0 || isMigrating}
               >
                 Migrar
               </Button>

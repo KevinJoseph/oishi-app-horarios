@@ -110,6 +110,45 @@ function formatGeoVictoriaDate(dateISO: string): string {
   return `${dateISO.replace(/-/g, '')}000000`;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+  const seconds = Number.parseFloat(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(Math.round(seconds * 1000), 30_000);
+  }
+  const dateMs = Date.parse(value);
+  if (!Number.isNaN(dateMs)) {
+    return Math.min(Math.max(dateMs - Date.now(), 0), 30_000);
+  }
+  return null;
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  options: { maxRetries?: number; baseDelayMs?: number } = {}
+): Promise<globalThis.Response> {
+  const maxRetries = options.maxRetries ?? 4;
+  const baseDelayMs = options.baseDelayMs ?? 800;
+  let attempt = 0;
+
+  while (true) {
+    const response = await fetch(url, init);
+    if (response.status !== 429 || attempt >= maxRetries) {
+      return response;
+    }
+    const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
+    const backoffMs = retryAfterMs ?? Math.min(baseDelayMs * 2 ** attempt, 8_000);
+    const jitter = Math.floor(Math.random() * 250);
+    await sleep(backoffMs + jitter);
+    attempt += 1;
+  }
+}
+
 function isValidHour(value: string): boolean {
   return /^\d{2}:\d{2}$/.test(value);
 }
@@ -289,7 +328,7 @@ async function insertGeoVictoriaShift(
     payload.BreakEnd = breakEndHour;
   }
 
-  const response = await fetch(env.geoVictoriaShiftInsertUrl, {
+  const response = await fetchWithRetry(env.geoVictoriaShiftInsertUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -357,7 +396,7 @@ async function resolveGeoVictoriaPositionId(
 }
 
 async function listGeoVictoriaShifts(token: string, tokenCacheKey: string): Promise<GeoVictoriaShiftListItem[]> {
-  const response = await fetch(env.geoVictoriaShiftListUrl, {
+  const response = await fetchWithRetry(env.geoVictoriaShiftListUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -417,7 +456,7 @@ async function assignGeoVictoriaPlanning(
   shiftId: string,
   dateISO: string
 ): Promise<string> {
-  const response = await fetch(env.geoVictoriaPlanningUrl, {
+  const response = await fetchWithRetry(env.geoVictoriaPlanningUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -441,7 +480,17 @@ async function assignGeoVictoriaPlanning(
     if (response.status === 401) {
       tokenCache.delete(tokenCacheKey);
     }
-    throw new Error(`Error al asignar planificacion en GeoVictoria: ${response.status} ${response.statusText}`);
+    let detail = '';
+    if (rawText) {
+      try {
+        const parsed = JSON.parse(rawText) as unknown;
+        detail = extractGeoVictoriaMessage(parsed) || rawText;
+      } catch {
+        detail = rawText;
+      }
+    }
+    const detailSuffix = detail ? ` - ${detail.slice(0, 300)}` : '';
+    throw new Error(`Error al asignar planificacion en GeoVictoria: ${response.status} ${response.statusText}${detailSuffix}`);
   }
 
   if (!rawText) {
@@ -861,6 +910,8 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
   const shiftIdCache = new Map<string, string>();
   const shiftsByCompanyId = new Map<string, GeoVictoriaShiftListItem[]>();
   const preclearedDays = new Set<string>();
+  const interItemDelayMs = 150;
+  let isFirstItem = true;
   const results: Array<{
     assignmentType: 'work' | 'rest' | 'free';
     employeeId: string;
@@ -884,6 +935,11 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
   }> = [];
 
   for (const item of items) {
+    if (!isFirstItem) {
+      await sleep(interItemDelayMs);
+    }
+    isFirstItem = false;
+
     const rawAssignmentType = cleanRequiredText(item.assignmentType).toLowerCase();
     const assignmentType = rawAssignmentType === 'rest' ? 'rest' : rawAssignmentType === 'free' ? 'free' : 'work';
     const employeeId = cleanRequiredText(item.employeeId);

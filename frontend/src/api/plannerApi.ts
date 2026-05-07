@@ -129,6 +129,11 @@ export function fetchGeoVictoriaEmployees(companyId?: string): Promise<GeoVictor
   return request<GeoVictoriaEmployee[]>(`/geovictoria/employees${query}`);
 }
 
+export function fetchGeoVictoriaEmployeesAll(companyId?: string): Promise<GeoVictoriaEmployee[]> {
+  const query = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  return request<GeoVictoriaEmployee[]>(`/geovictoria/employees-all${query}`);
+}
+
 export function fetchGeoVictoriaReciboEmployees(): Promise<GeoVictoriaEmployee[]> {
   return request<GeoVictoriaEmployee[]>('/geovictoria/recibo-employees');
 }

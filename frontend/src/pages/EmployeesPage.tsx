@@ -26,9 +26,10 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FiEdit2, FiFileText, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, FiUserCheck } from 'react-icons/fi';
+import { FiEdit2, FiEye, FiFileText, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { GeoVictoriaReciboModal } from '../components/GeoVictoriaReciboModal';
+import { GeoVictoriaUsersViewModal } from '../components/GeoVictoriaUsersViewModal';
 import { fetchGeoVictoriaCompanies, fetchGeoVictoriaEmployees, type GeoVictoriaCompany, sendEmployeeToGeoVictoria } from '../api/plannerApi';
 import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -123,6 +124,11 @@ export function EmployeesPage(): JSX.Element {
     isOpen: isGeoVictoriaModalOpen,
     onOpen: openGeoVictoriaModal,
     onClose: closeGeoVictoriaModal
+  } = useDisclosure();
+  const {
+    isOpen: isUsersViewOpen,
+    onOpen: openUsersView,
+    onClose: closeUsersView
   } = useDisclosure();
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
@@ -477,6 +483,17 @@ export function EmployeesPage(): JSX.Element {
                 Borrar
               </Button>
               <Button
+                colorScheme="purple"
+                variant="outline"
+                h="44px"
+                px={6}
+                leftIcon={<FiEye />}
+                onClick={openUsersView}
+                isDisabled={!canEdit}
+              >
+                Ver usuarios Geo
+              </Button>
+              <Button
                 colorScheme="gray"
                 h="44px"
                 px={6}
@@ -648,6 +665,13 @@ export function EmployeesPage(): JSX.Element {
         isOpen={isReciboModalOpen}
         onClose={closeReciboModal}
         selectedCompany={selectedGeoVictoriaCompany}
+      />
+
+      <GeoVictoriaUsersViewModal
+        isOpen={isUsersViewOpen}
+        onClose={closeUsersView}
+        companyId={selectedGeoVictoriaCompanyId}
+        companyLabel={selectedGeoVictoriaCompanyLabel}
       />
 
       <EmployeeFormModal

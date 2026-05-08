@@ -472,17 +472,6 @@ export function EmployeesPage(): JSX.Element {
             </InputGroup>
             <HStack gap={3}>
               <Button
-                colorScheme="red"
-                variant="outline"
-                h="44px"
-                px={6}
-                leftIcon={<FiTrash2 />}
-                onClick={openDeleteAllModal}
-                isDisabled={!canEdit || !selectedGeoVictoriaCompanyId || companyScopedEmployees.length === 0}
-              >
-                Borrar
-              </Button>
-              <Button
                 colorScheme="purple"
                 variant="outline"
                 h="44px"
@@ -492,28 +481,6 @@ export function EmployeesPage(): JSX.Element {
                 isDisabled={!canEdit}
               >
                 Ver usuarios Geo
-              </Button>
-              <Button
-                colorScheme="gray"
-                h="44px"
-                px={6}
-                leftIcon={<FiRefreshCw />}
-                onClick={openReciboModal}
-                isDisabled={!canEdit}
-              >
-                Sincronización Recibo
-              </Button>
-              <Button
-                colorScheme="teal"
-                h="44px"
-                px={6}
-                leftIcon={<FiRefreshCw />}
-                onClick={handleSyncGeoVictoria}
-                isDisabled={!canEdit}
-                isLoading={isSyncing}
-                loadingText="Sincronizando"
-              >
-                {selectedGeoVictoriaCompanyLabel ? `Sincronizar ${selectedGeoVictoriaCompanyLabel}` : 'Sincronizar GeoVictoria'}
               </Button>
               <Button
                 colorScheme="blue"
@@ -549,14 +516,10 @@ export function EmployeesPage(): JSX.Element {
               <Thead>
                 <Tr>
                   <Th>Orden</Th>
-                  <Th>Código</Th>
                   <Th>Nombre</Th>
-                  <Th>Documento</Th>
                   <Th>Activo</Th>
                   <Th>Empresa</Th>
-                  <Th>Cargo</Th>
                   <Th>Área</Th>
-                  <Th>Horas semanales</Th>
                   <Th>Tipo jornada</Th>
                   <Th>Turno</Th>
                   <Th>Día descanso</Th>
@@ -568,16 +531,12 @@ export function EmployeesPage(): JSX.Element {
                 {filteredEmployees.map((employee) => (
                   <Tr key={employee.id}>
                     <Td>{employee.displayOrder ?? '-'}</Td>
-                    <Td>{employee.code ?? '-'}</Td>
                     <Td>{employee.name}</Td>
-                    <Td>{employee.identityDocument ?? '-'}</Td>
                     <Td>
                       <Badge colorScheme={employee.active ? 'green' : 'gray'}>{employee.active ? 'Sí' : 'No'}</Badge>
                     </Td>
                     <Td>{getEmployeeCompanyLabel(employee)}</Td>
-                    <Td>{employee.positionDescription ?? '-'}</Td>
                     <Td>{getAreaLabel(employee.areaId, areas)}</Td>
-                    <Td>{employee.contractType ? getWeeklyHoursLabel(employee.weeklyHours) : ''}</Td>
                     <Td>{getContractTypeLabel(employee.contractType)}</Td>
                     <Td>{getShiftTypeLabel(employee.shiftType, employee.contractType)}</Td>
                     <Td>{getEmployeeRestDayLabel(employee.restDay, employee.contractType)}</Td>

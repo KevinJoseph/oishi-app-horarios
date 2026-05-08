@@ -239,7 +239,8 @@ function rebuildWeekPlansFromEmployees(
   roles: Role[],
   timeSlots: TimeSlot[],
   shiftRanges: ShiftRanges,
-  breakConfig: BreakConfig
+  breakConfig: BreakConfig,
+  affectedEmployeeIds?: Set<string>
 ): Record<string, WeekPlan> {
   const next: Record<string, WeekPlan> = {};
 
@@ -250,6 +251,7 @@ function rebuildWeekPlansFromEmployees(
     let plan = weekPlan;
 
     for (const employee of employees) {
+      if (affectedEmployeeIds && !affectedEmployeeIds.has(employee.id)) continue;
       const weeklyHours = Math.max(0, employee.weeklyHours ?? 0);
       const hasMainRole = Boolean(employee.mainRoleId && roleIds.has(employee.mainRoleId));
       const shouldAutoAssign = employee.active && hasMainRole && weeklyHours > 0;
@@ -611,7 +613,8 @@ function rebuildWeekPlansForArea(
   timeSlotsByArea: PersistableState['timeSlotsByArea'],
   shiftRangesByArea: PersistableState['shiftRangesByArea'],
   breakConfigByArea: PersistableState['breakConfigByArea'],
-  targetWeekIds?: Set<string>
+  targetWeekIds?: Set<string>,
+  affectedEmployeeIds?: Set<string>
 ): Record<string, WeekPlan> {
   const next = { ...weekPlans };
   for (const [weekId, plan] of Object.entries(weekPlans)) {
@@ -625,7 +628,15 @@ function rebuildWeekPlansForArea(
         : timeSlotsByArea[areaId] ?? [];
     const shiftRanges = weekConfig?.shiftRanges ?? shiftRangesByArea[areaId] ?? buildFallbackShiftRanges();
     const breakConfig = weekConfig?.breakConfig ?? breakConfigByArea[areaId] ?? buildFallbackBreakConfig();
-    const rebuilt = rebuildWeekPlansFromEmployees({ [weekId]: plan }, employees, roles, timeSlots, shiftRanges, breakConfig);
+    const rebuilt = rebuildWeekPlansFromEmployees(
+      { [weekId]: plan },
+      employees,
+      roles,
+      timeSlots,
+      shiftRanges,
+      breakConfig,
+      affectedEmployeeIds
+    );
     next[weekId] = rebuilt[weekId];
   }
   return next;
@@ -1266,6 +1277,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           };
         }
       }
+      const affectedIds = new Set<string>([normalizedEmployee.id]);
       weekPlans = rebuildWeekPlansForArea(
         weekPlans,
         employees,
@@ -1276,8 +1288,28 @@ export const useAppStore = create<AppState>((set, get) => ({
         state.timeSlotsByArea,
         state.shiftRangesByArea,
         state.breakConfigByArea,
-        new Set([selectedScopedWeekId])
+        new Set([selectedScopedWeekId]),
+        affectedIds
       );
+      if (previous?.areaId && previous.areaId !== employeeAreaId) {
+        const prevScopedWeekId = getSelectedScopedWeekIdForArea(state, previous.areaId);
+        if (prevScopedWeekId) {
+          weekPlans = rebuildWeekPlansForArea(
+            weekPlans,
+            employees,
+            state.roles,
+            previous.areaId,
+            state.validatedWeekIds,
+            state.weekConfigById,
+            state.timeSlotsByArea,
+            state.shiftRangesByArea,
+            state.breakConfigByArea,
+            new Set([prevScopedWeekId]),
+            affectedIds
+          );
+          persistWeekIds.push(prevScopedWeekId);
+        }
+      }
 
       return {
         employees,
@@ -1297,6 +1329,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => {
       let employees = [...state.employees];
       const planningChangedAreas = new Set<AreaId>();
+      const affectedEmployeesByArea = new Map<AreaId, Set<string>>();
 
       for (const employee of incomingList) {
         const previous = employees.find((item) => item.id === employee.id);
@@ -1344,6 +1377,21 @@ export const useAppStore = create<AppState>((set, get) => ({
           const areaId = normalizedEmployee.areaId ?? previous?.areaId;
           if (!areaId) continue;
           planningChangedAreas.add(areaId);
+          let affected = affectedEmployeesByArea.get(areaId);
+          if (!affected) {
+            affected = new Set<string>();
+            affectedEmployeesByArea.set(areaId, affected);
+          }
+          affected.add(normalizedEmployee.id);
+          if (previous?.areaId && previous.areaId !== areaId) {
+            let prevAffected = affectedEmployeesByArea.get(previous.areaId);
+            if (!prevAffected) {
+              prevAffected = new Set<string>();
+              affectedEmployeesByArea.set(previous.areaId, prevAffected);
+            }
+            prevAffected.add(normalizedEmployee.id);
+            planningChangedAreas.add(previous.areaId);
+          }
         }
       }
 
@@ -1386,7 +1434,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           state.timeSlotsByArea,
           state.shiftRangesByArea,
           state.breakConfigByArea,
-          new Set([selectedScopedWeekId])
+          new Set([selectedScopedWeekId]),
+          affectedEmployeesByArea.get(areaId)
         );
       }
 

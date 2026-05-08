@@ -712,7 +712,6 @@ export function PlanningPage(): JSX.Element {
           if (isTimeSlotInBreak(slot, breakConfig)) return sum;
           return sum + getDurationHours(slot.start, slot.end);
         }, 0)}
-        isCurrentWeek={currentWeek?.startDateISO === currentWorkflowWeekStartDateISO}
         isNormalRestDay={(() => {
           if (!activeDay || !selectedCell) return false;
           const emp = employees.find((e) => e.id === selectedCell.employeeId);

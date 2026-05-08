@@ -27,7 +27,6 @@ type Props = {
   employeeName?: string;
   roles: Role[];
   defaultDayHours?: number;
-  isCurrentWeek?: boolean;
   isNormalRestDay?: boolean;
   isNormalBreakSlot?: boolean;
   isExceptionalRestDay?: boolean;
@@ -48,7 +47,6 @@ export function CellEditorModal({
   employeeName,
   roles,
   defaultDayHours = 0,
-  isCurrentWeek = false,
   isNormalRestDay = false,
   isNormalBreakSlot = false,
   isExceptionalRestDay = false,
@@ -92,9 +90,8 @@ export function CellEditorModal({
     }
   }, [selectedRole, isFree, code]);
 
-  // Permitir marcar descanso también en el día de descanso normal para restaurarlo si fue sobrescrito.
-  const showExRestDayOption = isCurrentWeek;
-  const showExBreakOption = isCurrentWeek;
+  const showExRestDayOption = true;
+  const showExBreakOption = true;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>

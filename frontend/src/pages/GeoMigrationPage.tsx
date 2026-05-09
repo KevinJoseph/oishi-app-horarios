@@ -38,7 +38,7 @@ import {
 import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
 import { useAuthStore } from '../store/useAuthStore';
 import { WeekSelector } from '../components/WeekSelector';
-import { useAppStore } from '../store/useAppStore';
+import { isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import type { AreaId } from '../types';
 import { buildGeoMigrationRows, type GeoMigrationRow } from '../utils/geovictoriaMigration';
 
@@ -104,6 +104,7 @@ export function GeoMigrationPage(): JSX.Element {
   const areaTimeSlots = useAppStore((state) => state.timeSlotsByArea[state.currentAreaId] ?? state.timeSlots);
   const areaBreakConfig = useAppStore((state) => state.breakConfigByArea[state.currentAreaId] ?? state.breakConfig);
   const weekConfigById = useAppStore((state) => state.weekConfigById);
+  const validatedWeekIds = useAppStore((state) => state.validatedWeekIds);
 
   const currentWeek = useMemo(
     () => weeks.find((week) => week.startDateISO === currentWeekStartDateISO),
@@ -192,6 +193,22 @@ export function GeoMigrationPage(): JSX.Element {
     [scopedEmployees, selectedGroup]
   );
   const migrationToastId = 'geo-migration-progress';
+  const isCurrentWeekValidated = isWeekValidatedForCompany(
+    validatedWeekIds,
+    currentScopedWeekId,
+    selectedGeoVictoriaCompanyId
+  );
+
+  const ensureWeekValidated = (): boolean => {
+    if (!isCurrentWeekValidated) {
+      toast({
+        status: 'warning',
+        title: 'La semana seleccionada debe estar validada antes de migrar.'
+      });
+      return false;
+    }
+    return true;
+  };
 
   useEffect(() => {
     setSelectedKeys((current) => current.filter((key) => migratableKeys.includes(key)));
@@ -301,6 +318,12 @@ export function GeoMigrationPage(): JSX.Element {
   };
 
   const handleMigrate = async (keys: string[]): Promise<void> => {
+    if (!ensureWeekValidated()) {
+      setPendingMigrationKeys([]);
+      setPendingMigrationLabel('');
+      closeConfirm();
+      return;
+    }
     const groupsToMigrate = groups.filter((group) => keys.includes(group.key) && group.canMigrate);
     const items = groupsToMigrate.flatMap((group) => buildMigrationItems(group));
 
@@ -449,6 +472,7 @@ export function GeoMigrationPage(): JSX.Element {
                   colorScheme="teal"
                   leftIcon={<FiSend />}
                 onClick={() => {
+                  if (!ensureWeekValidated()) return;
                   setPendingMigrationKeys(selectedKeys);
                   setPendingMigrationLabel('migrar los seleccionados');
                   openConfirm();
@@ -464,6 +488,7 @@ export function GeoMigrationPage(): JSX.Element {
               variant="outline"
               colorScheme="teal"
               onClick={() => {
+                if (!ensureWeekValidated()) return;
                 setPendingMigrationKeys(migratableKeys);
                 setPendingMigrationLabel('migrar la semana');
                 openConfirm();
@@ -620,6 +645,7 @@ export function GeoMigrationPage(): JSX.Element {
                               variant="outline"
                               leftIcon={<FiSend />}
                               onClick={() => {
+                                if (!ensureWeekValidated()) return;
                                 setPendingMigrationKeys([group.key]);
                                 setPendingMigrationLabel(`migrar a ${group.employeeName}`);
                                 openConfirm();

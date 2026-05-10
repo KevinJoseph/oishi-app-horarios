@@ -15,6 +15,14 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  Stack,
   Table,
   Tbody,
   Td,
@@ -36,6 +44,9 @@ import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Employee } from '../types';
 import { downloadEmployeeWeekPdf } from '../utils/pdf';
 import { getRestDayLabel } from '../utils/weekdays';
+import { addWeeks, formatISO, parseISO } from 'date-fns';
+import { buildRelativeWeekLabel, buildWeekLabel, getCurrentMonday } from '../utils/dates';
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 function getContractTypeLabel(value: Employee['contractType']): string {
   if (value === 'part-time') return 'Part Time';
@@ -130,6 +141,13 @@ export function EmployeesPage(): JSX.Element {
     onOpen: openUsersView,
     onClose: closeUsersView
   } = useDisclosure();
+  const {
+    isOpen: isShareModalOpen,
+    onOpen: openShareModal,
+    onClose: closeShareModal
+  } = useDisclosure();
+  const [shareEmployee, setShareEmployee] = useState<Employee | null>(null);
+  const [shareWeekStartISO, setShareWeekStartISO] = useState<string>(() => formatISO(getCurrentMonday(), { representation: 'date' }));
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const areas = useAppStore((state) => state.areas);
@@ -307,8 +325,20 @@ export function EmployeesPage(): JSX.Element {
     }
   };
 
-  const handleSharePublicSchedule = async (employee: Employee): Promise<void> => {
-    const url = `${window.location.origin}/public/schedule/${encodeURIComponent(employee.id)}`;
+  const openShareDialog = (employee: Employee): void => {
+    setShareEmployee(employee);
+    setShareWeekStartISO(formatISO(getCurrentMonday(), { representation: 'date' }));
+    openShareModal();
+  };
+
+  const shiftShareWeek = (delta: number): void => {
+    const next = addWeeks(parseISO(shareWeekStartISO), delta);
+    setShareWeekStartISO(formatISO(next, { representation: 'date' }));
+  };
+
+  const handleConfirmShare = async (): Promise<void> => {
+    if (!shareEmployee) return;
+    const url = `${window.location.origin}/public/schedule/${encodeURIComponent(shareEmployee.id)}?weekStart=${shareWeekStartISO}`;
     try {
       await navigator.clipboard.writeText(url);
       toast({
@@ -324,6 +354,8 @@ export function EmployeesPage(): JSX.Element {
       });
     }
     window.open(url, '_blank', 'noopener,noreferrer');
+    closeShareModal();
+    setShareEmployee(null);
   };
 
   const handleToggleActive = (employee: Employee): void => {
@@ -609,7 +641,7 @@ export function EmployeesPage(): JSX.Element {
                             variant="outline"
                             colorScheme="orange"
                             icon={<FiBell />}
-                            onClick={() => void handleSharePublicSchedule(employee)}
+                            onClick={() => openShareDialog(employee)}
                           />
                         </Tooltip>
                         <Tooltip label="Enviar a GeoVictoria" hasArrow>
@@ -637,6 +669,84 @@ export function EmployeesPage(): JSX.Element {
           </Box>
         </CardBody>
       </Card>
+
+      <Modal
+        isOpen={isShareModalOpen}
+        onClose={() => {
+          closeShareModal();
+          setShareEmployee(null);
+        }}
+        isCentered
+      >
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Compartir planificación pública</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Stack spacing={3}>
+              {shareEmployee ? (
+                <Box fontSize="sm" color="gray.700">
+                  Colaborador: <b>{shareEmployee.name}</b>
+                </Box>
+              ) : null}
+              <Box fontSize="sm">¿Qué semana deseas enviar?</Box>
+              <HStack
+                spacing={2}
+                px={2}
+                py={2}
+                borderWidth="1px"
+                borderColor="blue.200"
+                borderRadius="md"
+                bg="white"
+                w="100%"
+                justify="space-between"
+              >
+                <IconButton
+                  aria-label="Semana anterior"
+                  icon={<FiChevronLeft />}
+                  variant="ghost"
+                  colorScheme="blue"
+                  size="sm"
+                  onClick={() => shiftShareWeek(-1)}
+                />
+                <Stack flex="1" spacing={0} align="center">
+                  <Box
+                    fontSize="11px"
+                    fontWeight="600"
+                    color="blue.500"
+                    textTransform="uppercase"
+                    letterSpacing="0.04em"
+                    lineHeight="1.1"
+                  >
+                    {buildRelativeWeekLabel(parseISO(shareWeekStartISO))}
+                  </Box>
+                  <Box textAlign="center" fontWeight="700" color="gray.700" fontSize="sm">
+                    {buildWeekLabel(parseISO(shareWeekStartISO))}
+                  </Box>
+                </Stack>
+                <IconButton
+                  aria-label="Semana siguiente"
+                  icon={<FiChevronRight />}
+                  variant="ghost"
+                  colorScheme="blue"
+                  size="sm"
+                  onClick={() => shiftShareWeek(1)}
+                />
+              </HStack>
+            </Stack>
+          </ModalBody>
+          <ModalFooter>
+            <HStack spacing={2}>
+              <Button variant="ghost" onClick={() => { closeShareModal(); setShareEmployee(null); }}>
+                Cancelar
+              </Button>
+              <Button colorScheme="brand" onClick={() => void handleConfirmShare()}>
+                Compartir enlace
+              </Button>
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       <GeoVictoriaReciboModal
         isOpen={isReciboModalOpen}

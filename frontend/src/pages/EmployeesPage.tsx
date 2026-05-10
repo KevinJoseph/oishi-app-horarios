@@ -26,7 +26,7 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FiEdit2, FiEye, FiFileText, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, FiUserCheck } from 'react-icons/fi';
+import { FiBell, FiEdit2, FiEye, FiFileText, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { GeoVictoriaReciboModal } from '../components/GeoVictoriaReciboModal';
 import { GeoVictoriaUsersViewModal } from '../components/GeoVictoriaUsersViewModal';
@@ -307,6 +307,25 @@ export function EmployeesPage(): JSX.Element {
     }
   };
 
+  const handleSharePublicSchedule = async (employee: Employee): Promise<void> => {
+    const url = `${window.location.origin}/public/schedule/${encodeURIComponent(employee.id)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({
+        status: 'success',
+        title: 'Enlace copiado al portapapeles.',
+        description: url
+      });
+    } catch {
+      toast({
+        status: 'info',
+        title: 'Enlace de planificación pública',
+        description: url
+      });
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const handleToggleActive = (employee: Employee): void => {
     if (!canEdit) return;
     const result = upsertEmployee({ ...employee, active: !employee.active });
@@ -583,15 +602,14 @@ export function EmployeesPage(): JSX.Element {
                             isDisabled={!canEdit}
                           />
                         </Tooltip>
-                        <Tooltip label="Exportar PDF" hasArrow>
+                        <Tooltip label="Compartir enlace público de planificación" hasArrow>
                           <IconButton
-                            aria-label="Exportar PDF"
+                            aria-label="Compartir planificación pública"
                             size="xs"
                             variant="outline"
-                            colorScheme="brand"
-                            icon={<FiFileText />}
-                            onClick={() => handleDownloadPdf(employee)}
-                            isLoading={exportingEmployeeId === employee.id}
+                            colorScheme="orange"
+                            icon={<FiBell />}
+                            onClick={() => void handleSharePublicSchedule(employee)}
                           />
                         </Tooltip>
                         <Tooltip label="Enviar a GeoVictoria" hasArrow>

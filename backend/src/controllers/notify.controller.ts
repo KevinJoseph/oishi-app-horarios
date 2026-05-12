@@ -52,6 +52,10 @@ export async function notifyWhatsappScheduleController(req: Request, res: Respon
   const payload = {
     to,
     variables: {
+      '1': nombre,
+      '2': publicScheduleUrl,
+      '3': resolvedId,
+      '4': weekStart,
       nombre,
       phone: to,
       url: publicScheduleUrl,

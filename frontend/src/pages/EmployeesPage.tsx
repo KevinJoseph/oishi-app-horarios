@@ -337,8 +337,37 @@ export function EmployeesPage(): JSX.Element {
     setShareWeekStartISO(formatISO(next, { representation: 'date' }));
   };
 
+  const canUseShareActions = (): boolean => {
+    const shareWeek = weeks.find((week) => week.startDateISO === shareWeekStartISO);
+    if (!shareWeek) {
+      toast({
+        status: 'warning',
+        title: 'No se encontró la semana seleccionada.'
+      });
+      return false;
+    }
+
+    const shareScopedWeekId = scopedWeekKey(currentAreaId, shareWeek.id);
+    const isShareWeekValidated = isWeekValidatedForCompany(
+      validatedWeekIds,
+      shareScopedWeekId,
+      selectedGeoVictoriaCompanyId
+    );
+
+    if (!isShareWeekValidated) {
+      toast({
+        status: 'warning',
+        title: 'Debes validar esta semana para poder usar esta opción.'
+      });
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSendWhatsapp = async (): Promise<void> => {
     if (!shareEmployee) return;
+    if (!canUseShareActions()) return;
     setIsSendingWhatsapp(true);
     try {
       const result = await notifyWhatsappSchedule({
@@ -362,6 +391,7 @@ export function EmployeesPage(): JSX.Element {
 
   const handleConfirmShare = async (): Promise<void> => {
     if (!shareEmployee) return;
+    if (!canUseShareActions()) return;
     const url = `${window.location.origin}/public/schedule/${encodeURIComponent(shareEmployee.id)}?weekStart=${shareWeekStartISO}`;
     try {
       await navigator.clipboard.writeText(url);
@@ -764,6 +794,9 @@ export function EmployeesPage(): JSX.Element {
               <Button variant="ghost" onClick={() => { closeShareModal(); setShareEmployee(null); }} isDisabled={isSendingWhatsapp}>
                 Cancelar
               </Button>
+              <Button colorScheme="brand" onClick={() => void handleConfirmShare()} isDisabled={isSendingWhatsapp}>
+                Compartir enlace
+              </Button>
               <Button
                 bg="green.500"
                 color="white"
@@ -772,10 +805,7 @@ export function EmployeesPage(): JSX.Element {
                 isLoading={isSendingWhatsapp}
                 loadingText="Enviando"
               >
-                Enviar por WhatsApp
-              </Button>
-              <Button colorScheme="brand" onClick={() => void handleConfirmShare()} isDisabled={isSendingWhatsapp}>
-                Compartir enlace
+                WhatsApp
               </Button>
             </HStack>
           </ModalFooter>

@@ -97,6 +97,7 @@ export function EmployeeFormModal({
   const [lastName, setLastName] = useState('');
   const [identityDocument, setIdentityDocument] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [companyAlias, setCompanyAlias] = useState('');
   const [reciboGroupCode, setReciboGroupCode] = useState('');
   const [positionDescription, setPositionDescription] = useState('');
@@ -147,6 +148,7 @@ export function EmployeeFormModal({
     const initialDni = editing?.identityDocument ?? '';
     setIdentityDocument(initialDni);
     setEmail(editing?.email ?? '');
+    setPhone(editing?.phone ?? '');
     const selectedModuleCompany = selectedCompanyId
       ? companies.find((company) => company.companyId === selectedCompanyId)
       : null;
@@ -294,6 +296,15 @@ export function EmployeeFormModal({
           <FormControl mb={3} isRequired>
             <FormLabel>Email</FormLabel>
             <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          </FormControl>
+          <FormControl mb={3}>
+            <FormLabel>Celular</FormLabel>
+            <Input
+              type="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="Opcional"
+            />
           </FormControl>
           <FormControl mb={3} isRequired>
             <FormLabel>Empresa</FormLabel>
@@ -499,7 +510,7 @@ export function EmployeeFormModal({
                   shiftType: contractType === 'part-time' ? shiftType : undefined,
                   restDay: isWithoutContract ? undefined : normalizeRestDay(Number.parseInt(restDay, 10)),
                   notes: editing?.notes,
-                  phone: editing?.phone,
+                  phone: phone.trim() || undefined,
                   mainRoleId: mainRoleId || undefined,
                   mainRoleCode: mainRoleId ? mainRoleCode || undefined : undefined,
                   groupDescription: selectedGroupDescription,

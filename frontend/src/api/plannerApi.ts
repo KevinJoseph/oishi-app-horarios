@@ -205,3 +205,23 @@ export function fetchMigrationLogs(
   if (companyId) params.set('companyId', companyId);
   return request<{ logs: MigrationLogEntry[] }>(`/geovictoria/migration-logs?${params.toString()}`);
 }
+
+export type NotifyWhatsappScheduleResponse = {
+  ok: true;
+  to: string;
+  payload: {
+    to: string;
+    variables: { nombre: string; phone: string; url: string; slug: string };
+  };
+};
+
+export function notifyWhatsappSchedule(payload: {
+  employeeId: string;
+  weekStart: string;
+  phoneOverride?: string;
+}): Promise<NotifyWhatsappScheduleResponse> {
+  return request<NotifyWhatsappScheduleResponse>('/notify/whatsapp-schedule', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}

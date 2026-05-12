@@ -38,7 +38,7 @@ import { FiBell, FiEdit2, FiEye, FiFileText, FiPower, FiRefreshCw, FiSearch, FiS
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { GeoVictoriaReciboModal } from '../components/GeoVictoriaReciboModal';
 import { GeoVictoriaUsersViewModal } from '../components/GeoVictoriaUsersViewModal';
-import { fetchGeoVictoriaCompanies, fetchGeoVictoriaEmployees, type GeoVictoriaCompany, sendEmployeeToGeoVictoria } from '../api/plannerApi';
+import { fetchGeoVictoriaCompanies, fetchGeoVictoriaEmployees, type GeoVictoriaCompany, notifyWhatsappSchedule, sendEmployeeToGeoVictoria } from '../api/plannerApi';
 import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Employee } from '../types';
@@ -148,6 +148,7 @@ export function EmployeesPage(): JSX.Element {
   } = useDisclosure();
   const [shareEmployee, setShareEmployee] = useState<Employee | null>(null);
   const [shareWeekStartISO, setShareWeekStartISO] = useState<string>(() => formatISO(getCurrentMonday(), { representation: 'date' }));
+  const [isSendingWhatsapp, setIsSendingWhatsapp] = useState(false);
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const areas = useAppStore((state) => state.areas);
@@ -334,6 +335,29 @@ export function EmployeesPage(): JSX.Element {
   const shiftShareWeek = (delta: number): void => {
     const next = addWeeks(parseISO(shareWeekStartISO), delta);
     setShareWeekStartISO(formatISO(next, { representation: 'date' }));
+  };
+
+  const handleSendWhatsapp = async (): Promise<void> => {
+    if (!shareEmployee) return;
+    setIsSendingWhatsapp(true);
+    try {
+      const result = await notifyWhatsappSchedule({
+        employeeId: shareEmployee.id,
+        weekStart: shareWeekStartISO
+      });
+      toast({
+        status: 'success',
+        title: 'Notificación WhatsApp enviada.',
+        description: `Destinatario: ${result.to}`
+      });
+      closeShareModal();
+      setShareEmployee(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo enviar la notificación.';
+      toast({ status: 'error', title: 'Error WhatsApp', description: message });
+    } finally {
+      setIsSendingWhatsapp(false);
+    }
   };
 
   const handleConfirmShare = async (): Promise<void> => {
@@ -736,11 +760,21 @@ export function EmployeesPage(): JSX.Element {
             </Stack>
           </ModalBody>
           <ModalFooter>
-            <HStack spacing={2}>
-              <Button variant="ghost" onClick={() => { closeShareModal(); setShareEmployee(null); }}>
+            <HStack spacing={2} w="100%" justify="flex-end" flexWrap="wrap">
+              <Button variant="ghost" onClick={() => { closeShareModal(); setShareEmployee(null); }} isDisabled={isSendingWhatsapp}>
                 Cancelar
               </Button>
-              <Button colorScheme="brand" onClick={() => void handleConfirmShare()}>
+              <Button
+                bg="green.500"
+                color="white"
+                _hover={{ bg: 'green.600' }}
+                onClick={() => void handleSendWhatsapp()}
+                isLoading={isSendingWhatsapp}
+                loadingText="Enviando"
+              >
+                Enviar por WhatsApp
+              </Button>
+              <Button colorScheme="brand" onClick={() => void handleConfirmShare()} isDisabled={isSendingWhatsapp}>
                 Compartir enlace
               </Button>
             </HStack>

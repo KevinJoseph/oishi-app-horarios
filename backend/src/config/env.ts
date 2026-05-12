@@ -159,5 +159,9 @@ export const env = {
   geoVictoriaReciboPassword: process.env.GEOVICTORIA_RECIBO_PASSWORD ?? '',
   geoVictoriaReciboGroups,
   geoVictoriaCompanies,
-  geoVictoriaCredentialsByCompanyId: parseGeoVictoriaCredentialsByCompanyId(geoVictoriaCompanies)
+  geoVictoriaCredentialsByCompanyId: parseGeoVictoriaCredentialsByCompanyId(geoVictoriaCompanies),
+  flowWebhookBaseUrl: process.env.FLOW_WEBHOOK_BASE_URL?.trim() || 'https://flow.inel.pe/api/whatsapp/trigger',
+  flowWebhookId: (process.env.APP_FLOW_WEBHOOK_ID ?? process.env.FLOW_WEBHOOK_ID)?.trim() ?? '',
+  flowWebhookSecret: (process.env.APP_FLOW_WEBHOOK_SECRET ?? process.env.FLOW_WEBHOOK_SECRET)?.trim() ?? '',
+  publicAppBaseUrl: process.env.PUBLIC_APP_BASE_URL?.trim() || 'https://horarios.almoud.pe'
 };

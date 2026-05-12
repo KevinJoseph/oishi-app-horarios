@@ -8,6 +8,7 @@ import { usersRouter } from './routes/users.routes.js';
 import { geoVictoriaRouter } from './routes/geovictoria.routes.js';
 import { areaRouter } from './routes/area.routes.js';
 import { publicScheduleRouter } from './routes/publicSchedule.routes.js';
+import { notifyRouter } from './routes/notify.routes.js';
 import { HttpError } from './utils/httpError.js';
 
 export const app = express();
@@ -30,6 +31,7 @@ app.use('/api', plannerStateRouter);
 app.use('/api', geoVictoriaRouter);
 app.use('/api', areaRouter);
 app.use('/api', publicScheduleRouter);
+app.use('/api', notifyRouter);
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const statusCode = error instanceof HttpError ? error.statusCode : 500;

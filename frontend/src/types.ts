@@ -39,6 +39,7 @@ export type Employee = {
   groupDescription?: string;
   positionDescription?: string;
   displayOrder?: number;
+  applyOpeningClosingRules?: boolean;
 };
 
 export type ShiftRange = {

@@ -20,7 +20,11 @@ export function getOpeningClosingSummary(
   employees: Employee[]
 ): { opening: number; closing: number } {
   const ordered = [...timeSlots].sort((a, b) => a.order - b.order);
-  const visibleEmployeeIds = new Set(employees.filter((employee) => employee.active).map((employee) => employee.id));
+  const visibleEmployeeIds = new Set(
+    employees
+      .filter((employee) => employee.active && employee.applyOpeningClosingRules !== false)
+      .map((employee) => employee.id)
+  );
   const openingSlots = ordered.length ? [ordered[0].id] : [];
   const closingSlots = ordered.length ? [ordered[ordered.length - 1].id] : [];
   return {

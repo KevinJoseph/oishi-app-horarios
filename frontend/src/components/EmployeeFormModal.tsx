@@ -104,6 +104,7 @@ export function EmployeeFormModal({
   const [positions, setPositions] = useState<GeoVictoriaPosition[]>([]);
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
   const [active, setActive] = useState(true);
+  const [applyOpeningClosingRules, setApplyOpeningClosingRules] = useState(true);
   const [weeklyHours, setWeeklyHours] = useState('');
   const [contractType, setContractType] = useState<'full-time' | 'part-time' | ''>('');
   const [shiftType, setShiftType] = useState<'day' | 'night'>('day');
@@ -169,6 +170,7 @@ export function EmployeeFormModal({
     setReciboGroupCode(matchingReciboGroup?.code_centro_costo ?? editing?.geoVictoriaCostCenterCode ?? '');
     setPositionDescription(editing?.positionDescription ?? '');
     setActive(editing?.active ?? true);
+    setApplyOpeningClosingRules(editing?.applyOpeningClosingRules ?? true);
     setContractType(editing?.contractType ?? '');
     setWeeklyHours(editing?.weeklyHours !== undefined ? String(editing.weeklyHours) : '0');
     setShiftType(editing?.shiftType ?? 'day');
@@ -303,7 +305,7 @@ export function EmployeeFormModal({
               type="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              placeholder="Opcional"
+              placeholder="Permite la notificación por Whatsapp"
             />
           </FormControl>
           <FormControl mb={3} isRequired>
@@ -453,6 +455,17 @@ export function EmployeeFormModal({
           <Checkbox isChecked={active} onChange={(event) => setActive(event.target.checked)}>
             Activo
           </Checkbox>
+          <FormControl mt={3}>
+            <Checkbox
+              isChecked={applyOpeningClosingRules}
+              onChange={(event) => setApplyOpeningClosingRules(event.target.checked)}
+            >
+              Aplicar reglas de apertura/cierre
+            </Checkbox>
+            <FormLabel mt={1} mb={0} fontSize="xs" fontWeight="400" color="gray.500">
+              Si está desmarcado, este colaborador no se cuenta para la validaciones de apertura y cierre.
+            </FormLabel>
+          </FormControl>
         </ModalBody>
         <ModalFooter>
           <HStack>
@@ -518,7 +531,8 @@ export function EmployeeFormModal({
                   displayOrder: (() => {
                     const parsed = Number.parseInt(displayOrder, 10);
                     return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-                  })()
+                  })(),
+                  applyOpeningClosingRules
                 });
                 if (!result.ok) {
                   toast({

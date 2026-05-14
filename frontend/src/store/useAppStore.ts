@@ -77,6 +77,7 @@ type AppState = PersistableState & {
   currentMonthStartDateISO: string;
   hydrated: boolean;
   syncError: string | null;
+  pendingPlanningEdits: boolean;
   flushPersistence: () => Promise<{ ok: boolean; error?: string }>;
   initialize: () => Promise<void>;
   refreshState: () => Promise<void>;
@@ -908,6 +909,9 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
       try {
         await savePlannerStatePartial(payload, getSelectedCompanyId());
         set({ syncError: null });
+        if (!hasPendingPersistence()) {
+          set({ pendingPlanningEdits: false });
+        }
       } catch (error) {
         set({ syncError: error instanceof Error ? error.message : 'No se pudo sincronizar con el backend.' });
       }
@@ -925,6 +929,11 @@ function persistSnapshot(get: () => AppState, set: (partial: Partial<AppState>) 
   void flushPersistQueue(get, set);
 }
 
+function queuePlanningManual(get: () => AppState, set: (partial: Partial<AppState>) => void, scope: PersistenceScope): void {
+  queuePersistenceScope(get, scope);
+  set({ pendingPlanningEdits: true });
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   ...seeded,
   currentWeekStartDateISO: seeded.weeks[0]?.startDateISO ?? '',
@@ -932,6 +941,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentAreaId: getStoredCurrentAreaId() ?? seeded.currentAreaId,
   hydrated: false,
   syncError: null,
+  pendingPlanningEdits: false,
 
   flushPersistence: async () => {
     if (hasPendingPersistence() || persistInFlight) {
@@ -1705,7 +1715,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekAuditById: clearWeekValidator(ensureWeekCreator(state.weekAuditById, validationKey, actorName), validationKey)
       };
     });
-    persistSnapshot(get, set, { currentWeek: true });
+    queuePlanningManual(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -1769,7 +1779,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekAuditById: clearWeekValidator(ensureWeekCreator(state.weekAuditById, validationKey, actorName), validationKey)
       };
     });
-    persistSnapshot(get, set, { currentWeek: true });
+    queuePlanningManual(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -1865,7 +1875,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         weekAuditById: clearWeekValidator(ensureWeekCreator(state.weekAuditById, validationKey, actorName), validationKey)
       };
     });
-    persistSnapshot(get, set, { currentWeek: true });
+    queuePlanningManual(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -2166,7 +2176,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, scopedWeekId)
       };
     });
-    persistSnapshot(get, set, { currentWeek: true });
+    queuePlanningManual(get, set, { currentWeek: true });
     return { ok: true };
   },
 
@@ -2212,7 +2222,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       };
     });
-    persistSnapshot(get, set, { currentWeek: true });
+    queuePlanningManual(get, set, { currentWeek: true });
     return { ok: true };
   },
 

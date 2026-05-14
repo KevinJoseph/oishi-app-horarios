@@ -23,7 +23,7 @@ import {
 } from '@chakra-ui/react';
 import { differenceInCalendarWeeks, formatISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
-import { FiAlertTriangle, FiCheckCircle, FiCopy, FiDownload, FiEye, FiXCircle } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheckCircle, FiCopy, FiDownload, FiEye, FiSave, FiXCircle } from 'react-icons/fi';
 import { CellEditorModal } from '../components/CellEditorModal';
 import { DayGrid } from '../components/DayGrid';
 import { WeekSelector } from '../components/WeekSelector';
@@ -86,6 +86,7 @@ export function PlanningPage(): JSX.Element {
   const desvalidateWeekPlan = useAppStore((state) => state.desvalidateWeekPlan);
   const migrateFromPreviousWeek = useAppStore((state) => state.migrateFromPreviousWeek);
   const flushPersistence = useAppStore((state) => state.flushPersistence);
+  const pendingPlanningEdits = useAppStore((state) => state.pendingPlanningEdits);
   const currentUser = useAuthStore((state) => state.currentUser);
   const selectedGeoVictoriaCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
   const isSupervisor = currentUser?.role === 'supervisor';
@@ -99,7 +100,9 @@ export function PlanningPage(): JSX.Element {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
+  const [isSavingPlanning, setIsSavingPlanning] = useState(false);
   const validationToastId = 'planning-validation-save';
+  const planningSaveToastId = 'planning-manual-save';
 
   const scopedWeekKey = (areaId: AreaId, weekId: string): string => `${areaId}::${weekId}`;
   const currentWeek = weeks.find((week) => week.startDateISO === currentWeekStartDateISO);
@@ -261,6 +264,16 @@ export function PlanningPage(): JSX.Element {
     setActiveDayIndex(0);
   }, [currentWeekStartDateISO]);
 
+  useEffect(() => {
+    if (!pendingPlanningEdits) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [pendingPlanningEdits]);
+
   const activeEmployeesCount = useMemo(() => employees.filter((employee) => employee.active).length, [employees]);
   const employeeHoursById = useMemo(() => {
     const targetByEmployeeId = new Map(employees.map((employee) => [employee.id, employee.weeklyHours ?? 0]));
@@ -419,6 +432,52 @@ export function PlanningPage(): JSX.Element {
                   >
                     Duplicar Semana Anterior
                   </Button>
+                )}
+                {canEdit && !isCurrentWeekValidated && (
+                  <Tooltip
+                    label={
+                      pendingPlanningEdits
+                        ? 'Hay cambios sin guardar en esta planificación.'
+                        : 'No hay cambios pendientes.'
+                    }
+                    hasArrow
+                  >
+                    <Button
+                      colorScheme={pendingPlanningEdits ? 'orange' : 'gray'}
+                      leftIcon={<FiSave />}
+                      isDisabled={!currentWeek || !pendingPlanningEdits || isSavingPlanning}
+                      isLoading={isSavingPlanning}
+                      loadingText="Guardando..."
+                      onClick={async () => {
+                        if (isSavingPlanning) return;
+                        setIsSavingPlanning(true);
+                        toast({
+                          id: planningSaveToastId,
+                          status: 'info',
+                          title: 'Guardando planificación...',
+                          duration: null,
+                          isClosable: false
+                        });
+                        try {
+                          const result = await flushPersistence();
+                          toast.close(planningSaveToastId);
+                          if (!result.ok) {
+                            toast({
+                              status: 'error',
+                              title: result.error ?? 'No se pudo guardar la planificación.'
+                            });
+                            return;
+                          }
+                          toast({ status: 'success', title: 'Planificación guardada.' });
+                        } finally {
+                          toast.close(planningSaveToastId);
+                          setIsSavingPlanning(false);
+                        }
+                      }}
+                    >
+                      {pendingPlanningEdits ? 'Guardar cambios' : 'Guardado'}
+                    </Button>
+                  </Tooltip>
                 )}
                 {canValidate ? (
                   <Tooltip

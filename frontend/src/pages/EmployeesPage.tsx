@@ -34,7 +34,7 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FiBell, FiEdit2, FiEye, FiFileText, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, FiUserCheck } from 'react-icons/fi';
+import { FiBell, FiEdit2, FiEye, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, FiUser, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { GeoVictoriaReciboModal } from '../components/GeoVictoriaReciboModal';
 import { GeoVictoriaUsersViewModal } from '../components/GeoVictoriaUsersViewModal';
@@ -586,6 +586,17 @@ export function EmployeesPage(): JSX.Element {
                 isDisabled={!canEdit}
               >
                 Ver usuarios Geo
+              </Button>
+              <Button
+                colorScheme="orange"
+                variant="outline"
+                h="44px"
+                px={6}
+                leftIcon={<FiUser />}
+                onClick={openReciboModal}
+                isDisabled={!canEdit}
+              >
+                Colaborador Recibo
               </Button>
               <Button
                 colorScheme="blue"

@@ -77,7 +77,7 @@ export function GeoVictoriaUsersViewModal({ isOpen, onClose, companyId, companyL
       <ModalContent>
         <ModalHeader>
           <HStack justify="space-between" flexWrap="wrap" gap={3}>
-            <Text>Usuarios en GeoVictoria{companyLabel ? ` - ${companyLabel}` : ''}</Text>
+            <Text>Colaborador en GeoVictoria{companyLabel ? ` - ${companyLabel}` : ''}</Text>
             <HStack gap={2}>
               <Badge colorScheme="blue">Total: {users.length}</Badge>
               <Badge colorScheme="green">Activos: {enabledCount}</Badge>

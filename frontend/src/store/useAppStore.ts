@@ -1062,7 +1062,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return nextState;
     });
     if (changed) {
-      persistSnapshot(get, set, { weeks: true, currentWeek: true });
+      persistSnapshot(get, set, { weeks: true });
     }
   },
   goToAdjacentWeek: (direction) => {
@@ -1658,7 +1658,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
 
     if (created) {
-      persistSnapshot(get, set, { weeks: true, currentWeek: true });
+      persistSnapshot(get, set, { weeks: true });
     }
   },
 

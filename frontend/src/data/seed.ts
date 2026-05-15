@@ -17,7 +17,7 @@ import type {
   WeekAudit,
   WeekPlan
 } from '../types';
-import { buildWeekLabel, formatDayNameEs, getCurrentWeekStartDateISO } from '../utils/dates';
+import { buildWeekLabel, formatDayNameEs } from '../utils/dates';
 import { normalizeRestDayList } from '../utils/weekdays';
 
 export type SeedState = {
@@ -276,28 +276,17 @@ export function normalizePlannerState(input: SeedState): SeedState {
     }));
   const weekPlans: Record<string, WeekPlan> = {};
 
-  const currentWeekISO = getCurrentWeekStartDateISO();
-  const rawValidatedWeekIds = (input.validatedWeekIds ?? []) as string[];
-
   for (const week of normalizedWeeks) {
     for (const areaId of areaCodes) {
       const scopedKey = scopedWeekKey(areaId, week.id);
       const legacyKey = areaId === firstArea ? week.id : '';
       const sourcePlan = input.weekPlans[scopedKey] ?? (legacyKey ? input.weekPlans[legacyKey] : undefined);
 
-      const isFutureWeek = week.startDateISO > currentWeekISO;
-      const normalizedScopedKey = scopedKey.includes('::') ? scopedKey : scopedWeekKey(firstArea, scopedKey);
-      const isValidated = rawValidatedWeekIds.some((id) => {
-        const normalized = normalizeValidationWeekKey(id);
-        return normalized === normalizedScopedKey || normalized.startsWith(`${normalizedScopedKey}::company:`);
-      });
-
-      const planSource = isFutureWeek && !isValidated ? undefined : sourcePlan;
-      const normalized = normalizeWeekPlan(week.startDateISO, planSource);
+      const normalized = normalizeWeekPlan(week.startDateISO, sourcePlan);
       weekPlans[scopedKey] = {
         weekId: normalized.weekId || week.id,
         days: normalized.days,
-        ...(normalized.restDayOverrides && !isFutureWeek ? { restDayOverrides: normalized.restDayOverrides } : {})
+        ...(normalized.restDayOverrides ? { restDayOverrides: normalized.restDayOverrides } : {})
       };
     }
   }

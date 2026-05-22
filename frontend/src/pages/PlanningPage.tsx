@@ -15,6 +15,9 @@ import {
   ModalFooter,
   ModalHeader,
   ModalOverlay,
+  Heading,
+  Select,
+  SimpleGrid,
   Stack,
   Text,
   Tooltip,
@@ -32,7 +35,7 @@ import { EmployeeProfileDrawer } from '../components/EmployeeProfileDrawer';
 import { LegendDrawer } from '../components/LegendDrawer';
 import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
-import type { AreaId, Assignment } from '../types';
+import type { AreaId, Assignment, DayPlan } from '../types';
 import { isBreakAssignment, suppressesConfiguredBreak } from '../utils/assignments';
 import { isTimeSlotInBreak } from '../utils/breaks';
 import { getCurrentMonday } from '../utils/dates';
@@ -96,6 +99,7 @@ export function PlanningPage(): JSX.Element {
   const canValidate = isSuperAdministrator || isSupervisor;
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
+  const [viewMode, setViewMode] = useState<'compacto' | 'completo'>('compacto');
   const [selectedCell, setSelectedCell] = useState<SelectedCell>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
@@ -357,17 +361,109 @@ export function PlanningPage(): JSX.Element {
       .sort((a, b) => b.missingHours - a.missingHours);
   }, [employees, employeeHoursById]);
 
+  const renderDayGrid = (day: DayPlan) => (
+    <DayGrid
+      dayPlan={day}
+      employees={employees}
+      roles={roles}
+      timeSlots={timeSlots}
+      breakConfig={breakConfig}
+      restDayOverrides={currentWeekPlan?.restDayOverrides}
+      employeeHoursById={employeeHoursById}
+      showEmployeeCodeInCells
+      readOnly={!canEditWeek}
+      showInactiveEmployees={isCurrentWeekValidated}
+      allowCellClickWhenReadOnly={shouldPromptValidateCurrentWeekFirst}
+      compact={viewMode === 'completo'}
+      maxTableHeight={viewMode === 'completo' ? '42vh' : undefined}
+      onCellClick={(cell) => {
+        if (canEditWeek) {
+          const idx = days.findIndex((d) => d.dateISO === day.dateISO);
+          if (idx >= 0) setActiveDayIndex(idx);
+          setSelectedCell(cell);
+          openEditor();
+          return;
+        }
+        if (shouldPromptValidateCurrentWeekFirst) {
+          openBlockedNextWeekModal();
+        }
+      }}
+      onApplyRange={({ sourceCell, untilTimeSlotId }) => {
+        if (!canEditWeek || !currentWeek) return;
+        if (isBreakAssignment(sourceCell.assignment)) return;
+        const employee = employees.find((item) => item.id === sourceCell.employeeId);
+        const override = currentWeekPlan?.restDayOverrides?.[sourceCell.employeeId];
+        const isRestToday = override
+          ? isAnyRestDayForDate(day.dateISO, override)
+          : isRestDayForDate(day.dateISO, employee?.restDay);
+        if (isRestToday) return;
+        const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
+        const sourceIndex = orderedSlots.findIndex((slot) => slot.id === sourceCell.timeSlotId);
+        const untilIndex = orderedSlots.findIndex((slot) => slot.id === untilTimeSlotId);
+        if (sourceIndex < 0 || untilIndex < 0 || untilIndex === sourceIndex) return;
+        const [fromIdx, toIdx] =
+          sourceIndex < untilIndex
+            ? [sourceIndex + 1, untilIndex + 1]
+            : [untilIndex, sourceIndex];
+        const targetSlotIds = orderedSlots
+          .slice(fromIdx, toIdx)
+          .filter((slot) => {
+            if (isTimeSlotInBreak(slot, breakConfig)) return false;
+            const existing = day.assignments[slot.id]?.[sourceCell.employeeId];
+            return !(existing && isBreakAssignment(existing));
+          })
+          .map((slot) => slot.id);
+        if (targetSlotIds.length === 0) {
+          toast({ status: 'info', title: 'No hay celdas válidas en el rango.' });
+          return;
+        }
+        const isFreeSource = sourceCell.assignment.roleId === null;
+        const result = updateEmployeeDayAssignments({
+          weekId: currentScopedWeekId ?? currentWeek.id,
+          dateISO: day.dateISO,
+          employeeId: sourceCell.employeeId,
+          assignment: isFreeSource
+            ? { roleId: null, code: 'LIBRE', explicitFree: true }
+            : { roleId: sourceCell.assignment.roleId, code: sourceCell.assignment.code, explicitFree: false },
+          timeSlotIds: targetSlotIds,
+          actorName: currentUser?.name
+        });
+        if (!result.ok) {
+          toast({ status: 'error', title: result.error ?? 'No se pudo rellenar.' });
+        } else {
+          toast({ status: 'success', title: `Se rellenaron ${targetSlotIds.length} celda(s).` });
+        }
+      }}
+      onEmployeeClick={(employeeId) => {
+        setSelectedEmployeeId(employeeId);
+        openProfile();
+      }}
+    />
+  );
+
   return (
     <Box>
       <Stack spacing={6}>
-        <Stack spacing={2}>
-          <Text fontSize={{ base: '1xl', md: '2xl' }} lineHeight="1.1" fontWeight="800" letterSpacing="-0.02em" color="#1f2f4a">
-            Planificación de Horarios
-          </Text>
-          <Text fontSize={{ base: 'xs', md: 'md' }} color="gray.600">
-            Gestione y asigne turnos para sus colaboradores esta semana.
-          </Text>
-        </Stack>
+        <Flex direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'center' }} justify="space-between" gap={3}>
+          <Stack spacing={2}>
+            <Text fontSize={{ base: '1xl', md: '2xl' }} lineHeight="1.1" fontWeight="800" letterSpacing="-0.02em" color="#1f2f4a">
+              Planificación de Horarios
+            </Text>
+            <Text fontSize={{ base: 'xs', md: 'md' }} color="gray.600">
+              Gestione y asigne turnos para sus colaboradores esta semana.
+            </Text>
+          </Stack>
+          <Select
+            value={viewMode}
+            onChange={(event) => setViewMode(event.target.value as 'compacto' | 'completo')}
+            w={{ base: '100%', md: '180px' }}
+            flexShrink={0}
+            bg="white"
+          >
+            <option value="compacto">Compacto</option>
+            <option value="completo">Completo</option>
+          </Select>
+        </Flex>
 
         <Card>
           <CardBody>
@@ -515,105 +611,47 @@ export function PlanningPage(): JSX.Element {
           </Card>
         ) : (
           <Stack spacing={4}>
-            <Card>
-              <CardHeader pb={0}>
-                <DayTabs days={days} activeIndex={activeDayIndex} onChange={setActiveDayIndex} />
-              </CardHeader>
-              <CardBody>
-                <Stack spacing={4}>
-                  <Box>
-                    <DayGrid
-                      dayPlan={activeDay}
-                      employees={employees}
-                      roles={roles}
-                      timeSlots={timeSlots}
-                      breakConfig={breakConfig}
-                      restDayOverrides={currentWeekPlan?.restDayOverrides}
-                      employeeHoursById={employeeHoursById}
-                      showEmployeeCodeInCells
-                      readOnly={!canEditWeek}
-                      showInactiveEmployees={isCurrentWeekValidated}
-                      allowCellClickWhenReadOnly={shouldPromptValidateCurrentWeekFirst}
-                      onCellClick={(cell) => {
-                        if (canEditWeek) {
-                          setSelectedCell(cell);
-                          openEditor();
-                          return;
-                        }
-                        if (shouldPromptValidateCurrentWeekFirst) {
-                          openBlockedNextWeekModal();
-                        }
-                      }}
-                      onApplyRange={({ sourceCell, untilTimeSlotId }) => {
-                        if (!canEditWeek || !activeDay || !currentWeek) return;
-                        if (isBreakAssignment(sourceCell.assignment)) return;
-                        const employee = employees.find((item) => item.id === sourceCell.employeeId);
-                        const override = currentWeekPlan?.restDayOverrides?.[sourceCell.employeeId];
-                        const isRestToday = override
-                          ? isAnyRestDayForDate(activeDay.dateISO, override)
-                          : isRestDayForDate(activeDay.dateISO, employee?.restDay);
-                        if (isRestToday) return;
-                        const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
-                        const sourceIndex = orderedSlots.findIndex((slot) => slot.id === sourceCell.timeSlotId);
-                        const untilIndex = orderedSlots.findIndex((slot) => slot.id === untilTimeSlotId);
-                        if (sourceIndex < 0 || untilIndex < 0 || untilIndex === sourceIndex) return;
-                        const [fromIdx, toIdx] =
-                          sourceIndex < untilIndex
-                            ? [sourceIndex + 1, untilIndex + 1]
-                            : [untilIndex, sourceIndex];
-                        const targetSlotIds = orderedSlots
-                          .slice(fromIdx, toIdx)
-                          .filter((slot) => {
-                            if (isTimeSlotInBreak(slot, breakConfig)) return false;
-                            const existing = activeDay.assignments[slot.id]?.[sourceCell.employeeId];
-                            return !(existing && isBreakAssignment(existing));
-                          })
-                          .map((slot) => slot.id);
-                        if (targetSlotIds.length === 0) {
-                          toast({ status: 'info', title: 'No hay celdas válidas en el rango.' });
-                          return;
-                        }
-                        const isFreeSource = sourceCell.assignment.roleId === null;
-                        const result = updateEmployeeDayAssignments({
-                          weekId: currentScopedWeekId ?? currentWeek.id,
-                          dateISO: activeDay.dateISO,
-                          employeeId: sourceCell.employeeId,
-                          assignment: isFreeSource
-                            ? { roleId: null, code: 'LIBRE', explicitFree: true }
-                            : { roleId: sourceCell.assignment.roleId, code: sourceCell.assignment.code, explicitFree: false },
-                          timeSlotIds: targetSlotIds,
-                          actorName: currentUser?.name
-                        });
-                        if (!result.ok) {
-                          toast({ status: 'error', title: result.error ?? 'No se pudo rellenar.' });
-                        } else {
-                          toast({ status: 'success', title: `Se rellenaron ${targetSlotIds.length} celda(s).` });
-                        }
-                      }}
-                      onEmployeeClick={(employeeId) => {
-                        setSelectedEmployeeId(employeeId);
-                        openProfile();
-                      }}
-                    />
-                  </Box>
-                  <Divider />
-                  <HStack spacing={3} flexWrap="wrap">
-                    <Badge colorScheme="orange" px={3} py={1} rounded="full" variant="subtle">
-                      Apertura: {openingTarget}
-                    </Badge>
-                    <Badge colorScheme="purple" px={3} py={1} rounded="full" variant="subtle">
-                      Cierre: {closingTarget}
-                    </Badge>
-                    {breakConfig.enabled ? (
-                      <Badge colorScheme="yellow" px={3} py={1} rounded="full" variant="subtle">
-                        Refrigerio: {String(breakConfig.startHour).padStart(2, '0')}:00 - {String(breakConfig.endHour).padStart(2, '0')}:00
+            {viewMode === 'completo' ? (
+              <SimpleGrid columns={{ base: 1, xl: 2 }} spacing={4}>
+                {days.map((day) => (
+                  <Card key={day.dateISO}>
+                    <CardBody>
+                      <Heading size="sm" mb={3}>
+                        {day.dayName} ({day.dateISO})
+                      </Heading>
+                      {renderDayGrid(day)}
+                    </CardBody>
+                  </Card>
+                ))}
+              </SimpleGrid>
+            ) : (
+              <Card>
+                <CardHeader pb={0}>
+                  <DayTabs days={days} activeIndex={activeDayIndex} onChange={setActiveDayIndex} />
+                </CardHeader>
+                <CardBody>
+                  <Stack spacing={4}>
+                    <Box>{renderDayGrid(activeDay)}</Box>
+                    <Divider />
+                    <HStack spacing={3} flexWrap="wrap">
+                      <Badge colorScheme="orange" px={3} py={1} rounded="full" variant="subtle">
+                        Apertura: {openingTarget}
                       </Badge>
-                    ) : null}
-                  </HStack>
-                </Stack>
-              </CardBody>
-            </Card>
+                      <Badge colorScheme="purple" px={3} py={1} rounded="full" variant="subtle">
+                        Cierre: {closingTarget}
+                      </Badge>
+                      {breakConfig.enabled ? (
+                        <Badge colorScheme="yellow" px={3} py={1} rounded="full" variant="subtle">
+                          Refrigerio: {String(breakConfig.startHour).padStart(2, '0')}:00 - {String(breakConfig.endHour).padStart(2, '0')}:00
+                        </Badge>
+                      ) : null}
+                    </HStack>
+                  </Stack>
+                </CardBody>
+              </Card>
+            )}
 
+            {viewMode === 'completo' ? null : (
             <Card bg="white" borderColor="gray.200" borderWidth="1px" w={{ base: '100%', xl: '50%' }}>
               <CardBody>
                 <Stack spacing={3}>
@@ -747,6 +785,7 @@ export function PlanningPage(): JSX.Element {
                 </Stack>
               </CardBody>
             </Card>
+            )}
           </Stack>
         )}
       </Stack>

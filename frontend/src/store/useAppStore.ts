@@ -1883,8 +1883,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!Number.isInteger(startHour) || !Number.isInteger(endHour)) {
       return { ok: false, error: 'El rango debe usar horas enteras.' };
     }
-    if (startHour < 0 || startHour > 22 || endHour < 1 || endHour > 23) {
-      return { ok: false, error: 'El rango debe estar entre 00:00 y 23:00.' };
+    if (startHour < 0 || startHour > 22 || endHour < 1 || endHour > 24) {
+      return { ok: false, error: 'El rango debe estar entre 00:00 y 24:00.' };
     }
     if (endHour <= startHour) {
       return { ok: false, error: 'La hora fin debe ser mayor que la hora inicio.' };

@@ -116,7 +116,7 @@ export function TimeSlotsPage(): JSX.Element {
     setBreakEndHour(String(breakConfig.endHour));
   }, [breakConfig.enabled, breakConfig.startHour, breakConfig.endHour]);
 
-  const hourOptions = useMemo(() => Array.from({ length: 24 }, (_, hour) => hour), []);
+  const hourOptions = useMemo(() => Array.from({ length: 25 }, (_, hour) => hour), []);
   const currentRangeLabel = ordered.length ? `${ordered[0].start} - ${ordered[ordered.length - 1].end}` : '-';
   const daysConfig = useMemo(
     () => [

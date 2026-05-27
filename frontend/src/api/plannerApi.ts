@@ -110,6 +110,7 @@ export interface GeoVictoriaPlanningMigrationItem {
   breakEndHour?: string;
   costCenterCode?: string;
   custom: string;
+  crossesMidnight?: boolean;
 }
 
 export interface GeoVictoriaPlanningMigrationResult extends GeoVictoriaPlanningMigrationItem {

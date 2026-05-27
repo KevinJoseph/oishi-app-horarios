@@ -64,6 +64,7 @@ interface GeoVictoriaMigrateShiftItemRequestBody {
   breakStartHour?: string;
   breakEndHour?: string;
   custom?: string;
+  crossesMidnight?: boolean;
 }
 
 interface GeoVictoriaMigratePlanningRequestBody {
@@ -314,14 +315,17 @@ async function insertGeoVictoriaShift(
   endHour: string,
   breakStartHour: string | undefined,
   breakEndHour: string | undefined,
-  custom: string
+  custom: string,
+  crossesMidnight: boolean
 ): Promise<string> {
   const payload: Record<string, string> = {
     StartHour: startHour,
     EndHour: endHour,
-    ShiftDay: 'fin',
     Custom: custom
   };
+  if (!crossesMidnight) {
+    payload.ShiftDay = 'fin';
+  }
 
   if (breakStartHour && breakEndHour) {
     payload.BreakStart = breakStartHour;
@@ -1024,6 +1028,7 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
     const breakStartHour = cleanRequiredText(item.breakStartHour);
     const breakEndHour = cleanRequiredText(item.breakEndHour);
     const custom = (cleanRequiredText(item.custom) || `${startHour}-${endHour}`).slice(0, 20);
+    const crossesMidnight = item.crossesMidnight === true;
     const startMinutes = toMinutes(startHour);
     const endMinutes = toMinutes(endHour);
     const breakStartMinutes = breakStartHour ? toMinutes(breakStartHour) : null;
@@ -1036,8 +1041,8 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
         breakEndMinutes > breakStartMinutes &&
         startMinutes !== null &&
         endMinutes !== null &&
-        breakStartMinutes >= startMinutes &&
-        breakEndMinutes <= endMinutes);
+        (crossesMidnight ||
+          (breakStartMinutes >= startMinutes && breakEndMinutes <= endMinutes)));
 
     const isReciboCompany = companyAlias.toUpperCase() === 'RECIBO';
 
@@ -1048,7 +1053,10 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
       !userIdentifier ||
       (isReciboCompany && !costCenterCode) ||
       !isValidDateISO(dateISO) ||
-      (assignmentType === 'work' && (startMinutes === null || endMinutes === null || endMinutes <= startMinutes)) ||
+      (assignmentType === 'work' &&
+        (startMinutes === null ||
+          endMinutes === null ||
+          (!crossesMidnight && endMinutes <= startMinutes))) ||
       !breakIsValid
     ) {
       results.push({
@@ -1129,7 +1137,7 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
           ? `${companyId}|rest`
           : assignmentType === 'free'
             ? `${companyId}|free`
-            : `${companyId}|${startHour}|${endHour}|${breakStartHour}|${breakEndHour}`;
+            : `${companyId}|${startHour}|${endHour}|${breakStartHour}|${breakEndHour}|${crossesMidnight ? 'x' : 'n'}`;
       shiftId = shiftIdCache.get(shiftSignature);
       shiftSource = 'created';
 
@@ -1158,7 +1166,8 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
             endHour,
             breakStartHour || undefined,
             breakEndHour || undefined,
-            custom
+            custom,
+            crossesMidnight
           );
           companyShifts.push({
             id: shiftId,

@@ -24,6 +24,7 @@ export type GeoMigrationRow = {
   custom: string;
   canMigrate: boolean;
   warnings: string[];
+  crossesMidnight?: boolean;
 };
 
 function parseTimeToMinutes(value: string): number | null {
@@ -33,6 +34,46 @@ function parseTimeToMinutes(value: string): number | null {
   const minutes = Number.parseInt(match[2], 10);
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
   return hours * 60 + minutes;
+}
+
+function addOneDayISO(dateISO: string): string {
+  const date = new Date(`${dateISO}T00:00:00`);
+  date.setDate(date.getDate() + 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function mergeCrossMidnightRows(rows: GeoMigrationRow[]): GeoMigrationRow[] {
+  const workByLookup = new Map<string, GeoMigrationRow>();
+  for (const row of rows) {
+    if (row.assignmentType !== 'work') continue;
+    workByLookup.set(`${row.employeeId}::${row.dateISO}::${row.startHour}`, row);
+  }
+
+  const removedKeys = new Set<string>();
+  for (const row of rows) {
+    if (row.assignmentType !== 'work') continue;
+    if (removedKeys.has(row.key)) continue;
+    if (row.endHour !== '24:00') continue;
+    const nextDate = addOneDayISO(row.dateISO);
+    const candidate = workByLookup.get(`${row.employeeId}::${nextDate}::00:00`);
+    if (!candidate) continue;
+    if (removedKeys.has(candidate.key)) continue;
+    if (candidate.roleName !== row.roleName) continue;
+
+    row.endHour = candidate.endHour;
+    row.crossesMidnight = true;
+    row.custom = `${row.employeeCode}-${row.startHour}-${row.endHour}`.slice(0, 20);
+    if (!row.breakStartHour && candidate.breakStartHour) {
+      row.breakStartHour = candidate.breakStartHour;
+      row.breakEndHour = candidate.breakEndHour;
+    }
+    removedKeys.add(candidate.key);
+  }
+
+  return rows.filter((row) => !removedKeys.has(row.key));
 }
 
 function buildCompanyLabel(employee: Employee): string {
@@ -284,7 +325,8 @@ export function buildGeoMigrationRows(
     }
   }
 
-  return rows.sort((a, b) => {
+  const merged = mergeCrossMidnightRows(rows);
+  return merged.sort((a, b) => {
     const dateOrder = a.dateISO.localeCompare(b.dateISO);
     if (dateOrder !== 0) return dateOrder;
     const startOrder = a.startHour.localeCompare(b.startHour);

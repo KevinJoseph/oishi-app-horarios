@@ -262,7 +262,8 @@ export function GeoMigrationPage(): JSX.Element {
       breakStartHour: row.breakStartHour,
       breakEndHour: row.breakEndHour,
       costCenterCode: row.costCenterCode,
-      custom: row.custom
+      custom: row.custom,
+      crossesMidnight: row.crossesMidnight
     }));
 
   const persistMigrationResults = (

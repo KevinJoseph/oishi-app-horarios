@@ -15,6 +15,7 @@ import type {
   AreaInfo,
   Assignment,
   BreakConfig,
+  DayOvertime,
   Employee,
   Role,
   ShiftRanges,
@@ -98,6 +99,7 @@ type AppState = PersistableState & {
   updateEmployeeDayAssignments: (input: UpdateEmployeeDayAssignmentsInput) => { ok: boolean; error?: string };
   updateEmployeeDayByHours: (input: UpdateEmployeeDayByHoursInput) => { ok: boolean; error?: string };
   setExceptionalRestDay: (input: { weekId: string; dateISO: string; employeeId: string; active: boolean }) => { ok: boolean; error?: string };
+  setDayOvertime: (input: { weekId: string; dateISO: string; employeeId: string; overtime: DayOvertime | null; actorName?: string }) => { ok: boolean; error?: string };
   validateWeekPlan: (weekId: string, actorName?: string) => { ok: boolean; error?: string };
   desvalidateWeekPlan: (weekId: string) => { ok: boolean; error?: string };
   setPlanningHoursRange: (startHour: number, endHour: number) => { ok: boolean; error?: string };
@@ -2220,6 +2222,44 @@ export const useAppStore = create<AppState>((set, get) => ({
           ...state.weekPlans,
           [scopedWeekId]: { ...plan, days, restDayOverrides }
         }
+      };
+    });
+    queuePlanningManual(get, set, { currentWeek: true });
+    return { ok: true };
+  },
+
+  setDayOvertime: ({ weekId, dateISO, employeeId, overtime, actorName }) => {
+    const stateSnapshot = get();
+    const scopedWeekId = resolveScopedWeekId(stateSnapshot.currentAreaId, weekId);
+    const validationKey = scopedWeekId;
+    if (stateSnapshot.validatedWeekIds.includes(validationKey)) {
+      return { ok: false, error: 'La semana validada está en solo lectura. Retorna la validación para editar.' };
+    }
+    if (!isWeekUnlockedForPlanning(stateSnapshot.weeks, stateSnapshot.validatedWeekIds, scopedWeekId)) {
+      return { ok: false, error: 'No se puede modificar esta semana.' };
+    }
+    const hasOvertime =
+      overtime !== null && (overtime.before !== undefined || overtime.after !== undefined);
+    set((state) => {
+      const plan = state.weekPlans[scopedWeekId];
+      if (!plan) return {};
+      const days = plan.days.map((day) => {
+        if (day.dateISO !== dateISO) return day;
+        const nextOvertime = { ...(day.overtime ?? {}) };
+        if (hasOvertime) {
+          nextOvertime[employeeId] = overtime as DayOvertime;
+        } else {
+          delete nextOvertime[employeeId];
+        }
+        const hasAny = Object.keys(nextOvertime).length > 0;
+        const { overtime: _omit, ...rest } = day;
+        return hasAny ? { ...rest, overtime: nextOvertime } : rest;
+      });
+      const weekPlan = { ...plan, days };
+      return {
+        weekPlans: { ...state.weekPlans, [scopedWeekId]: weekPlan },
+        validatedWeekIds: invalidateWeekValidation(state.validatedWeekIds, validationKey),
+        weekAuditById: clearWeekValidator(ensureWeekCreator(state.weekAuditById, validationKey, actorName), validationKey)
       };
     });
     queuePlanningManual(get, set, { currentWeek: true });

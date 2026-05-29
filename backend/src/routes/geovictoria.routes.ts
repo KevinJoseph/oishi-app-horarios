@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  addGeoVictoriaOvertimeController,
   addGeoVictoriaUserController,
   getGeoVictoriaCompaniesController,
   getGeoVictoriaEmployeesController,
@@ -21,5 +22,6 @@ geoVictoriaRouter.get('/geovictoria/recibo-employees', requireAuth, requireAdmin
 geoVictoriaRouter.get('/geovictoria/companies', requireAuth, getGeoVictoriaCompaniesController);
 geoVictoriaRouter.post('/geovictoria/users', requireAuth, requirePlannerWrite, addGeoVictoriaUserController);
 geoVictoriaRouter.post('/geovictoria/planning/migrate', requireAuth, requirePlannerWrite, migrateGeoVictoriaPlanningController);
+geoVictoriaRouter.post('/geovictoria/overtime/add', requireAuth, requirePlannerWrite, addGeoVictoriaOvertimeController);
 geoVictoriaRouter.post('/geovictoria/migration-logs', requireAuth, requirePlannerWrite, saveMigrationLogsController);
 geoVictoriaRouter.get('/geovictoria/migration-logs', requireAuth, getMigrationLogsController);

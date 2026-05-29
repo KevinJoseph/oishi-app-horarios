@@ -85,6 +85,7 @@ export function PlanningPage(): JSX.Element {
   const updateEmployeeDayAssignments = useAppStore((state) => state.updateEmployeeDayAssignments);
   const updateEmployeeDayByHours = useAppStore((state) => state.updateEmployeeDayByHours);
   const setExceptionalRestDay = useAppStore((state) => state.setExceptionalRestDay);
+  const setDayOvertime = useAppStore((state) => state.setDayOvertime);
   const validateWeekPlan = useAppStore((state) => state.validateWeekPlan);
   const desvalidateWeekPlan = useAppStore((state) => state.desvalidateWeekPlan);
   const migrateFromPreviousWeek = useAppStore((state) => state.migrateFromPreviousWeek);
@@ -827,7 +828,11 @@ export function PlanningPage(): JSX.Element {
           return override.includes(new Date(`${activeDay.dateISO}T00:00:00`).getDay());
         })()}
         isExceptionalBreak={selectedCellIsExceptionalBreak}
-        onSave={({ assignment, applyToEmployeeDay, dayHours, exceptionalRestDay, exceptionalBreak }) => {
+        overtime={(() => {
+          if (!activeDay || !selectedCell) return null;
+          return activeDay.overtime?.[selectedCell.employeeId] ?? null;
+        })()}
+        onSave={({ assignment, applyToEmployeeDay, dayHours, exceptionalRestDay, exceptionalBreak, overtime }) => {
           if (!canEdit) {
             toast({ status: 'error', title: 'Tu perfil es solo de visualización.' });
             return;
@@ -837,6 +842,22 @@ export function PlanningPage(): JSX.Element {
             return;
           }
           if (!selectedCell || !activeDay || !currentWeek) return;
+          // Horas extra (nivel día): aplicar solo si cambian respecto al estado actual
+          if (overtime !== undefined) {
+            const currentOvertime = activeDay.overtime?.[selectedCell.employeeId] ?? null;
+            if (JSON.stringify(currentOvertime) !== JSON.stringify(overtime)) {
+              const otResult = setDayOvertime({
+                weekId: currentScopedWeekId ?? currentWeek.id,
+                dateISO: activeDay.dateISO,
+                employeeId: selectedCell.employeeId,
+                overtime,
+                actorName: currentUser?.name
+              });
+              if (!otResult.ok) {
+                toast({ status: 'error', title: otResult.error ?? 'No se pudo guardar la hora extra.' });
+              }
+            }
+          }
           // Descanso excepcional: activar o desactivar
           if (exceptionalRestDay !== undefined) {
             const result = setExceptionalRestDay({

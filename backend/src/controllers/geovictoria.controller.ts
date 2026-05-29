@@ -71,6 +71,23 @@ interface GeoVictoriaMigratePlanningRequestBody {
   items?: GeoVictoriaMigrateShiftItemRequestBody[];
 }
 
+interface GeoVictoriaOvertimeItemRequestBody {
+  employeeId?: string;
+  employeeName?: string;
+  companyId?: string;
+  companyAlias?: string;
+  userIdentifier?: string;
+  dateISO?: string;
+  durationBefore?: string;
+  durationAfter?: string;
+  valueBefore?: string;
+  valueAfter?: string;
+}
+
+interface GeoVictoriaOvertimeRequestBody {
+  items?: GeoVictoriaOvertimeItemRequestBody[];
+}
+
 interface GeoVictoriaShiftListItem {
   id: string;
   type: string;
@@ -109,6 +126,24 @@ function extractGeoVictoriaMessage(payload: unknown): string {
 
 function formatGeoVictoriaDate(dateISO: string): string {
   return `${dateISO.replace(/-/g, '')}000000`;
+}
+
+function formatGeoVictoriaDateShort(dateISO: string): string {
+  return dateISO.replace(/-/g, '');
+}
+
+function normalizeOvertimeDuration(value: unknown): string {
+  const text = cleanRequiredText(value);
+  return /^\d{2}:\d{2}$/.test(text) ? text : '00:00';
+}
+
+function normalizeOvertimeValue(value: unknown): string {
+  const text = cleanRequiredText(value);
+  return /^\d+$/.test(text) ? text : '0';
+}
+
+function isZeroDuration(value: string): boolean {
+  return value === '00:00' || value === '0';
 }
 
 function sleep(ms: number): Promise<void> {
@@ -1260,6 +1295,173 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
   const migrated = results.filter((item) => item.ok).length;
   const failed = results.length - migrated;
   res.status(200).json({ migrated, failed, results });
+}
+
+export async function addGeoVictoriaOvertimeController(req: Request, res: Response): Promise<void> {
+  const body = (req.body ?? {}) as GeoVictoriaOvertimeRequestBody;
+  const items = Array.isArray(body.items) ? body.items : [];
+
+  if (items.length === 0) {
+    res.status(400).json({ error: 'Debes enviar al menos una hora extra para registrar.' });
+    return;
+  }
+
+  const interItemDelayMs = 150;
+  let isFirstItem = true;
+  const results: Array<{
+    employeeId: string;
+    employeeName: string;
+    userIdentifier: string;
+    companyId: string;
+    dateISO: string;
+    durationBefore: string;
+    durationAfter: string;
+    valueBefore: string;
+    valueAfter: string;
+    ok: boolean;
+    message?: string;
+    error?: string;
+  }> = [];
+
+  for (const item of items) {
+    if (!isFirstItem) {
+      await sleep(interItemDelayMs);
+    }
+    isFirstItem = false;
+
+    const employeeId = cleanRequiredText(item.employeeId);
+    const employeeName = cleanRequiredText(item.employeeName);
+    const companyId = cleanRequiredText(item.companyId);
+    const companyAlias = cleanRequiredText(item.companyAlias) || getCompanyAliasById(companyId);
+    const userIdentifier = cleanRequiredText(item.userIdentifier);
+    const dateISO = cleanRequiredText(item.dateISO);
+    const durationBefore = normalizeOvertimeDuration(item.durationBefore);
+    const durationAfter = normalizeOvertimeDuration(item.durationAfter);
+    const valueBefore = normalizeOvertimeValue(item.valueBefore);
+    const valueAfter = normalizeOvertimeValue(item.valueAfter);
+
+    const base = {
+      employeeId,
+      employeeName,
+      userIdentifier,
+      companyId,
+      dateISO,
+      durationBefore,
+      durationAfter,
+      valueBefore,
+      valueAfter
+    };
+
+    if (
+      !companyId ||
+      !userIdentifier ||
+      !isValidDateISO(dateISO) ||
+      (isZeroDuration(durationBefore) && isZeroDuration(durationAfter))
+    ) {
+      results.push({
+        ...base,
+        ok: false,
+        error: 'Fila invalida. Verifica company, identificador, fecha y al menos una duracion de hora extra.'
+      });
+      continue;
+    }
+
+    const isReciboCompany = companyAlias.toUpperCase() === 'RECIBO';
+    const credentials = isReciboCompany
+      ? env.geoVictoriaReciboUser && env.geoVictoriaReciboPassword
+        ? { companyId, user: env.geoVictoriaReciboUser, password: env.geoVictoriaReciboPassword }
+        : null
+      : getCompanyCredentials(companyId);
+    if (!credentials) {
+      results.push({
+        ...base,
+        ok: false,
+        error: `No existen credenciales configuradas para la company "${companyId}".`
+      });
+      continue;
+    }
+
+    const tokenCacheKey = isReciboCompany ? 'recibo' : `company:${companyId}`;
+
+    try {
+      const token = await getTokenForCredentials(tokenCacheKey, credentials.user, credentials.password, companyId);
+      const gvDate = formatGeoVictoriaDateShort(dateISO);
+      const payload = [
+        {
+          UserIdentifier: userIdentifier,
+          StartDateOvertime: gvDate,
+          EndDateOvertime: gvDate,
+          DurationBefore: durationBefore,
+          DurationAfter: durationAfter,
+          OvertimeValueAfter: valueAfter,
+          OvertimeValueBefore: valueBefore
+        }
+      ];
+
+      const response = await fetchWithRetry(env.geoVictoriaOvertimeAddUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const rawText = (await response.text()).trim();
+      let parsed: unknown = null;
+      if (rawText) {
+        try {
+          parsed = JSON.parse(rawText) as unknown;
+        } catch {
+          parsed = rawText;
+        }
+      }
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          tokenCache.delete(tokenCacheKey);
+        }
+        results.push({
+          ...base,
+          ok: false,
+          error:
+            extractGeoVictoriaMessage(parsed) ||
+            `Error al registrar hora extra en GeoVictoria: ${response.status} ${response.statusText}`
+        });
+        continue;
+      }
+
+      const success =
+        typeof parsed === 'object' && parsed !== null && 'Success' in parsed
+          ? (parsed as { Success?: boolean }).Success !== false
+          : true;
+
+      if (!success) {
+        results.push({
+          ...base,
+          ok: false,
+          error: extractGeoVictoriaMessage(parsed) || 'GeoVictoria rechazó la hora extra.'
+        });
+        continue;
+      }
+
+      results.push({
+        ...base,
+        ok: true,
+        message: extractGeoVictoriaMessage(parsed) || 'Hora extra registrada correctamente.'
+      });
+    } catch (error) {
+      results.push({
+        ...base,
+        ok: false,
+        error: error instanceof Error ? error.message : 'Error al registrar hora extra en GeoVictoria.'
+      });
+    }
+  }
+
+  const added = results.filter((item) => item.ok).length;
+  const failed = results.length - added;
+  res.status(200).json({ added, failed, results });
 }
 
 export async function saveMigrationLogsController(req: Request, res: Response): Promise<void> {

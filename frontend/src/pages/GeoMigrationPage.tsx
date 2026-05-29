@@ -30,9 +30,11 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { FiEye, FiSend } from 'react-icons/fi';
 import {
+  addGeoVictoriaOvertime,
   fetchMigrationLogs,
   migrateGeoVictoriaPlanning,
   saveMigrationLogs,
+  type GeoVictoriaOvertimeItem,
   type GeoVictoriaPlanningMigrationResult
 } from '../api/plannerApi';
 import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
@@ -266,6 +268,51 @@ export function GeoMigrationPage(): JSX.Element {
       crossesMidnight: row.crossesMidnight
     }));
 
+  const buildOvertimeItems = (group: GeoMigrationGroup): GeoVictoriaOvertimeItem[] => {
+    if (!weekPlan) return [];
+    const firstRow = group.rows[0];
+    const items: GeoVictoriaOvertimeItem[] = [];
+    for (const day of weekPlan.days) {
+      const dayOvertime = day.overtime?.[group.employeeId];
+      if (!dayOvertime || (!dayOvertime.before && !dayOvertime.after)) continue;
+      items.push({
+        employeeId: group.employeeId,
+        employeeName: group.employeeName,
+        companyId: group.companyId,
+        companyAlias: firstRow?.companyAlias,
+        userIdentifier: group.userIdentifier,
+        dateISO: day.dateISO,
+        durationBefore: dayOvertime.before?.duration ?? '00:00',
+        durationAfter: dayOvertime.after?.duration ?? '00:00',
+        valueBefore: dayOvertime.before?.value ?? '0',
+        valueAfter: dayOvertime.after?.value ?? '0'
+      });
+    }
+    return items;
+  };
+
+  const sendOvertimeForGroups = async (
+    groupsToSend: GeoMigrationGroup[]
+  ): Promise<{ added: number; failed: number; errors: string[] }> => {
+    const items = groupsToSend.flatMap((group) => buildOvertimeItems(group));
+    if (items.length === 0) {
+      return { added: 0, failed: 0, errors: [] };
+    }
+    try {
+      const response = await addGeoVictoriaOvertime(items);
+      const errors = response.results
+        .filter((result) => !result.ok)
+        .map((result) => `${result.employeeName} (${result.dateISO}): ${result.error ?? 'error'}`);
+      return { added: response.added, failed: response.failed, errors };
+    } catch (error) {
+      return {
+        added: 0,
+        failed: items.length,
+        errors: [error instanceof Error ? error.message : 'No se pudieron registrar las horas extra.']
+      };
+    }
+  };
+
   const persistMigrationResults = (
     group: GeoMigrationGroup,
     response: { migrated: number; failed: number; results: GeoVictoriaPlanningMigrationResult[] },
@@ -398,10 +445,15 @@ export function GeoMigrationPage(): JSX.Element {
           }
         }
 
+        const overtime = await sendOvertimeForGroups(groupsToMigrate);
         toast.close(migrationToastId);
         toast({
-          status: failed > 0 ? 'warning' : 'success',
-          title: `Migracion completada: ${migrated} ok, ${failed} con error.`
+          status: failed > 0 || overtime.failed > 0 ? 'warning' : 'success',
+          title: `Migracion completada: ${migrated} ok, ${failed} con error.${
+            overtime.added || overtime.failed ? ` Horas extra: ${overtime.added} ok, ${overtime.failed} con error.` : ''
+          }`,
+          description: overtime.errors.length ? overtime.errors.join(' | ') : undefined,
+          duration: overtime.errors.length ? 9000 : undefined
         });
         return;
       }
@@ -417,10 +469,15 @@ export function GeoMigrationPage(): JSX.Element {
         }, migratedAt, migratedBy);
       }
 
+      const overtime = await sendOvertimeForGroups(groupsToMigrate);
       toast.close(migrationToastId);
       toast({
-        status: response.failed > 0 ? 'warning' : 'success',
-        title: `Migracion completada: ${response.migrated} ok, ${response.failed} con error.`
+        status: response.failed > 0 || overtime.failed > 0 ? 'warning' : 'success',
+        title: `Migracion completada: ${response.migrated} ok, ${response.failed} con error.${
+          overtime.added || overtime.failed ? ` Horas extra: ${overtime.added} ok, ${overtime.failed} con error.` : ''
+        }`,
+        description: overtime.errors.length ? overtime.errors.join(' | ') : undefined,
+        duration: overtime.errors.length ? 9000 : undefined
       });
     } catch (error) {
       toast.close(migrationToastId);

@@ -178,6 +178,37 @@ export function migrateGeoVictoriaPlanning(
   );
 }
 
+export interface GeoVictoriaOvertimeItem {
+  employeeId: string;
+  employeeName: string;
+  companyId: string;
+  companyAlias?: string;
+  userIdentifier: string;
+  dateISO: string;
+  durationBefore: string;
+  durationAfter: string;
+  valueBefore: string;
+  valueAfter: string;
+}
+
+export interface GeoVictoriaOvertimeResult extends GeoVictoriaOvertimeItem {
+  ok: boolean;
+  message?: string;
+  error?: string;
+}
+
+export function addGeoVictoriaOvertime(
+  items: GeoVictoriaOvertimeItem[]
+): Promise<{ added: number; failed: number; results: GeoVictoriaOvertimeResult[] }> {
+  return request<{ added: number; failed: number; results: GeoVictoriaOvertimeResult[] }>(
+    '/geovictoria/overtime/add',
+    {
+      method: 'POST',
+      body: JSON.stringify({ items })
+    }
+  );
+}
+
 export type MigrationLogEntry = {
   companyId: string;
   areaId: string;

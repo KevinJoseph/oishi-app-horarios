@@ -236,7 +236,13 @@ export function GeoMigrationPage(): JSX.Element {
                 : r.assignmentType === 'free'
                   ? `${r.employeeId}:${r.dateISO}:free`
                   : `${r.employeeId}:${r.dateISO}:${r.startHour}:${r.endHour}:${r.breakStartHour ?? ''}:${r.breakEndHour ?? ''}`;
-            next[rowKey] = { result: r, migratedAt: log.migratedAt, migratedBy: log.migratedBy };
+            // Pueden existir varios logs para la misma fila (p. ej. migrada con
+            // distinta company/groupKey). Nos quedamos siempre con el resultado
+            // mas reciente, sin depender del orden de iteracion.
+            const existing = next[rowKey];
+            if (!existing || log.migratedAt > existing.migratedAt) {
+              next[rowKey] = { result: r, migratedAt: log.migratedAt, migratedBy: log.migratedBy };
+            }
           }
         }
         setResultByKey(next);

@@ -124,6 +124,38 @@ function extractGeoVictoriaMessage(payload: unknown): string {
   return '';
 }
 
+// GeoVictoria a veces responde HTTP 200 pero con un cuerpo que en realidad
+// indica un fallo (ej. {"Code":"0066","CategoryException":"NonExistenceOfData",
+// "Description":"Desactivated or inexistent users detected: ..."}). Detectamos
+// esos casos para no marcar la planificacion como exitosa cuando no lo es.
+function extractGeoVictoriaErrorInBody(payload: unknown): string | null {
+  if (typeof payload === 'string') {
+    return /desactivated|inexistent|no existe|error|exception/i.test(payload) ? payload : null;
+  }
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+
+  const record = payload as Record<string, unknown>;
+  const code = typeof record.Code === 'string' ? record.Code : '';
+  const category = typeof record.CategoryException === 'string' ? record.CategoryException : '';
+  const description = typeof record.Description === 'string' ? record.Description : '';
+  const message = extractGeoVictoriaMessage(payload);
+
+  // Code "0" o vacio = ok. Cualquier Code/CategoryException presente = error.
+  const hasErrorCode = Boolean(code && code !== '0' && code !== '0000');
+  const hasCategory = Boolean(category);
+  const hasErrorText = /desactivated|inexistent|no existe|not been found|no ha sido encontrado/i.test(
+    `${description} ${message}`
+  );
+
+  if (hasErrorCode || hasCategory || hasErrorText) {
+    return description || message || `GeoVictoria devolvio Code ${code} (${category}).`;
+  }
+
+  return null;
+}
+
 function formatGeoVictoriaDate(dateISO: string): string {
   return `${dateISO.replace(/-/g, '')}000000`;
 }
@@ -536,12 +568,20 @@ async function assignGeoVictoriaPlanning(
     return 'OK';
   }
 
+  let parsedOk: unknown = rawText;
   try {
-    const parsed = JSON.parse(rawText) as unknown;
-    return extractGeoVictoriaMessage(parsed) || rawText;
+    parsedOk = JSON.parse(rawText) as unknown;
   } catch {
-    return rawText;
+    parsedOk = rawText;
   }
+
+  // Aunque el status sea 200, GeoVictoria puede devolver un error en el cuerpo.
+  const bodyError = extractGeoVictoriaErrorInBody(parsedOk);
+  if (bodyError) {
+    throw new Error(`Error al asignar planificacion en GeoVictoria: ${bodyError.slice(0, 300)}`);
+  }
+
+  return extractGeoVictoriaMessage(parsedOk) || rawText;
 }
 
 export async function getGeoVictoriaReciboEmployeesController(_req: Request, res: Response): Promise<void> {

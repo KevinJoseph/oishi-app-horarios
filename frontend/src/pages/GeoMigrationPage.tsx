@@ -594,6 +594,11 @@ export function GeoMigrationPage(): JSX.Element {
                     const shiftResults = groupResults.map((entry) => entry.result);
                     const shiftErrors = shiftResults.filter((result) => !result.shiftOk);
                     const planningErrors = shiftResults.filter((result) => !result.planningOk);
+                    // "Enviado" verde solo si TODAS las filas migraron por completo
+                    // (turno + planificacion). Crear el turno no basta: si la
+                    // planificacion fallo, el estado es Parcial, no Enviado.
+                    const fullyMigrated =
+                      allRowsMigrated && shiftResults.length > 0 && shiftResults.every((result) => result.ok);
                     const shiftCreated = shiftResults.filter((result) => result.shiftOk && result.shiftSource === 'created').length;
                     const shiftReused = shiftResults.filter((result) => result.shiftOk && result.shiftSource === 'existing').length;
                     const lastMigratedAt = groupResults.reduce<string | null>(
@@ -630,8 +635,8 @@ export function GeoMigrationPage(): JSX.Element {
                               }
                               hasArrow
                             >
-                              <Badge colorScheme={shiftErrors.length ? 'red' : 'green'} textTransform="none">
-                                {shiftErrors.length ? 'Con errores' : allRowsMigrated ? 'Enviado' : 'Parcial'}
+                              <Badge colorScheme={shiftErrors.length ? 'red' : fullyMigrated ? 'green' : 'orange'} textTransform="none">
+                                {shiftErrors.length ? 'Con errores' : fullyMigrated ? 'Enviado' : 'Parcial'}
                               </Badge>
                             </Tooltip>
                           ) : group.canMigrate ? (
@@ -656,8 +661,8 @@ export function GeoMigrationPage(): JSX.Element {
                               }
                               hasArrow
                             >
-                              <Badge colorScheme={planningErrors.length ? 'red' : 'green'} textTransform="none">
-                                {planningErrors.length ? 'Con errores' : allRowsMigrated ? 'Enviado' : 'Parcial'}
+                              <Badge colorScheme={planningErrors.length ? 'red' : fullyMigrated ? 'green' : 'orange'} textTransform="none">
+                                {planningErrors.length ? 'Con errores' : fullyMigrated ? 'Enviado' : 'Parcial'}
                               </Badge>
                             </Tooltip>
                           ) : group.canMigrate ? (

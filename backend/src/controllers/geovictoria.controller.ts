@@ -1018,6 +1018,7 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
 
   const shiftIdCache = new Map<string, string>();
   const shiftsByCompanyId = new Map<string, GeoVictoriaShiftListItem[]>();
+  const usersByCompanyId = new Map<string, GeoVictoriaUser[]>();
   const preclearedDays = new Set<string>();
   const interItemDelayMs = 150;
   let isFirstItem = true;
@@ -1145,6 +1146,39 @@ export async function migrateGeoVictoriaPlanningController(req: Request, res: Re
 
     try {
       const token = await getTokenForCredentials(tokenCacheKey, credentials.user, credentials.password, companyId);
+
+      // Pre-check: el usuario debe existir y estar habilitado en GeoVictoria.
+      // Si no, GeoVictoria rechaza la planificacion con un 400 generico
+      // ("Desactivated or inexistent users detected"). Validamos antes para
+      // dar un error claro y no crear turnos huerfanos.
+      let companyUsers = usersByCompanyId.get(companyId);
+      if (!companyUsers) {
+        companyUsers = await listGeoVictoriaUsers(token, tokenCacheKey);
+        usersByCompanyId.set(companyId, companyUsers);
+      }
+      const geoVictoriaUser = companyUsers.find(
+        (user) => cleanRequiredText(user.Identifier) === userIdentifier
+      );
+      if (!geoVictoriaUser || geoVictoriaUser.Enabled !== '1') {
+        results.push({
+          assignmentType,
+          employeeId,
+          employeeName,
+          userIdentifier,
+          companyId,
+          dateISO,
+          startHour,
+          endHour,
+          breakStartHour: breakStartHour || undefined,
+          breakEndHour: breakEndHour || undefined,
+          ok: false,
+          shiftOk: false,
+          planningOk: false,
+          error: `Usuario desactivado o inexistente en GeoVictoria: ${userIdentifier}`
+        });
+        continue;
+      }
+
       let companyShifts = shiftsByCompanyId.get(companyId);
       if (!companyShifts) {
         companyShifts = await listGeoVictoriaShifts(token, tokenCacheKey);

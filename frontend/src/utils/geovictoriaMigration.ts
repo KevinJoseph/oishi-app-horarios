@@ -70,6 +70,11 @@ function mergeCrossMidnightRows(rows: GeoMigrationRow[]): GeoMigrationRow[] {
       row.breakStartHour = candidate.breakStartHour;
       row.breakEndHour = candidate.breakEndHour;
     }
+    // El merge cambia endHour (y a veces el break), por lo que la key debe
+    // recalcularse para que coincida con la key derivada del resultado
+    // (que usa la hora de salida fusionada). Sin esto, los turnos de
+    // madrugada nunca encuentran su estado de migracion.
+    row.key = `${row.employeeId}:${row.dateISO}:${row.startHour}:${row.endHour}:${row.breakStartHour ?? ''}:${row.breakEndHour ?? ''}`;
     removedKeys.add(candidate.key);
   }
 

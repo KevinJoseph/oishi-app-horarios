@@ -42,7 +42,10 @@ import { useAuthStore } from '../store/useAuthStore';
 import { WeekSelector } from '../components/WeekSelector';
 import { isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import type { AreaId } from '../types';
-import { buildGeoMigrationRows, type GeoMigrationRow } from '../utils/geovictoriaMigration';
+import { buildGeoMigrationRows, buildOvertimeRows, minutesToHHMM, type GeoMigrationRow } from '../utils/geovictoriaMigration';
+
+/** Valor de hora extra que existe en GeoVictoria. La plataforma aplica los tramos 25%/35% por día. */
+const OVERTIME_VALUE = '25';
 
 function scopedWeekKey(areaId: AreaId, weekId: string): string {
   return `${areaId}::${weekId}`;
@@ -274,28 +277,26 @@ export function GeoMigrationPage(): JSX.Element {
       crossesMidnight: row.crossesMidnight
     }));
 
-  const buildOvertimeItems = (group: GeoMigrationGroup): GeoVictoriaOvertimeItem[] => {
-    if (!weekPlan) return [];
-    const firstRow = group.rows[0];
-    const items: GeoVictoriaOvertimeItem[] = [];
-    for (const day of weekPlan.days) {
-      const dayOvertime = day.overtime?.[group.employeeId];
-      if (!dayOvertime || (!dayOvertime.before && !dayOvertime.after)) continue;
-      items.push({
-        employeeId: group.employeeId,
-        employeeName: group.employeeName,
-        companyId: group.companyId,
-        companyAlias: firstRow?.companyAlias,
-        userIdentifier: group.userIdentifier,
-        dateISO: day.dateISO,
-        durationBefore: dayOvertime.before?.duration ?? '00:00',
-        durationAfter: dayOvertime.after?.duration ?? '00:00',
-        valueBefore: dayOvertime.before?.value ?? '0',
-        valueAfter: dayOvertime.after?.value ?? '0'
-      });
-    }
-    return items;
-  };
+  const overtimeRows = useMemo(
+    () => buildOvertimeRows(scopedEmployees, timeSlots, weekPlan),
+    [scopedEmployees, timeSlots, weekPlan]
+  );
+
+  const buildOvertimeItems = (group: GeoMigrationGroup): GeoVictoriaOvertimeItem[] =>
+    overtimeRows
+      .filter((row) => row.employeeId === group.employeeId)
+      .map((row) => ({
+        employeeId: row.employeeId,
+        employeeName: row.employeeName,
+        companyId: row.companyId || group.companyId,
+        companyAlias: row.companyAlias,
+        userIdentifier: row.userIdentifier || group.userIdentifier,
+        dateISO: row.dateISO,
+        durationBefore: row.beforeMinutes > 0 ? minutesToHHMM(row.beforeMinutes) : '00:00',
+        durationAfter: row.afterMinutes > 0 ? minutesToHHMM(row.afterMinutes) : '00:00',
+        valueBefore: row.beforeMinutes > 0 ? OVERTIME_VALUE : '0',
+        valueAfter: row.afterMinutes > 0 ? OVERTIME_VALUE : '0'
+      }));
 
   const sendOvertimeForGroups = async (
     groupsToSend: GeoMigrationGroup[]

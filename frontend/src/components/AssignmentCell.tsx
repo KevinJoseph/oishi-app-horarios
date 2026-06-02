@@ -25,8 +25,15 @@ export function AssignmentCell({
   const [hover, setHover] = useState(false);
   const isBreak = isBreakAssignment(assignment);
   const isFree = assignment.roleId === null && !isBreak;
+  const isOvertime = Boolean(assignment.overtime);
   const label = labelOverride ?? (isBreak ? 'Break' : isFree ? 'SIN ASIGNAR' : assignment.code);
-  const baseBg = isBreak ? 'gray.100' : isFree ? 'white' : `${role?.colorHex ?? '#EDF2F7'}22`;
+  const baseBg = isOvertime
+    ? '#9F7AEA22'
+    : isBreak
+      ? 'gray.100'
+      : isFree
+        ? 'white'
+        : `${role?.colorHex ?? '#EDF2F7'}22`;
   return (
     <Box
       position="relative"
@@ -55,6 +62,21 @@ export function AssignmentCell({
       >
         {label}
       </Badge>
+      {isOvertime ? (
+        <Tooltip label="Hora extra (fuera del turno)" hasArrow>
+          <Badge
+            position="absolute"
+            top="2px"
+            left="2px"
+            colorScheme="purple"
+            fontSize="0.6rem"
+            px={1}
+            borderRadius="sm"
+          >
+            HE
+          </Badge>
+        </Tooltip>
+      ) : null}
       {onDragFillStart && hover ? (
         <Tooltip label="Arrastra hacia abajo para rellenar" hasArrow openDelay={400}>
           <Box

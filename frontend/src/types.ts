@@ -105,28 +105,14 @@ export type Assignment = {
   isBreak?: boolean;
   suppressConfiguredBreak?: boolean;
   explicitFree?: boolean;
-};
-
-export type OvertimeSide = {
-  /** Duración en formato HH:MM */
-  duration: string;
-  /** Valor de hora extra que debe existir en GeoVictoria (ej. "50") */
-  value: string;
-};
-
-export type DayOvertime = {
-  /** Horas extra antes del horario habitual */
-  before?: OvertimeSide;
-  /** Horas extra después del horario habitual */
-  after?: OvertimeSide;
+  /** Marca la celda como hora extra (fuera del turno). GeoVictoria aplica los tramos 25%/35% por día. */
+  overtime?: boolean;
 };
 
 export type DayPlan = {
   dateISO: string;
   dayName: string;
   assignments: Record<string, Record<string, Assignment>>;
-  /** Horas extra por colaborador (employeeId → DayOvertime) */
-  overtime?: Record<string, DayOvertime>;
 };
 
 export type WeekPlan = {

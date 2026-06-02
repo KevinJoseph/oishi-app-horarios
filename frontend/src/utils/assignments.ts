@@ -20,6 +20,10 @@ export function isWorkAssignment(assignment: Assignment | null | undefined): boo
   return Boolean(assignment && assignment.roleId !== null && assignment.code !== 'LIBRE');
 }
 
+export function isOvertimeAssignment(assignment: Assignment | null | undefined): boolean {
+  return Boolean(assignment && assignment.overtime && isWorkAssignment(assignment));
+}
+
 export function createFreeAssignment(explicitFree = false): Assignment {
   return { roleId: null, code: 'LIBRE', suppressConfiguredBreak: false, explicitFree };
 }

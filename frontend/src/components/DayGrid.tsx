@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Text, Tooltip } from '@chakra-ui/react';
+import { Box, Button, Text } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
 import type { Assignment, BreakConfig, DayPlan, Employee, Role, TimeSlot } from '../types';
 import { isTimeSlotInBreak } from '../utils/breaks';
@@ -137,13 +137,6 @@ export function DayGrid({
                 const assigned = summary?.assignedHours ?? 0;
                 const target = summary?.targetHours ?? (employee.weeklyHours ?? 0);
                 const progressColor = target <= 0 ? 'red.600' : assigned >= target ? 'green.600' : 'red.600';
-                const overtime = dayPlan.overtime?.[employee.id];
-                const overtimeParts = overtime
-                  ? [
-                      overtime.before ? `Antes: ${overtime.before.duration} (${overtime.before.value})` : null,
-                      overtime.after ? `Después: ${overtime.after.duration} (${overtime.after.value})` : null
-                    ].filter((part): part is string => part !== null)
-                  : [];
 
                 return (
                   <Box as="th" key={employee.id} p={headerCellPadding} minW={employeeMinWidth}>
@@ -157,13 +150,6 @@ export function DayGrid({
                     <Text fontSize="xs" color={progressColor} fontWeight="700">
                       {Math.round(assigned)}h/{Math.round(target)}h
                     </Text>
-                    {overtimeParts.length ? (
-                      <Tooltip label={`Horas extra — ${overtimeParts.join(' · ')}`} hasArrow>
-                        <Badge colorScheme="purple" variant="subtle" mt={1} textTransform="none" fontSize="0.65rem">
-                          HE {overtimeParts.length === 2 ? '↕' : overtime?.before ? '↑' : '↓'}
-                        </Badge>
-                      </Tooltip>
-                    ) : null}
                   </Box>
                 );
               })}

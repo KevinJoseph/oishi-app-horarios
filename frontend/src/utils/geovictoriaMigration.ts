@@ -1,6 +1,6 @@
 import type { BreakConfig, Employee, Role, TimeSlot, WeekPlan } from '../types';
 import { isTimeSlotInBreak } from './breaks';
-import { isBreakAssignment, isWorkAssignment } from './assignments';
+import { isBreakAssignment, isOvertimeAssignment, isWorkAssignment } from './assignments';
 import { isAnyRestDayForDate, isRestDayForDate } from './weekdays';
 
 export type GeoMigrationRow = {
@@ -176,6 +176,13 @@ export function buildGeoMigrationRows(
         if (slotIndex === undefined) continue;
         const isBreakSlot = isTimeSlotInBreak(slot, breakConfig) || isBreakAssignment(assignment);
 
+        // Hora extra: NO entra al turno (Caso A). Va aparte como Overtime/Add.
+        if (isOvertimeAssignment(assignment)) {
+          flushCurrentSegment();
+          hasAnyAssignments = true;
+          continue;
+        }
+
         if (!assignment || isBreakAssignment(assignment) || (assignment.roleId === null && assignment.code === 'LIBRE')) {
           if (isBreakSlot && currentSegment) {
             const breakIsContiguous = pendingBreak
@@ -338,4 +345,86 @@ export function buildGeoMigrationRows(
     if (startOrder !== 0) return startOrder;
     return a.employeeName.localeCompare(b.employeeName);
   });
+}
+
+export type GeoOvertimeRow = {
+  employeeId: string;
+  employeeName: string;
+  companyId: string;
+  companyAlias?: string;
+  userIdentifier: string;
+  dateISO: string;
+  /** Minutos de hora extra antes de la jornada normal. */
+  beforeMinutes: number;
+  /** Minutos de hora extra después de la jornada normal. */
+  afterMinutes: number;
+};
+
+export function minutesToHHMM(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+/**
+ * Recorre las celdas marcadas como hora extra (Assignment.overtime) y suma la duración total
+ * por colaborador / día, separada en antes/después de la jornada normal. GeoVictoria aplica los
+ * tramos (25% primeras 2h, 35% resto) automáticamente, así que solo se envía la duración total
+ * (un registro por día/lado para no sobrescribir).
+ */
+export function buildOvertimeRows(
+  employees: Employee[],
+  timeSlots: TimeSlot[],
+  weekPlan?: WeekPlan
+): GeoOvertimeRow[] {
+  if (!weekPlan) return [];
+
+  const orderedSlots = [...timeSlots].sort((a, b) => a.order - b.order);
+  const rows: GeoOvertimeRow[] = [];
+
+  for (const employee of employees) {
+    if (!employee.active) continue;
+
+    for (const day of weekPlan.days) {
+      // Inicio de la jornada normal (celdas de trabajo que NO son hora extra).
+      let workStart: number | null = null;
+      for (const slot of orderedSlots) {
+        const assignment = day.assignments[slot.id]?.[employee.id];
+        if (!isWorkAssignment(assignment) || isOvertimeAssignment(assignment)) continue;
+        const start = parseTimeToMinutes(slot.start);
+        if (start === null) continue;
+        if (workStart === null || start < workStart) workStart = start;
+      }
+
+      let beforeMinutes = 0;
+      let afterMinutes = 0;
+      for (const slot of orderedSlots) {
+        const assignment = day.assignments[slot.id]?.[employee.id];
+        if (!isOvertimeAssignment(assignment)) continue;
+        const start = parseTimeToMinutes(slot.start);
+        const end = parseTimeToMinutes(slot.end);
+        if (start === null || end === null || end <= start) continue;
+        if (workStart !== null && end <= workStart) {
+          beforeMinutes += end - start;
+        } else {
+          afterMinutes += end - start;
+        }
+      }
+
+      if (beforeMinutes <= 0 && afterMinutes <= 0) continue;
+
+      rows.push({
+        employeeId: employee.id,
+        employeeName: employee.name,
+        companyId: employee.companyId ?? '',
+        companyAlias: employee.companyAlias,
+        userIdentifier: employee.identityDocument?.trim() ?? '',
+        dateISO: day.dateISO,
+        beforeMinutes,
+        afterMinutes
+      });
+    }
+  }
+
+  return rows;
 }

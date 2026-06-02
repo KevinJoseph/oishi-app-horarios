@@ -93,23 +93,13 @@ export type Week = {
 export type Assignment = {
   roleId: string | null;
   code: string;
-};
-
-export type OvertimeSide = {
-  duration: string;
-  value: string;
-};
-
-export type DayOvertime = {
-  before?: OvertimeSide;
-  after?: OvertimeSide;
+  overtime?: boolean;
 };
 
 export type DayPlan = {
   dateISO: string;
   dayName: string;
   assignments: Record<string, Record<string, Assignment>>;
-  overtime?: Record<string, DayOvertime>;
 };
 
 export type WeekPlan = {

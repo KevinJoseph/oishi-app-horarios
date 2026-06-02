@@ -17,7 +17,7 @@ import {
   Text
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
-import type { Assignment, DayOvertime, Role } from '../types';
+import type { Assignment, Role } from '../types';
 import { createBreakAssignment, createFreeAssignment, isBreakAssignment } from '../utils/assignments';
 
 type Props = {
@@ -31,14 +31,12 @@ type Props = {
   isNormalBreakSlot?: boolean;
   isExceptionalRestDay?: boolean;
   isExceptionalBreak?: boolean;
-  overtime?: DayOvertime | null;
   onSave: (payload: {
     assignment: Assignment;
     applyToEmployeeDay: boolean;
     dayHours?: number;
     exceptionalRestDay?: boolean;
     exceptionalBreak?: boolean;
-    overtime?: DayOvertime | null;
   }) => void;
 };
 
@@ -53,7 +51,6 @@ export function CellEditorModal({
   isNormalBreakSlot = false,
   isExceptionalRestDay = false,
   isExceptionalBreak = false,
-  overtime = null,
   onSave
 }: Props): JSX.Element {
   const [roleId, setRoleId] = useState<string>('');
@@ -62,12 +59,7 @@ export function CellEditorModal({
   const [dayHours, setDayHours] = useState<string>('0');
   const [exRestDay, setExRestDay] = useState(false);
   const [exBreak, setExBreak] = useState(false);
-  const [otBefore, setOtBefore] = useState(false);
-  const [otBeforeDuration, setOtBeforeDuration] = useState('01:00');
-  const [otBeforeValue, setOtBeforeValue] = useState('50');
-  const [otAfter, setOtAfter] = useState(false);
-  const [otAfterDuration, setOtAfterDuration] = useState('01:00');
-  const [otAfterValue, setOtAfterValue] = useState('50');
+  const [isOvertime, setIsOvertime] = useState(false);
 
   useEffect(() => {
     if (!assignment) return;
@@ -82,20 +74,8 @@ export function CellEditorModal({
     setDayHours(String(defaultDayHours));
     setExRestDay(isExceptionalRestDay);
     setExBreak(isExceptionalBreak);
-    setOtBefore(Boolean(overtime?.before));
-    setOtBeforeDuration(overtime?.before?.duration ?? '01:00');
-    setOtBeforeValue(overtime?.before?.value ?? '50');
-    setOtAfter(Boolean(overtime?.after));
-    setOtAfterDuration(overtime?.after?.duration ?? '01:00');
-    setOtAfterValue(overtime?.after?.value ?? '50');
-  }, [defaultDayHours, isExceptionalBreak, isExceptionalRestDay, isOpen, overtime]);
-
-  const buildOvertime = (): DayOvertime | null => {
-    const result: DayOvertime = {};
-    if (otBefore) result.before = { duration: otBeforeDuration || '00:00', value: otBeforeValue || '0' };
-    if (otAfter) result.after = { duration: otAfterDuration || '00:00', value: otAfterValue || '0' };
-    return result.before || result.after ? result : null;
-  };
+    setIsOvertime(Boolean(assignment?.overtime));
+  }, [assignment, defaultDayHours, isExceptionalBreak, isExceptionalRestDay, isOpen]);
 
   const selectedRole = useMemo(() => roles.find((role) => role.id === roleId), [roles, roleId]);
   const options = selectedRole?.validCodes ?? [];
@@ -225,85 +205,26 @@ export function CellEditorModal({
           {!exRestDay && !exBreak && (
             <>
               <Divider my={4} />
-              <Text fontSize="sm" fontWeight="700" color="gray.700" mb={2}>
-                Horas extra (se aplican a todo el día)
-              </Text>
-              <FormControl mb={3}>
+              <FormControl isDisabled={isFree}>
                 <Checkbox
-                  isChecked={otBefore}
+                  isChecked={isOvertime}
+                  isDisabled={isFree}
                   colorScheme="purple"
-                  onChange={(event) => setOtBefore(event.target.checked)}
+                  onChange={(event) => setIsOvertime(event.target.checked)}
                 >
-                  Antes del horario habitual
+                  Es hora extra
                 </Checkbox>
-                {otBefore && (
-                  <HStack mt={2} spacing={3} align="end">
-                    <FormControl>
-                      <FormLabel fontSize="xs" mb={1}>
-                        Duración (HH:MM)
-                      </FormLabel>
-                      <Input
-                        type="time"
-                        size="sm"
-                        value={otBeforeDuration}
-                        onChange={(event) => setOtBeforeDuration(event.target.value)}
-                      />
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel fontSize="xs" mb={1}>
-                        Valor HE
-                      </FormLabel>
-                      <Input
-                        type="number"
-                        min={0}
-                        size="sm"
-                        value={otBeforeValue}
-                        onChange={(event) => setOtBeforeValue(event.target.value)}
-                      />
-                    </FormControl>
-                  </HStack>
-                )}
+                {isFree ? (
+                  <Text fontSize="xs" color="gray.500" mt={1}>
+                    Asigna una zona para poder marcar la hora como extra.
+                  </Text>
+                ) : isOvertime ? (
+                  <Text fontSize="xs" color="gray.500" mt={2}>
+                    Esta hora se enviará a GeoVictoria como hora extra al migrar la semana y NO contará dentro del turno.
+                    GeoVictoria aplica los tramos por día automáticamente (25% las primeras 2h, 35% el resto).
+                  </Text>
+                ) : null}
               </FormControl>
-              <FormControl>
-                <Checkbox
-                  isChecked={otAfter}
-                  colorScheme="purple"
-                  onChange={(event) => setOtAfter(event.target.checked)}
-                >
-                  Después del horario habitual
-                </Checkbox>
-                {otAfter && (
-                  <HStack mt={2} spacing={3} align="end">
-                    <FormControl>
-                      <FormLabel fontSize="xs" mb={1}>
-                        Duración (HH:MM)
-                      </FormLabel>
-                      <Input
-                        type="time"
-                        size="sm"
-                        value={otAfterDuration}
-                        onChange={(event) => setOtAfterDuration(event.target.value)}
-                      />
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel fontSize="xs" mb={1}>
-                        Valor HE
-                      </FormLabel>
-                      <Input
-                        type="number"
-                        min={0}
-                        size="sm"
-                        value={otAfterValue}
-                        onChange={(event) => setOtAfterValue(event.target.value)}
-                      />
-                    </FormControl>
-                  </HStack>
-                )}
-              </FormControl>
-              <Text fontSize="xs" color="gray.500" mt={2}>
-                Las horas extra se enviarán a GeoVictoria al migrar la semana. El valor HE debe existir previamente en la
-                plataforma.
-              </Text>
             </>
           )}
         </ModalBody>
@@ -315,29 +236,32 @@ export function CellEditorModal({
             <Button
               colorScheme={exRestDay ? 'orange' : exBreak ? 'gray' : 'blue'}
               onClick={() => {
-                const nextOvertime = buildOvertime();
                 if (exRestDay || (showExRestDayOption && isExceptionalRestDay && !exRestDay)) {
-                  // Cambio en descanso excepcional: sin horas extra
+                  // Cambio en descanso excepcional
                   onSave({
                     assignment: createFreeAssignment(),
                     applyToEmployeeDay: false,
-                    exceptionalRestDay: exRestDay,
-                    overtime: null
+                    exceptionalRestDay: exRestDay
                   });
                 } else if (exBreak) {
                   onSave({
                     assignment: createBreakAssignment(),
                     applyToEmployeeDay: false,
-                    exceptionalBreak: exBreak,
-                    overtime: nextOvertime
+                    exceptionalBreak: exBreak
                   });
                 } else {
-                  const nextAssignment = roleId ? { roleId, code, explicitFree: false } : createFreeAssignment(true);
+                  const nextAssignment: Assignment = roleId
+                    ? {
+                        roleId,
+                        code,
+                        explicitFree: false,
+                        ...(isOvertime ? { overtime: true } : {})
+                      }
+                    : createFreeAssignment(true);
                   onSave({
                     assignment: nextAssignment,
                     applyToEmployeeDay,
-                    dayHours: shouldShowDayHours ? Math.max(0, Number.parseFloat(dayHours) || 0) : undefined,
-                    overtime: nextOvertime
+                    dayHours: shouldShowDayHours ? Math.max(0, Number.parseFloat(dayHours) || 0) : undefined
                   });
                 }
                 onClose();

@@ -1,8 +1,23 @@
 import { jsPDF } from 'jspdf';
 import type { BreakConfig, DayPlan, Employee, Role, TimeSlot, Week, WeekPlan } from '../types';
 import { isTimeSlotInBreak } from './breaks';
-import { isBreakAssignment, isWorkAssignment } from './assignments';
+import { isBreakAssignment, isOvertimeAssignment, isWorkAssignment } from './assignments';
 import { isAnyRestDayForDate, isRestDayForDate } from './weekdays';
+
+/**
+ * Nombre corto para encabezados del PDF: inicial del nombre + primer apellido (paterno).
+ * lastName guarda "paterno materno" en una sola propiedad, por eso se toma hasta el primer espacio.
+ */
+function shortEmployeeName(employee: Employee): string {
+  const firstSource = (employee.firstName?.trim() || employee.name?.trim() || '').split(/\s+/)[0] ?? '';
+  const initial = firstSource ? `${firstSource.charAt(0).toUpperCase()}.` : '';
+  const lastSource = employee.lastName?.trim() ?? '';
+  const paterno = lastSource
+    ? lastSource.split(/\s+/)[0]
+    : (employee.name?.trim().split(/\s+/).slice(-1)[0] ?? '');
+  const short = [initial, paterno].filter(Boolean).join(' ');
+  return short || employee.name || '';
+}
 
 function isEmployeeRestForDate(
   dateISO: string,
@@ -191,8 +206,12 @@ function drawWeeklyGridSinglePage(
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const contentWidth = pageWidth - marginX * 2;
-  const topRowHeight = headerHeight + visibleTimeSlots.length * rowHeight + sectionTitleGap;
-  const blockGap = 4;
+  // El encabezado real se dibuja con altura Math.max(headerHeight, 8); usar ese valor evita que
+  // la siguiente fila de tablas (y sus títulos de fecha) se superponga con la fila de arriba.
+  const wrappedHeaderHeight = Math.max(headerHeight, 8);
+  const tableBodyHeight = sectionTitleGap + wrappedHeaderHeight + visibleTimeSlots.length * rowHeight;
+  const topRowHeight = tableBodyHeight;
+  const blockGap = 6;
   const thirdWidth = (contentWidth - blockGap * 2) / 3;
 
   let y = marginTop;
@@ -230,7 +249,7 @@ function drawWeeklyGridSinglePage(
     drawCompactDayTable(doc, saturday, marginX + (thirdWidth + blockGap) * 2, bottomY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap, restDayOverrides);
   }
   if (sunday) {
-    const sundayY = Math.min(bottomY + topRowHeight + blockGap, pageHeight - (headerHeight + visibleTimeSlots.length * rowHeight + sectionTitleGap) - 8);
+    const sundayY = Math.min(bottomY + topRowHeight + blockGap, pageHeight - tableBodyHeight - 8);
     drawCompactDayTable(doc, sunday, marginX, sundayY, thirdWidth, activeEmployees, visibleTimeSlots, breakConfig, roleColorById, rowHeight, headerHeight, sectionTitleGap, restDayOverrides);
     drawLegendBottom(doc, roles, marginX + thirdWidth + blockGap + 2, sundayY + 2, thirdWidth * 2 - 2, 7);
   } else {
@@ -264,7 +283,7 @@ function drawCompactDayTable(
   doc.text(`${dayPlan.dayName} (${dayPlan.dateISO})`, startX, y);
   y += sectionTitleGap;
 
-  const headerCells = ['Horario', ...activeEmployees.map((employee) => employee.name)];
+  const headerCells = ['Horario', ...activeEmployees.map((employee) => shortEmployeeName(employee))];
   drawRow(doc, startX, y, headerCells, columnWidths, wrappedHeaderHeight, true, undefined, 5.8, 0.9, true);
   y += wrappedHeaderHeight;
 
@@ -289,12 +308,16 @@ function drawCompactDayTable(
               : isTimeSlotInBreak(slot, breakConfig)
                 ? 'Break'
                 : 'SIN ASIGNAR'
-            : assignment.code;
+            : isOvertimeAssignment(assignment)
+              ? 'HE'
+              : assignment.code;
       rowValues.push(label);
       if (isBreak) {
         fillColors.push([255, 244, 220]);
       } else if (!isWork) {
         fillColors.push([255, 255, 255]);
+      } else if (isOvertimeAssignment(assignment)) {
+        fillColors.push([237, 231, 246]);
       } else {
         fillColors.push(tintRoleCellColor(roleColorById.get(assignment.roleId)));
       }
@@ -347,7 +370,7 @@ function drawDaySchedulePage(
   y = drawValidationInfo(doc, marginX, y, isValidated, validatedByName);
   y += 2;
 
-  const headerCells = ['Horario', ...activeEmployees.map((employee) => employee.name)];
+  const headerCells = ['Horario', ...activeEmployees.map((employee) => shortEmployeeName(employee))];
   drawRow(doc, marginX, y, headerCells, columnWidths, headerHeight, true, undefined, 6.2, 1.2, true);
   y += headerHeight;
 
@@ -372,12 +395,16 @@ function drawDaySchedulePage(
               : isTimeSlotInBreak(slot, breakConfig)
                 ? 'Break'
                 : 'SIN ASIGNAR'
-            : assignment.code;
+            : isOvertimeAssignment(assignment)
+              ? 'HE'
+              : assignment.code;
       rowValues.push(label);
       if (isBreak) {
         fillColors.push([255, 244, 220]);
       } else if (!isWork) {
         fillColors.push([255, 255, 255]);
+      } else if (isOvertimeAssignment(assignment)) {
+        fillColors.push([237, 231, 246]);
       } else {
         fillColors.push(tintRoleCellColor(roleColorById.get(assignment.roleId)));
       }
@@ -466,12 +493,16 @@ function drawEmployeeSchedulePage(
               : isTimeSlotInBreak(slot, breakConfig)
                 ? 'Break'
                 : 'SIN ASIGNAR'
-            : assignment.code;
+            : isOvertimeAssignment(assignment)
+              ? 'HE'
+              : assignment.code;
       rowValues.push(label);
       if (isBreak) {
         fillColors.push([255, 244, 220]);
       } else if (!isWork) {
         fillColors.push([255, 255, 255]);
+      } else if (isOvertimeAssignment(assignment)) {
+        fillColors.push([237, 231, 246]);
       } else {
         fillColors.push(tintRoleCellColor(roleColorById.get(assignment.roleId)));
       }
@@ -586,6 +617,18 @@ function drawLegendBottom(doc: jsPDF, roles: Role[], startX: number, startY: num
     doc.text(role.name, x + 5, y);
     x += itemWidth;
   }
+
+  // Hora extra
+  const heLabel = 'HE = Hora Extra';
+  const heItemWidth = 5 + doc.getTextWidth(heLabel) + 6;
+  if (x + heItemWidth > endX) {
+    x = startX;
+    y += 5;
+  }
+  doc.setFillColor(237, 231, 246);
+  doc.rect(x, y - 2.8, 3.5, 3.5, 'F');
+  doc.rect(x, y - 2.8, 3.5, 3.5);
+  doc.text(heLabel, x + 5, y);
 }
 
 function computeAssignedHours(employeeId: string, days: WeekPlan['days'], slots: TimeSlot[]): number {

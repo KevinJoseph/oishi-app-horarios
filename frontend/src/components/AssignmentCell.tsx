@@ -27,13 +27,11 @@ export function AssignmentCell({
   const isFree = assignment.roleId === null && !isBreak;
   const isOvertime = Boolean(assignment.overtime);
   const label = labelOverride ?? (isBreak ? 'Break' : isFree ? 'SIN ASIGNAR' : assignment.code);
-  const baseBg = isOvertime
-    ? '#9F7AEA22'
-    : isBreak
-      ? 'gray.100'
-      : isFree
-        ? 'white'
-        : `${role?.colorHex ?? '#EDF2F7'}22`;
+  const baseBg = isBreak
+    ? 'gray.100'
+    : isFree
+      ? 'white'
+      : `${role?.colorHex ?? '#EDF2F7'}22`;
   return (
     <Box
       position="relative"

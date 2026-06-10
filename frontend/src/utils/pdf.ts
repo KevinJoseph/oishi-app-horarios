@@ -316,8 +316,6 @@ function drawCompactDayTable(
         fillColors.push([255, 244, 220]);
       } else if (!isWork) {
         fillColors.push([255, 255, 255]);
-      } else if (isOvertimeAssignment(assignment)) {
-        fillColors.push([237, 231, 246]);
       } else {
         fillColors.push(tintRoleCellColor(roleColorById.get(assignment.roleId)));
       }
@@ -403,8 +401,6 @@ function drawDaySchedulePage(
         fillColors.push([255, 244, 220]);
       } else if (!isWork) {
         fillColors.push([255, 255, 255]);
-      } else if (isOvertimeAssignment(assignment)) {
-        fillColors.push([237, 231, 246]);
       } else {
         fillColors.push(tintRoleCellColor(roleColorById.get(assignment.roleId)));
       }
@@ -501,8 +497,6 @@ function drawEmployeeSchedulePage(
         fillColors.push([255, 244, 220]);
       } else if (!isWork) {
         fillColors.push([255, 255, 255]);
-      } else if (isOvertimeAssignment(assignment)) {
-        fillColors.push([237, 231, 246]);
       } else {
         fillColors.push(tintRoleCellColor(roleColorById.get(assignment.roleId)));
       }

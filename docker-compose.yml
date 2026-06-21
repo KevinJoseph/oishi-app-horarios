@@ -8,10 +8,10 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      PORT: 4602
-      CORS_ORIGIN: http://localhost:6879
+      PORT: 2002
+      CORS_ORIGIN: http://localhost:2001
     ports:
-      - "4602:4602"
+      - "2002:2002"
 
   frontend:
     build:
@@ -24,4 +24,4 @@ services:
     depends_on:
       - backend
     ports:
-      - "6879:80"
+      - "2001:80"

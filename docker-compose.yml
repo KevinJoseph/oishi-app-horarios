@@ -9,7 +9,7 @@ services:
       - ./backend/.env
     environment:
       PORT: 2002
-      CORS_ORIGIN: http://localhost:2001
+      CORS_ORIGIN=https://horarios.almoud.pe
     ports:
       - "2002:2002"
 

@@ -130,12 +130,12 @@ export function PlanningPage(): JSX.Element {
           return a.name.localeCompare(b.name);
         });
       if (isCurrentWeekValidated && currentWeekAudit?.inactiveEmployeeIds) {
+        // Los colaboradores que ya estaban desactivados al validar no deben mostrarse;
+        // los desactivados después de validar se mantienen como registro histórico.
         const inactiveSet = new Set(currentWeekAudit.inactiveEmployeeIds);
-        return base.map((employee) =>
-          inactiveSet.has(employee.id)
-            ? { ...employee, active: false }
-            : { ...employee, active: true }
-        );
+        return base
+          .filter((employee) => !inactiveSet.has(employee.id))
+          .map((employee) => ({ ...employee, active: true }));
       }
       return base;
     },

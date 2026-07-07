@@ -821,6 +821,24 @@ function queuePersistenceScope(get: () => AppState, scope: PersistenceScope): vo
   }
 }
 
+function isWeekPlanEmpty(plan: WeekPlan | undefined): boolean {
+  if (!plan) return true;
+  if (plan.restDayOverrides && Object.keys(plan.restDayOverrides).length > 0) return false;
+  return plan.days.every((day) =>
+    Object.values(day.assignments).every((byEmployee) =>
+      Object.values(byEmployee).every(
+        (assignment) =>
+          assignment.roleId === null &&
+          assignment.code === 'LIBRE' &&
+          !assignment.isBreak &&
+          !assignment.explicitFree &&
+          !assignment.overtime &&
+          !assignment.suppressConfiguredBreak
+      )
+    )
+  );
+}
+
 function filterWeeksForPersistence(state: AppState): Week[] {
   const currentWeekISO = getCurrentWeekStartDateISO();
   const nextWeekISO = formatISO(addWeeks(parseISO(currentWeekISO), 1), { representation: 'date' });
@@ -878,16 +896,26 @@ async function flushPersistQueue(get: () => AppState, set: (partial: Partial<App
                 })
                 .flatMap((entry) => {
                   const validationKey = entry.validationKey;
+                  const weekPlan = stateSnapshot.weekPlans[entry.weekId];
+                  const weekAudit = stateSnapshot.weekAuditById[validationKey];
+                  const validated = stateSnapshot.validatedWeekIds.includes(validationKey);
+                  // Semana sin creador ni validación y plan vacío: no enviar la matriz, se regenera localmente.
+                  // La guarda del creador evita perder un "vaciado" manual de una semana ya editada.
+                  const skipPlan = !validated && !weekAudit?.createdByName && isWeekPlanEmpty(weekPlan);
                   return [
-                    {
-                      weekId: entry.weekId,
-                      weekPlan: stateSnapshot.weekPlans[entry.weekId],
-                      weekConfig: stateSnapshot.weekConfigById[entry.weekId]
-                    },
+                    ...(skipPlan
+                      ? []
+                      : [
+                          {
+                            weekId: entry.weekId,
+                            weekPlan,
+                            weekConfig: stateSnapshot.weekConfigById[entry.weekId]
+                          }
+                        ]),
                     {
                       weekId: validationKey,
-                      weekAudit: stateSnapshot.weekAuditById[validationKey],
-                      validated: stateSnapshot.validatedWeekIds.includes(validationKey)
+                      weekAudit,
+                      validated
                     }
                   ];
                 })
@@ -2305,18 +2333,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     });
 
-    // Persistir la semana actual validada + la semana siguiente generada (todas las áreas)
+    // Persistir la semana actual validada + la semana siguiente del área validada.
+    // Las demás áreas no se envían: sus planes vacíos se regeneran localmente (initialize/ensureWeekPlan).
     const stateAfterValidation = get();
-    const baseWeekIdAfter = baseWeekIdFromScopedWeekId(resolveScopedWeekId(stateAfterValidation.currentAreaId, weekId));
+    const scopedWeekIdAfter = resolveScopedWeekId(stateAfterValidation.currentAreaId, weekId);
+    const baseWeekIdAfter = baseWeekIdFromScopedWeekId(scopedWeekIdAfter);
     const validatedWeek = stateAfterValidation.weeks.find((w) => w.id === baseWeekIdAfter);
     const nextWeekExtraIds: string[] = [];
     if (validatedWeek) {
       const nextStartISO = formatISO(addWeeks(parseISO(validatedWeek.startDateISO), 1), { representation: 'date' });
       const nextWeek = stateAfterValidation.weeks.find((w) => w.startDateISO === nextStartISO);
       if (nextWeek) {
-        for (const areaId of getAreaCodes(stateAfterValidation)) {
-          nextWeekExtraIds.push(toScopedWeekId(areaId, nextWeek.id));
-        }
+        nextWeekExtraIds.push(toScopedWeekId(areaFromWeekId(scopedWeekIdAfter), nextWeek.id));
       }
     }
     persistSnapshot(get, set, { currentWeek: true, weeks: true, extraWeekIds: nextWeekExtraIds });

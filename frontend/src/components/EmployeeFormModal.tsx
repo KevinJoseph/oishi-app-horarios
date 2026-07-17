@@ -498,7 +498,12 @@ export function EmployeeFormModal({
                   return;
                 }
                 const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim();
-                const selectedGroupDescription = selectedReciboGroup?.name ?? editing?.groupDescription;
+                const previousCompanyKey = editing?.companyId ?? editing?.companyAlias;
+                const nextCompanyKey = selectedCompany?.companyId ?? selectedCompany?.alias;
+                const companyChanged = Boolean(editing) && previousCompanyKey !== nextCompanyKey;
+                // Al cambiar de empresa, el grupo anterior ya no aplica; solo se conserva si la empresa no cambió.
+                const selectedGroupDescription =
+                  selectedReciboGroup?.name ?? (companyChanged ? undefined : editing?.groupDescription);
                 const result = onSave({
                   id: editing?.id ?? createId('emp'),
                   name: fullName,

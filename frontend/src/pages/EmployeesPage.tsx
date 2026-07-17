@@ -94,6 +94,13 @@ function normalizeText(value: string | undefined): string {
     .toLowerCase();
 }
 
+function isSameCompanyText(a: string | undefined, b: string | undefined): boolean {
+  const clean = (value: string | undefined): string => normalizeText(value).replace(/[^a-z0-9]/g, '');
+  const left = clean(a);
+  const right = clean(b);
+  return Boolean(left) && left === right;
+}
+
 function getEmployeeCompanyLabel(employee: Employee): string {
   const companyLabel =
     (employee.companyAlias && employee.companyName && `${employee.companyAlias} - ${employee.companyName}`) ||
@@ -103,7 +110,15 @@ function getEmployeeCompanyLabel(employee: Employee): string {
     employee.moduleCompanyName ||
     employee.moduleCompanyAlias ||
     '';
-  const groupLabel = employee.geoVictoriaGroupName || employee.groupDescription || '';
+  const rawGroupLabel = employee.geoVictoriaGroupName || employee.groupDescription || '';
+  // El grupo GeoVictoria a veces repite el nombre/alias de la empresa; en ese caso no aporta nada.
+  const groupLabel =
+    isSameCompanyText(rawGroupLabel, employee.companyName) ||
+    isSameCompanyText(rawGroupLabel, employee.companyAlias) ||
+    isSameCompanyText(rawGroupLabel, employee.moduleCompanyName) ||
+    isSameCompanyText(rawGroupLabel, employee.moduleCompanyAlias)
+      ? ''
+      : rawGroupLabel;
 
   if (companyLabel && groupLabel) {
     return `${companyLabel} - ${groupLabel}`;

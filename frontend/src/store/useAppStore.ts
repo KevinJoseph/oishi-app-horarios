@@ -775,6 +775,7 @@ function toPersistableState(state: AppState): PersistableState {
   };
 }
 
+let initializeInFlight: Promise<void> | null = null;
 let persistInFlight = false;
 let persistWaiters: Array<() => void> = [];
 let pendingPersistence: Omit<Required<PersistenceScope>, 'extraWeekIds'> & { weekEntries: QueuedWeekEntry[] } = {
@@ -986,7 +987,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   initialize: async () => {
     if (get().hydrated) return;
+    // Reuse the in-flight fetch so concurrent mounts (React StrictMode,
+    // remounts) don't fire duplicate /state requests.
+    if (initializeInFlight) return initializeInFlight;
+    initializeInFlight = (async () => {
+      await runInitialize();
+    })().finally(() => {
+      initializeInFlight = null;
+    });
+    return initializeInFlight;
 
+    async function runInitialize(): Promise<void> {
     const companyId = getSelectedCompanyId();
     if (!companyId) {
       set({ hydrated: true, syncError: null });
@@ -1052,6 +1063,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         hydrated: true,
         syncError: error instanceof Error ? error.message : 'No se pudo cargar el backend. Se usa estado local temporal.'
       });
+    }
     }
   },
 

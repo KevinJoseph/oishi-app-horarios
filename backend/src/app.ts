@@ -1,3 +1,4 @@
+import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
 import morgan from 'morgan';
@@ -18,6 +19,7 @@ app.use(
     origin: env.corsOrigin
   })
 );
+app.use(compression());
 app.use(express.json({ limit: '25mb' }));
 app.use(morgan('dev'));
 

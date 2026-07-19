@@ -127,11 +127,16 @@ export async function getOrCreatePlannerState(context: PlannerStateContext): Pro
 
   const { companyId } = context;
 
+  // Fetch active weeks first so per-week collections only load current data;
+  // plans/configs/audits of deleted weeks stay in the DB but are never shipped.
+  const weekDocs = await WeekModel.find({ companyId }).lean();
+  const activeWeekIds = weekDocs.map((doc) => doc.baseWeekId);
+  const activeWeekFilter = { companyId, baseWeekId: { $in: activeWeekIds } };
+
   const [
     areaDocs,
     employeeDocs,
     roleDocs,
-    weekDocs,
     weekPlanDocs,
     weekConfigDocs,
     weekAuditDocs,
@@ -141,10 +146,9 @@ export async function getOrCreatePlannerState(context: PlannerStateContext): Pro
     AreaModel.find({ companyId }).sort({ order: 1, code: 1 }).lean(),
     EmployeeModel.find({ companyId }).lean(),
     RoleModel.find({ companyId }).lean(),
-    WeekModel.find({ companyId }).lean(),
-    WeekPlanModel.find({ companyId }).lean(),
-    WeekConfigModel.find({ companyId }).lean(),
-    WeekAuditModel.find({ companyId }).lean(),
+    WeekPlanModel.find(activeWeekFilter).lean(),
+    WeekConfigModel.find(activeWeekFilter).lean(),
+    WeekAuditModel.find(activeWeekFilter).lean(),
     AreaSettingsModel.find({ companyId }).lean(),
     AppSettingsModel.findById(APP_SETTINGS_ID).lean()
   ]);

@@ -1,11 +1,38 @@
-import { Box, Flex, Icon, IconButton, Spinner, Text, Tooltip, VStack, useDisclosure } from '@chakra-ui/react';
-import { useEffect } from 'react';
+import { Box, Flex, Icon, IconButton, Progress, Text, Tooltip, VStack, useDisclosure } from '@chakra-ui/react';
+import { useEffect, useState } from 'react';
 import { MdSupportAgent } from 'react-icons/md';
 import { Outlet } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
 import { Sidebar } from './Sidebar';
 import { TicketReportModal } from './TicketReportModal';
 import { Topbar } from './Topbar';
+
+function LoadingProgress(): JSX.Element {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    // Sin progreso real del servidor: avance simulado que desacelera hacia 95%.
+    const interval = setInterval(() => {
+      setProgress((prev) => Math.min(95, prev + (95 - prev) * 0.06));
+    }, 300);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <VStack minH="100vh" justify="center" spacing={4}>
+      <Progress
+        value={progress}
+        size="sm"
+        w={{ base: '70%', md: '320px' }}
+        borderRadius="full"
+        colorScheme="blue"
+        bg="gray.100"
+        sx={{ '& > div': { transition: 'width 0.3s ease' } }}
+      />
+      <Text color="gray.600">Cargando planificación... {Math.round(progress)}%</Text>
+    </VStack>
+  );
+}
 
 export function AppShell(): JSX.Element {
   const hydrated = useAppStore((state) => state.hydrated);
@@ -17,12 +44,7 @@ export function AppShell(): JSX.Element {
   }, [initialize]);
 
   if (!hydrated) {
-    return (
-      <VStack minH="100vh" justify="center" spacing={4}>
-        <Spinner size="lg" />
-        <Text color="gray.600">Cargando planificación...</Text>
-      </VStack>
-    );
+    return <LoadingProgress />;
   }
 
   return (

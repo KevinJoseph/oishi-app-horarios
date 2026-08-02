@@ -96,14 +96,18 @@ async function ensureSeeded() {
 export async function getOrCreatePlannerState(context) {
     await ensureSeeded();
     const { companyId } = context;
-    const [areaDocs, employeeDocs, roleDocs, weekDocs, weekPlanDocs, weekConfigDocs, weekAuditDocs, areaSettingsDocs, appSettings] = await Promise.all([
+    // Fetch active weeks first so per-week collections only load current data;
+    // plans/configs/audits of deleted weeks stay in the DB but are never shipped.
+    const weekDocs = await WeekModel.find({ companyId }).lean();
+    const activeWeekIds = weekDocs.map((doc) => doc.baseWeekId);
+    const activeWeekFilter = { companyId, baseWeekId: { $in: activeWeekIds } };
+    const [areaDocs, employeeDocs, roleDocs, weekPlanDocs, weekConfigDocs, weekAuditDocs, areaSettingsDocs, appSettings] = await Promise.all([
         AreaModel.find({ companyId }).sort({ order: 1, code: 1 }).lean(),
         EmployeeModel.find({ companyId }).lean(),
         RoleModel.find({ companyId }).lean(),
-        WeekModel.find({ companyId }).lean(),
-        WeekPlanModel.find({ companyId }).lean(),
-        WeekConfigModel.find({ companyId }).lean(),
-        WeekAuditModel.find({ companyId }).lean(),
+        WeekPlanModel.find(activeWeekFilter).lean(),
+        WeekConfigModel.find(activeWeekFilter).lean(),
+        WeekAuditModel.find(activeWeekFilter).lean(),
         AreaSettingsModel.find({ companyId }).lean(),
         AppSettingsModel.findById(APP_SETTINGS_ID).lean()
     ]);
@@ -142,7 +146,11 @@ export async function getOrCreatePlannerState(context) {
     for (const doc of weekPlanDocs) {
         const areaId = isValidAreaCode(doc.areaId) ? doc.areaId : areaCodes[0] ?? 'default';
         const key = toLegacyScope(areaId, doc.baseWeekId);
-        weekPlans[key] = { weekId: key, days: doc.days };
+        weekPlans[key] = {
+            weekId: key,
+            days: doc.days,
+            ...(doc.restDayOverrides ? { restDayOverrides: doc.restDayOverrides } : {})
+        };
     }
     const weekConfigById = {};
     for (const doc of weekConfigDocs) {
@@ -163,7 +171,8 @@ export async function getOrCreatePlannerState(context) {
         const key = toLegacyScope(areaId, doc.baseWeekId);
         weekAuditById[key] = {
             createdByName: doc.createdByName ?? null,
-            validatedByName: doc.validatedByName ?? null
+            validatedByName: doc.validatedByName ?? null,
+            inactiveEmployeeIds: Array.isArray(doc.inactiveEmployeeIds) ? doc.inactiveEmployeeIds : undefined
         };
         if (doc.validated)
             validatedWeekIds.push(key);
@@ -293,13 +302,16 @@ async function upsertWeekPlan(companyId, legacyKey, plan) {
         return;
     const areaId = rawAreaId;
     const id = scopedKey(companyId, areaId, baseWeekId);
+    const hasOverrides = plan.restDayOverrides && Object.keys(plan.restDayOverrides).length > 0;
     await WeekPlanModel.updateOne({ _id: id }, {
         $set: {
             companyId,
             areaId,
             baseWeekId,
-            days: plan.days
-        }
+            days: plan.days,
+            ...(hasOverrides ? { restDayOverrides: plan.restDayOverrides } : {})
+        },
+        ...(hasOverrides ? {} : { $unset: { restDayOverrides: '' } })
     }, { upsert: true });
 }
 async function upsertWeekConfig(companyId, legacyKey, config) {
@@ -342,6 +354,9 @@ async function upsertWeekAudit(companyId, rawKey, audit, validated) {
     if (audit) {
         set.createdByName = audit.createdByName ?? null;
         set.validatedByName = audit.validatedByName ?? null;
+        if (Array.isArray(audit.inactiveEmployeeIds)) {
+            set.inactiveEmployeeIds = audit.inactiveEmployeeIds;
+        }
     }
     if (typeof validated === 'boolean') {
         set.validated = validated;

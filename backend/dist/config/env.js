@@ -112,11 +112,18 @@ export const env = {
     geoVictoriaShiftListUrl: requireEnv('GEOVICTORIA_SHIFT_LIST_URL', 'https://customerapi.geovictoria.com/api/v1/Shift/List'),
     geoVictoriaShiftInsertUrl: requireEnv('GEOVICTORIA_SHIFT_INSERT_URL', 'https://customerapi.geovictoria.com/api/v1/Shift/Insert'),
     geoVictoriaPlanningUrl: requireEnv('GEOVICTORIA_PLANNING_URL', 'https://customerapi.geovictoria.com/api/v1/Planning'),
+    geoVictoriaOvertimeAddUrl: requireEnv('GEOVICTORIA_OVERTIME_ADD_URL', 'https://customerapi.geovictoria.com/api/v1/Overtime/Add'),
+    geoVictoriaOvertimeDeleteUrl: requireEnv('GEOVICTORIA_OVERTIME_DELETE_URL', 'https://customerapi.geovictoria.com/api/v1/OverTime/Delete'),
+    geoVictoriaOvertimeGetUrl: requireEnv('GEOVICTORIA_OVERTIME_GET_URL', 'https://customerapi.geovictoria.com/api/v1/OverTime/GetOvertime'),
     geoVictoriaUser: process.env.GEOVICTORIA_CANETE_USER ?? '',
     geoVictoriaPassword: process.env.GEOVICTORIA_CANETE_PASSWORD ?? '',
     geoVictoriaReciboUser: process.env.GEOVICTORIA_RECIBO_USER ?? '',
     geoVictoriaReciboPassword: process.env.GEOVICTORIA_RECIBO_PASSWORD ?? '',
     geoVictoriaReciboGroups,
     geoVictoriaCompanies,
-    geoVictoriaCredentialsByCompanyId: parseGeoVictoriaCredentialsByCompanyId(geoVictoriaCompanies)
+    geoVictoriaCredentialsByCompanyId: parseGeoVictoriaCredentialsByCompanyId(geoVictoriaCompanies),
+    flowWebhookBaseUrl: process.env.FLOW_WEBHOOK_BASE_URL?.trim() || 'https://flow.inel.pe/api/whatsapp/trigger',
+    flowWebhookId: (process.env.APP_FLOW_WEBHOOK_ID ?? process.env.FLOW_WEBHOOK_ID)?.trim() ?? '',
+    flowWebhookSecret: (process.env.APP_FLOW_WEBHOOK_SECRET ?? process.env.FLOW_WEBHOOK_SECRET)?.trim() ?? '',
+    publicAppBaseUrl: process.env.PUBLIC_APP_BASE_URL?.trim() || 'https://horarios.almoud.pe'
 };

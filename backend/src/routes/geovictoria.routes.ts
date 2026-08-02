@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   addGeoVictoriaOvertimeController,
   addGeoVictoriaUserController,
+  clearGeoVictoriaOvertimeController,
   getGeoVictoriaCompaniesController,
   getGeoVictoriaEmployeesController,
   getGeoVictoriaEmployeesAllController,
@@ -23,5 +24,6 @@ geoVictoriaRouter.get('/geovictoria/companies', requireAuth, getGeoVictoriaCompa
 geoVictoriaRouter.post('/geovictoria/users', requireAuth, requirePlannerWrite, addGeoVictoriaUserController);
 geoVictoriaRouter.post('/geovictoria/planning/migrate', requireAuth, requirePlannerWrite, migrateGeoVictoriaPlanningController);
 geoVictoriaRouter.post('/geovictoria/overtime/add', requireAuth, requirePlannerWrite, addGeoVictoriaOvertimeController);
+geoVictoriaRouter.post('/geovictoria/overtime/clear', requireAuth, requirePlannerWrite, clearGeoVictoriaOvertimeController);
 geoVictoriaRouter.post('/geovictoria/migration-logs', requireAuth, requirePlannerWrite, saveMigrationLogsController);
 geoVictoriaRouter.get('/geovictoria/migration-logs', requireAuth, getMigrationLogsController);

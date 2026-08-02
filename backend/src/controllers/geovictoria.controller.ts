@@ -88,6 +88,19 @@ interface GeoVictoriaOvertimeRequestBody {
   items?: GeoVictoriaOvertimeItemRequestBody[];
 }
 
+interface GeoVictoriaOvertimeClearItemRequestBody {
+  employeeId?: string;
+  employeeName?: string;
+  companyId?: string;
+  companyAlias?: string;
+  userIdentifier?: string;
+  dateISO?: string;
+}
+
+interface GeoVictoriaOvertimeClearRequestBody {
+  items?: GeoVictoriaOvertimeClearItemRequestBody[];
+}
+
 interface GeoVictoriaShiftListItem {
   id: string;
   type: string;
@@ -176,6 +189,26 @@ function normalizeOvertimeValue(value: unknown): string {
 
 function isZeroDuration(value: string): boolean {
   return value === '00:00' || value === '0';
+}
+
+function parseDecimalHoursToHHMM(value: unknown): string {
+  const hours = typeof value === 'number' ? value : Number.parseFloat(cleanRequiredText(value).replace(',', '.'));
+  if (!Number.isFinite(hours) || hours <= 0) {
+    return '00:00';
+  }
+  const totalMinutes = Math.round(hours * 60);
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(wholeHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function parseGeoVictoriaOvertimeDate(value: unknown): string {
+  const text = cleanRequiredText(value);
+  if (/^\d{8}$/.test(text)) {
+    return `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}`;
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
 }
 
 function sleep(ms: number): Promise<void> {
@@ -1536,6 +1569,300 @@ export async function addGeoVictoriaOvertimeController(req: Request, res: Respon
   const added = results.filter((item) => item.ok).length;
   const failed = results.length - added;
   res.status(200).json({ added, failed, results });
+}
+
+export async function clearGeoVictoriaOvertimeController(req: Request, res: Response): Promise<void> {
+  const body = (req.body ?? {}) as GeoVictoriaOvertimeClearRequestBody;
+  const rawItems = Array.isArray(body.items) ? body.items : [];
+
+  if (rawItems.length === 0) {
+    res.status(400).json({ error: 'Debes enviar al menos un dia para limpiar horas extra.' });
+    return;
+  }
+
+  const itemByKey = new Map<
+    string,
+    {
+      employeeId: string;
+      employeeName: string;
+      userIdentifier: string;
+      companyId: string;
+      companyAlias: string;
+      dateISO: string;
+    }
+  >();
+
+  for (const item of rawItems) {
+    const employeeId = cleanRequiredText(item.employeeId);
+    const employeeName = cleanRequiredText(item.employeeName);
+    const companyId = cleanRequiredText(item.companyId);
+    const companyAlias = cleanRequiredText(item.companyAlias) || getCompanyAliasById(companyId);
+    const userIdentifier = cleanRequiredText(item.userIdentifier);
+    const dateISO = cleanRequiredText(item.dateISO);
+    const key = `${companyId}::${userIdentifier}::${dateISO}`;
+
+    if (!companyId || !userIdentifier || !isValidDateISO(dateISO)) {
+      continue;
+    }
+
+    itemByKey.set(key, {
+      employeeId,
+      employeeName,
+      userIdentifier,
+      companyId,
+      companyAlias,
+      dateISO
+    });
+  }
+
+  if (itemByKey.size === 0) {
+    res.status(400).json({ error: 'No hay filas validas para limpiar horas extra.' });
+    return;
+  }
+
+  const items = Array.from(itemByKey.values());
+  const groups = new Map<string, typeof items>();
+  for (const item of items) {
+    const key = `${item.companyId}::${item.companyAlias}`;
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+
+  const results: Array<{
+    employeeId: string;
+    employeeName: string;
+    userIdentifier: string;
+    companyId: string;
+    dateISO: string;
+    durationBefore: string;
+    durationAfter: string;
+    ok: boolean;
+    message?: string;
+    error?: string;
+  }> = [];
+
+  for (const groupItems of groups.values()) {
+    const first = groupItems[0];
+    const isReciboCompany = first.companyAlias.toUpperCase() === 'RECIBO';
+    const credentials = isReciboCompany
+      ? env.geoVictoriaReciboUser && env.geoVictoriaReciboPassword
+        ? { companyId: first.companyId, user: env.geoVictoriaReciboUser, password: env.geoVictoriaReciboPassword }
+        : null
+      : getCompanyCredentials(first.companyId);
+
+    if (!credentials) {
+      for (const item of groupItems) {
+        results.push({
+          employeeId: item.employeeId,
+          employeeName: item.employeeName,
+          userIdentifier: item.userIdentifier,
+          companyId: item.companyId,
+          dateISO: item.dateISO,
+          durationBefore: '00:00',
+          durationAfter: '00:00',
+          ok: false,
+          error: `No existen credenciales configuradas para la company "${item.companyId}".`
+        });
+      }
+      continue;
+    }
+
+    const tokenCacheKey = isReciboCompany ? 'recibo' : `company:${first.companyId}`;
+
+    try {
+      const token = await getTokenForCredentials(tokenCacheKey, credentials.user, credentials.password, first.companyId);
+      const userIdentifiers = Array.from(new Set(groupItems.map((item) => item.userIdentifier))).join(',');
+      const sortedDates = groupItems.map((item) => item.dateISO).sort();
+      const startDate = formatGeoVictoriaDateShort(sortedDates[0]);
+      const endDate = formatGeoVictoriaDateShort(sortedDates[sortedDates.length - 1]);
+
+      const getResponse = await fetchWithRetry(env.geoVictoriaOvertimeGetUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          StartDate: startDate,
+          EndDate: endDate,
+          UserIdentifiers: userIdentifiers
+        })
+      });
+
+      const getRawText = (await getResponse.text()).trim();
+      let getParsed: unknown = null;
+      if (getRawText) {
+        try {
+          getParsed = JSON.parse(getRawText) as unknown;
+        } catch {
+          getParsed = getRawText;
+        }
+      }
+
+      const getSuccess =
+        typeof getParsed === 'object' && getParsed !== null && 'Success' in getParsed
+          ? (getParsed as { Success?: boolean }).Success !== false
+          : getResponse.ok;
+
+      if (!getResponse.ok || !getSuccess) {
+        if (getResponse.status === 401) {
+          tokenCache.delete(tokenCacheKey);
+        }
+        const error =
+          extractGeoVictoriaMessage(getParsed) ||
+          `Error al consultar horas extra en GeoVictoria: ${getResponse.status} ${getResponse.statusText}`;
+        for (const item of groupItems) {
+          results.push({
+            employeeId: item.employeeId,
+            employeeName: item.employeeName,
+            userIdentifier: item.userIdentifier,
+            companyId: item.companyId,
+            dateISO: item.dateISO,
+            durationBefore: '00:00',
+            durationAfter: '00:00',
+            ok: false,
+            error
+          });
+        }
+        continue;
+      }
+
+      const responseRows =
+        typeof getParsed === 'object' &&
+        getParsed !== null &&
+        Array.isArray((getParsed as { Response?: unknown }).Response)
+          ? ((getParsed as { Response: Array<Record<string, unknown>> }).Response)
+          : [];
+      const requestedKeys = new Set(groupItems.map((item) => `${item.userIdentifier}::${item.dateISO}`));
+      const deletionMap = new Map<
+        string,
+        { userIdentifier: string; dateISO: string; durationBefore: string; durationAfter: string }
+      >();
+
+      for (const row of responseRows) {
+        const userIdentifier = cleanRequiredText(row.UserIdentifier);
+        const dateISO = parseGeoVictoriaOvertimeDate(row.Date);
+        const key = `${userIdentifier}::${dateISO}`;
+        if (!requestedKeys.has(key)) continue;
+
+        const durationBefore = parseDecimalHoursToHHMM(row.ExtraTimeBefore);
+        const durationAfter = parseDecimalHoursToHHMM(row.ExtraTimeAfter);
+        if (isZeroDuration(durationBefore) && isZeroDuration(durationAfter)) continue;
+
+        deletionMap.set(key, {
+          userIdentifier,
+          dateISO,
+          durationBefore,
+          durationAfter
+        });
+      }
+
+      if (deletionMap.size === 0) {
+        for (const item of groupItems) {
+          results.push({
+            employeeId: item.employeeId,
+            employeeName: item.employeeName,
+            userIdentifier: item.userIdentifier,
+            companyId: item.companyId,
+            dateISO: item.dateISO,
+            durationBefore: '00:00',
+            durationAfter: '00:00',
+            ok: true,
+            message: 'No habia horas extra para eliminar.'
+          });
+        }
+        continue;
+      }
+
+      const deletions = Array.from(deletionMap.values()).map((item) => ({
+        UserIdentifier: item.userIdentifier,
+        Date: formatGeoVictoriaDateShort(item.dateISO),
+        DurationBefore: item.durationBefore,
+        DurationAfter: item.durationAfter
+      }));
+
+      const deleteResponse = await fetchWithRetry(env.geoVictoriaOvertimeDeleteUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ Deletions: deletions })
+      });
+
+      const deleteRawText = (await deleteResponse.text()).trim();
+      let deleteParsed: unknown = null;
+      if (deleteRawText) {
+        try {
+          deleteParsed = JSON.parse(deleteRawText) as unknown;
+        } catch {
+          deleteParsed = deleteRawText;
+        }
+      }
+
+      const success =
+        typeof deleteParsed === 'object' && deleteParsed !== null && 'Success' in deleteParsed
+          ? (deleteParsed as { Success?: boolean }).Success !== false
+          : deleteResponse.ok;
+
+      if (!deleteResponse.ok || !success) {
+        if (deleteResponse.status === 401) {
+          tokenCache.delete(tokenCacheKey);
+        }
+        const error =
+          extractGeoVictoriaMessage(deleteParsed) ||
+          `Error al eliminar horas extra en GeoVictoria: ${deleteResponse.status} ${deleteResponse.statusText}`;
+        for (const item of groupItems) {
+          const deletion = deletionMap.get(`${item.userIdentifier}::${item.dateISO}`);
+          if (!deletion) continue;
+          results.push({
+            employeeId: item.employeeId,
+            employeeName: item.employeeName,
+            userIdentifier: item.userIdentifier,
+            companyId: item.companyId,
+            dateISO: item.dateISO,
+            durationBefore: deletion.durationBefore,
+            durationAfter: deletion.durationAfter,
+            ok: false,
+            error
+          });
+        }
+        continue;
+      }
+
+      for (const item of groupItems) {
+        const deletion = deletionMap.get(`${item.userIdentifier}::${item.dateISO}`);
+        results.push({
+          employeeId: item.employeeId,
+          employeeName: item.employeeName,
+          userIdentifier: item.userIdentifier,
+          companyId: item.companyId,
+          dateISO: item.dateISO,
+          durationBefore: deletion?.durationBefore ?? '00:00',
+          durationAfter: deletion?.durationAfter ?? '00:00',
+          ok: true,
+          message: deletion ? 'Horas extra eliminadas correctamente.' : 'No habia horas extra para eliminar.'
+        });
+      }
+    } catch (error) {
+      for (const item of groupItems) {
+        results.push({
+          employeeId: item.employeeId,
+          employeeName: item.employeeName,
+          userIdentifier: item.userIdentifier,
+          companyId: item.companyId,
+          dateISO: item.dateISO,
+          durationBefore: '00:00',
+          durationAfter: '00:00',
+          ok: false,
+          error: error instanceof Error ? error.message : 'Error al limpiar horas extra en GeoVictoria.'
+        });
+      }
+    }
+  }
+
+  const deleted = results.filter((item) => item.ok && (!isZeroDuration(item.durationBefore) || !isZeroDuration(item.durationAfter))).length;
+  const failed = results.filter((item) => !item.ok).length;
+  res.status(200).json({ deleted, failed, results });
 }
 
 export async function saveMigrationLogsController(req: Request, res: Response): Promise<void> {

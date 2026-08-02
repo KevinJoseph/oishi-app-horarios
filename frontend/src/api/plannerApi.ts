@@ -197,11 +197,40 @@ export interface GeoVictoriaOvertimeResult extends GeoVictoriaOvertimeItem {
   error?: string;
 }
 
+export interface GeoVictoriaOvertimeClearItem {
+  employeeId: string;
+  employeeName: string;
+  companyId: string;
+  companyAlias?: string;
+  userIdentifier: string;
+  dateISO: string;
+}
+
+export interface GeoVictoriaOvertimeClearResult extends GeoVictoriaOvertimeClearItem {
+  durationBefore: string;
+  durationAfter: string;
+  ok: boolean;
+  message?: string;
+  error?: string;
+}
+
 export function addGeoVictoriaOvertime(
   items: GeoVictoriaOvertimeItem[]
 ): Promise<{ added: number; failed: number; results: GeoVictoriaOvertimeResult[] }> {
   return request<{ added: number; failed: number; results: GeoVictoriaOvertimeResult[] }>(
     '/geovictoria/overtime/add',
+    {
+      method: 'POST',
+      body: JSON.stringify({ items })
+    }
+  );
+}
+
+export function clearGeoVictoriaOvertime(
+  items: GeoVictoriaOvertimeClearItem[]
+): Promise<{ deleted: number; failed: number; results: GeoVictoriaOvertimeClearResult[] }> {
+  return request<{ deleted: number; failed: number; results: GeoVictoriaOvertimeClearResult[] }>(
+    '/geovictoria/overtime/clear',
     {
       method: 'POST',
       body: JSON.stringify({ items })

@@ -9,6 +9,7 @@ const MigrationLogSchema = new Schema({
     userIdentifier: { type: String, required: true },
     groupKey: { type: String, required: true },
     results: { type: [Schema.Types.Mixed], required: true },
+    overtimeResults: { type: [Schema.Types.Mixed], default: [] },
     migratedBy: { type: String, default: null },
     migratedAt: { type: Date, required: true }
 }, { timestamps: true, versionKey: false, _id: false });

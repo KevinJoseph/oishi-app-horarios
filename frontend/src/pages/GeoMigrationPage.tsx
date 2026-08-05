@@ -37,6 +37,7 @@ import {
   saveMigrationLogs,
   type GeoVictoriaOvertimeClearItem,
   type GeoVictoriaOvertimeItem,
+  type GeoVictoriaOvertimeResult,
   type GeoVictoriaPlanningMigrationResult
 } from '../api/plannerApi';
 import { EmployeeWeekGrid } from '../components/EmployeeWeekGrid';
@@ -72,6 +73,14 @@ type StoredMigrationResult = {
   result: GeoVictoriaPlanningMigrationResult;
   migratedAt: string;
   migratedBy: string | null;
+};
+
+type OvertimeMigrationSummary = {
+  added: number;
+  deleted: number;
+  failed: number;
+  errors: string[];
+  resultsByGroupKey: Record<string, GeoVictoriaOvertimeResult[]>;
 };
 
 type BatchMigrationProgress = {
@@ -191,6 +200,7 @@ export function GeoMigrationPage(): JSX.Element {
   const [isMigrating, setIsMigrating] = useState(false);
   const [migratingKeys, setMigratingKeys] = useState<string[]>([]);
   const [resultByKey, setResultByKey] = useState<Record<string, StoredMigrationResult>>({});
+  const [overtimeByGroupKey, setOvertimeByGroupKey] = useState<Record<string, GeoVictoriaOvertimeResult[]>>({});
   const [selectedGroup, setSelectedGroup] = useState<GeoMigrationGroup | null>(null);
   const [pendingMigrationKeys, setPendingMigrationKeys] = useState<string[]>([]);
   const [pendingMigrationLabel, setPendingMigrationLabel] = useState('');
@@ -224,6 +234,7 @@ export function GeoMigrationPage(): JSX.Element {
   useEffect(() => {
     if (!currentScopedWeekId) {
       setResultByKey({});
+      setOvertimeByGroupKey({});
       return;
     }
 
@@ -232,6 +243,7 @@ export function GeoMigrationPage(): JSX.Element {
       .then(({ logs }) => {
         if (cancelled) return;
         const next: Record<string, StoredMigrationResult> = {};
+        const nextOvertime: Record<string, GeoVictoriaOvertimeResult[]> = {};
         for (const log of logs) {
           for (const result of log.results) {
             const r = result as GeoVictoriaPlanningMigrationResult;
@@ -249,11 +261,18 @@ export function GeoMigrationPage(): JSX.Element {
               next[rowKey] = { result: r, migratedAt: log.migratedAt, migratedBy: log.migratedBy };
             }
           }
+          if (log.overtimeResults?.length) {
+            nextOvertime[log.groupKey] = log.overtimeResults;
+          }
         }
         setResultByKey(next);
+        setOvertimeByGroupKey(nextOvertime);
       })
       .catch(() => {
-        if (!cancelled) setResultByKey({});
+        if (!cancelled) {
+          setResultByKey({});
+          setOvertimeByGroupKey({});
+        }
       });
 
     return () => { cancelled = true; };
@@ -300,30 +319,47 @@ export function GeoMigrationPage(): JSX.Element {
         valueAfter: row.afterMinutes > 0 ? OVERTIME_VALUE : '0'
       }));
 
-  const buildOvertimeClearItems = (group: GeoMigrationGroup): GeoVictoriaOvertimeClearItem[] => {
+  const buildOvertimeClearItems = (
+    group: GeoMigrationGroup,
+    currentItems: GeoVictoriaOvertimeItem[]
+  ): GeoVictoriaOvertimeClearItem[] => {
     const itemsByKey = new Map<string, GeoVictoriaOvertimeClearItem>();
 
-    for (const row of group.rows) {
-      const key = `${row.employeeId}:${row.dateISO}`;
-      if (itemsByKey.has(key)) continue;
-      itemsByKey.set(key, {
-        employeeId: row.employeeId,
-        employeeName: row.employeeName,
-        companyId: row.companyId || group.companyId,
-        companyAlias: row.companyAlias,
-        userIdentifier: row.userIdentifier || group.userIdentifier,
-        dateISO: row.dateISO
+    for (const item of currentItems) {
+      itemsByKey.set(`${item.employeeId}:${item.dateISO}`, {
+        employeeId: item.employeeId,
+        employeeName: item.employeeName,
+        companyId: item.companyId,
+        companyAlias: item.companyAlias,
+        userIdentifier: item.userIdentifier,
+        dateISO: item.dateISO
+      });
+    }
+
+    for (const item of overtimeByGroupKey[group.key] ?? []) {
+      if (!item.ok) continue;
+      itemsByKey.set(`${item.employeeId}:${item.dateISO}`, {
+        employeeId: item.employeeId,
+        employeeName: item.employeeName,
+        companyId: item.companyId,
+        companyAlias: item.companyAlias,
+        userIdentifier: item.userIdentifier,
+        dateISO: item.dateISO
       });
     }
 
     return Array.from(itemsByKey.values());
   };
 
-  const sendOvertimeForGroups = async (
-    groupsToSend: GeoMigrationGroup[]
-  ): Promise<{ added: number; deleted: number; failed: number; errors: string[] }> => {
-    const clearItems = groupsToSend.flatMap((group) => buildOvertimeClearItems(group));
-    const items = groupsToSend.flatMap((group) => buildOvertimeItems(group));
+  const sendOvertimeForGroups = async (groupsToSend: GeoMigrationGroup[]): Promise<OvertimeMigrationSummary> => {
+    const currentByGroupKey = new Map<string, GeoVictoriaOvertimeItem[]>();
+    for (const group of groupsToSend) {
+      currentByGroupKey.set(group.key, buildOvertimeItems(group));
+    }
+
+    const clearItems = groupsToSend.flatMap((group) => buildOvertimeClearItems(group, currentByGroupKey.get(group.key) ?? []));
+    const items = Array.from(currentByGroupKey.values()).flat();
+    const resultsByGroupKey: Record<string, GeoVictoriaOvertimeResult[]> = {};
 
     let deleted = 0;
     if (clearItems.length > 0) {
@@ -334,20 +370,21 @@ export function GeoMigrationPage(): JSX.Element {
           .filter((result) => !result.ok)
           .map((result) => `${result.employeeName} (${result.dateISO}): ${result.error ?? 'error'}`);
         if (clearResponse.failed > 0) {
-          return { added: 0, deleted, failed: clearResponse.failed, errors: clearErrors };
+          return { added: 0, deleted, failed: clearResponse.failed, errors: clearErrors, resultsByGroupKey };
         }
       } catch (error) {
         return {
           added: 0,
           deleted: 0,
           failed: clearItems.length,
-          errors: [error instanceof Error ? error.message : 'No se pudieron limpiar las horas extra existentes.']
+          errors: [error instanceof Error ? error.message : 'No se pudieron actualizar las horas extra existentes.'],
+          resultsByGroupKey
         };
       }
     }
 
     if (items.length === 0) {
-      return { added: 0, deleted, failed: 0, errors: [] };
+      return { added: 0, deleted, failed: 0, errors: [], resultsByGroupKey };
     }
 
     try {
@@ -355,27 +392,35 @@ export function GeoMigrationPage(): JSX.Element {
       const errors = response.results
         .filter((result) => !result.ok)
         .map((result) => `${result.employeeName} (${result.dateISO}): ${result.error ?? 'error'}`);
-      return { added: response.added, deleted, failed: response.failed, errors };
+
+      for (const group of groupsToSend) {
+        const groupItems = new Set((currentByGroupKey.get(group.key) ?? []).map((item) => `${item.employeeId}:${item.dateISO}`));
+        resultsByGroupKey[group.key] = response.results.filter((result) => result.ok && groupItems.has(`${result.employeeId}:${result.dateISO}`));
+      }
+
+      return { added: response.added, deleted, failed: response.failed, errors, resultsByGroupKey };
     } catch (error) {
       return {
         added: 0,
         deleted,
         failed: items.length,
-        errors: [error instanceof Error ? error.message : 'No se pudieron registrar las horas extra.']
+        errors: [error instanceof Error ? error.message : 'No se pudieron registrar las horas extra.'],
+        resultsByGroupKey
       };
     }
   };
 
-  const formatOvertimeSummary = (overtime: { added: number; deleted: number; failed: number }): string => {
+  const formatOvertimeSummary = (overtime: OvertimeMigrationSummary): string => {
     if (!overtime.added && !overtime.deleted && !overtime.failed) return '';
-    return ` Horas extra: ${overtime.deleted} borradas, ${overtime.added} agregadas, ${overtime.failed} con error.`;
+    return ` Horas extra: ${overtime.deleted} eliminadas, ${overtime.added} agregadas, ${overtime.failed} con error.`;
   };
 
   const persistMigrationResults = (
     group: GeoMigrationGroup,
     response: { migrated: number; failed: number; results: GeoVictoriaPlanningMigrationResult[] },
     migratedAt: string,
-    migratedBy: string | null
+    migratedBy: string | null,
+    overtimeResults: GeoVictoriaOvertimeResult[] = []
   ): void => {
     setResultByKey((current) => {
       const nextResults = { ...current };
@@ -390,6 +435,7 @@ export function GeoMigrationPage(): JSX.Element {
       }
       return nextResults;
     });
+    setOvertimeByGroupKey((current) => ({ ...current, [group.key]: overtimeResults }));
 
     if (!currentScopedWeekId) return;
 
@@ -402,6 +448,7 @@ export function GeoMigrationPage(): JSX.Element {
       userIdentifier: group.userIdentifier,
       groupKey: group.key,
       results: response.results,
+      overtimeResults,
       migratedBy,
       migratedAt
     };
@@ -410,17 +457,16 @@ export function GeoMigrationPage(): JSX.Element {
     });
   };
 
-  const migrateSingleGroup = async (group: GeoMigrationGroup): Promise<{ migrated: number; failed: number }> => {
+  const migrateSingleGroup = async (
+    group: GeoMigrationGroup
+  ): Promise<{ migrated: number; failed: number; results: GeoVictoriaPlanningMigrationResult[] }> => {
     const items = buildMigrationItems(group);
     if (items.length === 0) {
-      return { migrated: 0, failed: 0 };
+      return { migrated: 0, failed: 0, results: [] };
     }
 
     const response = await migrateGeoVictoriaPlanning(items);
-    const migratedAt = new Date().toISOString();
-    const migratedBy = currentUser?.name?.trim() || currentUser?.username?.trim() || null;
-    persistMigrationResults(group, response, migratedAt, migratedBy);
-    return { migrated: response.migrated, failed: response.failed };
+    return { migrated: response.migrated, failed: response.failed, results: response.results };
   };
 
   const handleMigrate = async (keys: string[]): Promise<void> => {
@@ -467,6 +513,7 @@ export function GeoMigrationPage(): JSX.Element {
       if (shouldShowBatchProgress) {
         let migrated = 0;
         let failed = 0;
+        const responsesByGroup = new Map<string, { migrated: number; failed: number; results: GeoVictoriaPlanningMigrationResult[] }>();
 
         for (const [index, group] of groupsToMigrate.entries()) {
           setBatchProgress((current) =>
@@ -480,6 +527,7 @@ export function GeoMigrationPage(): JSX.Element {
 
           try {
             const response = await migrateSingleGroup(group);
+            responsesByGroup.set(group.key, response);
             migrated += response.migrated;
             failed += response.failed;
           } catch (error) {
@@ -504,6 +552,17 @@ export function GeoMigrationPage(): JSX.Element {
         }
 
         const overtime = await sendOvertimeForGroups(groupsToMigrate);
+        const migratedAt = new Date().toISOString();
+        const migratedBy = currentUser?.name?.trim() || currentUser?.username?.trim() || null;
+        for (const group of groupsToMigrate) {
+          const response = responsesByGroup.get(group.key);
+          if (!response) continue;
+          const nextOvertimeResults = overtime.failed > 0
+            ? overtimeByGroupKey[group.key] ?? []
+            : overtime.resultsByGroupKey[group.key] ?? [];
+          persistMigrationResults(group, response, migratedAt, migratedBy, nextOvertimeResults);
+        }
+
         toast.close(migrationToastId);
         toast({
           status: failed > 0 || overtime.failed > 0 ? 'warning' : 'success',
@@ -515,17 +574,20 @@ export function GeoMigrationPage(): JSX.Element {
       }
 
       const response = await migrateGeoVictoriaPlanning(items);
+      const overtime = await sendOvertimeForGroups(groupsToMigrate);
       const migratedAt = new Date().toISOString();
       const migratedBy = currentUser?.name?.trim() || currentUser?.username?.trim() || null;
       for (const group of groupsToMigrate) {
+        const nextOvertimeResults = overtime.failed > 0
+          ? overtimeByGroupKey[group.key] ?? []
+          : overtime.resultsByGroupKey[group.key] ?? [];
         persistMigrationResults(group, {
           migrated: response.migrated,
           failed: response.failed,
           results: response.results.filter((result) => result.employeeId === group.employeeId)
-        }, migratedAt, migratedBy);
+        }, migratedAt, migratedBy, nextOvertimeResults);
       }
 
-      const overtime = await sendOvertimeForGroups(groupsToMigrate);
       toast.close(migrationToastId);
       toast({
         status: response.failed > 0 || overtime.failed > 0 ? 'warning' : 'success',

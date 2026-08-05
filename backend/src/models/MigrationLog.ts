@@ -10,6 +10,7 @@ type MigrationLogDocument = {
   userIdentifier: string;
   groupKey: string;
   results: unknown[];
+  overtimeResults?: unknown[];
   migratedBy: string | null;
   migratedAt: Date;
   createdAt: Date;
@@ -27,6 +28,7 @@ const MigrationLogSchema = new Schema<MigrationLogDocument>(
     userIdentifier: { type: String, required: true },
     groupKey: { type: String, required: true },
     results: { type: [Schema.Types.Mixed], required: true },
+    overtimeResults: { type: [Schema.Types.Mixed], default: [] },
     migratedBy: { type: String, default: null },
     migratedAt: { type: Date, required: true }
   },

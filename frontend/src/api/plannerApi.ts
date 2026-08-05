@@ -247,6 +247,7 @@ export type MigrationLogEntry = {
   userIdentifier: string;
   groupKey: string;
   results: GeoVictoriaPlanningMigrationResult[];
+  overtimeResults?: GeoVictoriaOvertimeResult[];
   migratedBy: string | null;
   migratedAt: string;
 };

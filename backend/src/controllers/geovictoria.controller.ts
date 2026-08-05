@@ -238,15 +238,33 @@ async function fetchWithRetry(
   let attempt = 0;
 
   while (true) {
-    const response = await fetch(url, init);
-    if (response.status !== 429 || attempt >= maxRetries) {
-      return response;
+    try {
+      const response = await fetch(url, init);
+      if (response.status !== 429 || attempt >= maxRetries) {
+        return response;
+      }
+      const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
+      const backoffMs = retryAfterMs ?? Math.min(baseDelayMs * 2 ** attempt, 8_000);
+      const jitter = Math.floor(Math.random() * 250);
+      await sleep(backoffMs + jitter);
+      attempt += 1;
+    } catch (error) {
+      if (attempt >= maxRetries) {
+        const endpoint = (() => {
+          try {
+            return new URL(url).pathname;
+          } catch {
+            return url;
+          }
+        })();
+        const message = error instanceof Error ? error.message : 'error de red';
+        throw new Error(`No se pudo conectar con GeoVictoria (${endpoint}): ${message}`);
+      }
+      const backoffMs = Math.min(baseDelayMs * 2 ** attempt, 8_000);
+      const jitter = Math.floor(Math.random() * 250);
+      await sleep(backoffMs + jitter);
+      attempt += 1;
     }
-    const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
-    const backoffMs = retryAfterMs ?? Math.min(baseDelayMs * 2 ** attempt, 8_000);
-    const jitter = Math.floor(Math.random() * 250);
-    await sleep(backoffMs + jitter);
-    attempt += 1;
   }
 }
 
@@ -1876,6 +1894,7 @@ export async function saveMigrationLogsController(req: Request, res: Response): 
       userIdentifier: string;
       groupKey: string;
       results: unknown[];
+      overtimeResults?: unknown[];
       migratedBy: string | null;
       migratedAt: string;
     }>;
@@ -1897,6 +1916,7 @@ export async function saveMigrationLogsController(req: Request, res: Response): 
           userIdentifier: log.userIdentifier,
           areaId: log.areaId,
           results: log.results,
+          overtimeResults: Array.isArray(log.overtimeResults) ? log.overtimeResults : [],
           migratedBy: log.migratedBy,
           migratedAt: new Date(log.migratedAt)
         },
@@ -1932,6 +1952,7 @@ export async function getMigrationLogsController(req: Request, res: Response): P
     userIdentifier: doc.userIdentifier,
     areaId: doc.areaId,
     results: doc.results,
+    overtimeResults: Array.isArray(doc.overtimeResults) ? doc.overtimeResults : [],
     migratedBy: doc.migratedBy,
     migratedAt: doc.migratedAt.toISOString()
   }));

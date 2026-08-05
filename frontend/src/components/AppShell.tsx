@@ -1,4 +1,22 @@
-import { Box, Flex, Icon, IconButton, Progress, Text, Tooltip, VStack, useDisclosure } from '@chakra-ui/react';
+import {
+  Box,
+  Button,
+  Flex,
+  Icon,
+  IconButton,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  Progress,
+  Text,
+  Tooltip,
+  VStack,
+  useDisclosure
+} from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
 import { MdSupportAgent } from 'react-icons/md';
 import { Outlet } from 'react-router-dom';
@@ -38,6 +56,7 @@ export function AppShell(): JSX.Element {
   const hydrated = useAppStore((state) => state.hydrated);
   const initialize = useAppStore((state) => state.initialize);
   const ticketModal = useDisclosure();
+  const whatsappMaintenanceModal = useDisclosure({ defaultIsOpen: true });
 
   useEffect(() => {
     void initialize();
@@ -98,6 +117,29 @@ export function AppShell(): JSX.Element {
         />
       </Tooltip>
       <TicketReportModal isOpen={ticketModal.isOpen} onClose={ticketModal.onClose} />
+      <Modal isOpen={whatsappMaintenanceModal.isOpen} onClose={whatsappMaintenanceModal.onClose} isCentered>
+        <ModalOverlay bg="blackAlpha.500" />
+        <ModalContent maxW={{ base: '92vw', md: '460px' }}>
+          <ModalHeader color="green.600" fontWeight="800">
+            ⚠️ AVISO
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text color="gray.700" fontSize="md">
+              El servicio de{' '}
+              <Text as="span" fontWeight="800">
+                notificación por WhatsApp
+              </Text>{' '}
+              se encuentra en mantenimiento. Temporalmente no se podrán enviar notificaciones por este medio.
+            </Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="green" onClick={whatsappMaintenanceModal.onClose}>
+              Entendido
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Flex>
   );
 }

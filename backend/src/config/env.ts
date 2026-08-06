@@ -166,5 +166,8 @@ export const env = {
   flowWebhookBaseUrl: process.env.FLOW_WEBHOOK_BASE_URL?.trim() || 'https://flow.inel.pe/api/whatsapp/trigger',
   flowWebhookId: (process.env.APP_FLOW_WEBHOOK_ID ?? process.env.FLOW_WEBHOOK_ID)?.trim() ?? '',
   flowWebhookSecret: (process.env.APP_FLOW_WEBHOOK_SECRET ?? process.env.FLOW_WEBHOOK_SECRET)?.trim() ?? '',
-  publicAppBaseUrl: process.env.PUBLIC_APP_BASE_URL?.trim() || 'https://horarios.almoud.pe'
+  publicAppBaseUrl: process.env.PUBLIC_APP_BASE_URL?.trim() || 'https://horarios.almoud.pe',
+  brevoApiKey: process.env.BREVO_API_KEY?.trim() ?? '',
+  brevoSenderEmail: process.env.BREVO_SENDER_EMAIL?.trim() || 'horarios@oishi.pe',
+  brevoSenderName: process.env.BREVO_SENDER_NAME?.trim() || 'Planificación Oishi'
 };

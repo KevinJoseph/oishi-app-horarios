@@ -34,11 +34,11 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FiBell, FiEdit2, FiEye, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, FiUser, FiUserCheck } from 'react-icons/fi';
+import { FiBell, FiEdit2, FiEye, FiMail, FiPower, FiRefreshCw, FiSearch, FiSend, FiTrash2, FiUser, FiUserCheck } from 'react-icons/fi';
 import { EmployeeFormModal } from '../components/EmployeeFormModal';
 import { GeoVictoriaReciboModal } from '../components/GeoVictoriaReciboModal';
 import { GeoVictoriaUsersViewModal } from '../components/GeoVictoriaUsersViewModal';
-import { fetchGeoVictoriaCompanies, fetchGeoVictoriaEmployees, type GeoVictoriaCompany, notifyWhatsappSchedule, sendEmployeeToGeoVictoria } from '../api/plannerApi';
+import { fetchGeoVictoriaCompanies, fetchGeoVictoriaEmployees, type GeoVictoriaCompany, notifyEmailSchedule, notifyWhatsappSchedule, sendEmployeeToGeoVictoria } from '../api/plannerApi';
 import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Employee } from '../types';
@@ -164,6 +164,7 @@ export function EmployeesPage(): JSX.Element {
   const [shareEmployee, setShareEmployee] = useState<Employee | null>(null);
   const [shareWeekStartISO, setShareWeekStartISO] = useState<string>(() => formatISO(getCurrentMonday(), { representation: 'date' }));
   const [isSendingWhatsapp, setIsSendingWhatsapp] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const employees = useAppStore((state) => state.employees);
   const roles = useAppStore((state) => state.roles);
   const areas = useAppStore((state) => state.areas);
@@ -401,6 +402,30 @@ export function EmployeesPage(): JSX.Element {
       toast({ status: 'error', title: 'Error WhatsApp', description: message });
     } finally {
       setIsSendingWhatsapp(false);
+    }
+  };
+
+  const handleSendEmail = async (): Promise<void> => {
+    if (!shareEmployee) return;
+    if (!canUseShareActions()) return;
+    setIsSendingEmail(true);
+    try {
+      const result = await notifyEmailSchedule({
+        employeeId: shareEmployee.id,
+        weekStart: shareWeekStartISO
+      });
+      toast({
+        status: 'success',
+        title: 'Correo enviado.',
+        description: `Destinatario: ${result.to}`
+      });
+      closeShareModal();
+      setShareEmployee(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo enviar el correo.';
+      toast({ status: 'error', title: 'Error al enviar correo', description: message });
+    } finally {
+      setIsSendingEmail(false);
     }
   };
 
@@ -816,12 +841,12 @@ export function EmployeesPage(): JSX.Element {
             </Stack>
           </ModalBody>
           <ModalFooter>
-            <HStack spacing={2} w="100%" justify="flex-end" flexWrap="wrap">
-              <Button variant="ghost" onClick={() => { closeShareModal(); setShareEmployee(null); }} isDisabled={isSendingWhatsapp}>
+            <HStack spacing={2} w="100%" justify="flex-end" flexWrap="nowrap">
+              <Button variant="ghost" onClick={() => { closeShareModal(); setShareEmployee(null); }} isDisabled={isSendingWhatsapp || isSendingEmail}>
                 Cancelar
               </Button>
-              <Button colorScheme="brand" onClick={() => void handleConfirmShare()} isDisabled={isSendingWhatsapp}>
-                Compartir enlace
+              <Button colorScheme="brand" onClick={() => void handleConfirmShare()} isDisabled={isSendingWhatsapp || isSendingEmail}>
+                Enlace
               </Button>
               <Button
                 bg="green.500"
@@ -830,8 +855,21 @@ export function EmployeesPage(): JSX.Element {
                 onClick={() => void handleSendWhatsapp()}
                 isLoading={isSendingWhatsapp}
                 loadingText="Enviando"
+                isDisabled
+                title="Próximamente"
               >
                 WhatsApp
+              </Button>
+              <Button
+                bg="blue.500"
+                color="white"
+                _hover={{ bg: 'blue.600' }}
+                leftIcon={<FiMail />}
+                onClick={() => void handleSendEmail()}
+                isLoading={isSendingEmail}
+                loadingText="Enviando"
+              >
+                Correo
               </Button>
             </HStack>
           </ModalFooter>

@@ -287,3 +287,24 @@ export function notifyWhatsappSchedule(payload: {
     body: JSON.stringify(payload)
   });
 }
+
+export type NotifyEmailScheduleResponse = {
+  ok: true;
+  to: string;
+  payload: {
+    sender: { name: string; email: string };
+    to: { email: string; name?: string }[];
+    subject: string;
+  };
+};
+
+export function notifyEmailSchedule(payload: {
+  employeeId: string;
+  weekStart: string;
+  emailOverride?: string;
+}): Promise<NotifyEmailScheduleResponse> {
+  return request<NotifyEmailScheduleResponse>('/notify/email-schedule', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}

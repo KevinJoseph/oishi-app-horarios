@@ -319,32 +319,24 @@ export function GeoMigrationPage(): JSX.Element {
         valueAfter: row.afterMinutes > 0 ? OVERTIME_VALUE : '0'
       }));
 
-  const buildOvertimeClearItems = (
-    group: GeoMigrationGroup,
-    currentItems: GeoVictoriaOvertimeItem[]
-  ): GeoVictoriaOvertimeClearItem[] => {
+  const buildOvertimeClearItems = (group: GeoMigrationGroup): GeoVictoriaOvertimeClearItem[] => {
     const itemsByKey = new Map<string, GeoVictoriaOvertimeClearItem>();
 
-    for (const item of currentItems) {
-      itemsByKey.set(`${item.employeeId}:${item.dateISO}`, {
-        employeeId: item.employeeId,
-        employeeName: item.employeeName,
-        companyId: item.companyId,
-        companyAlias: item.companyAlias,
-        userIdentifier: item.userIdentifier,
-        dateISO: item.dateISO
-      });
-    }
-
+    // Solo se limpia lo que este mismo modulo agrego antes (sabemos la duracion exacta
+    // que hay que quitar). No hay endpoint verificado para consultar horas extra existentes
+    // en GeoVictoria, asi que no se puede limpiar hora extra creada fuera de esta pantalla.
     for (const item of overtimeByGroupKey[group.key] ?? []) {
       if (!item.ok) continue;
+      if (item.durationBefore === '00:00' && item.durationAfter === '00:00') continue;
       itemsByKey.set(`${item.employeeId}:${item.dateISO}`, {
         employeeId: item.employeeId,
         employeeName: item.employeeName,
         companyId: item.companyId,
         companyAlias: item.companyAlias,
         userIdentifier: item.userIdentifier,
-        dateISO: item.dateISO
+        dateISO: item.dateISO,
+        durationBefore: item.durationBefore,
+        durationAfter: item.durationAfter
       });
     }
 
@@ -357,34 +349,32 @@ export function GeoMigrationPage(): JSX.Element {
       currentByGroupKey.set(group.key, buildOvertimeItems(group));
     }
 
-    const clearItems = groupsToSend.flatMap((group) => buildOvertimeClearItems(group, currentByGroupKey.get(group.key) ?? []));
+    const clearItems = groupsToSend.flatMap((group) => buildOvertimeClearItems(group));
     const items = Array.from(currentByGroupKey.values()).flat();
     const resultsByGroupKey: Record<string, GeoVictoriaOvertimeResult[]> = {};
 
     let deleted = 0;
+    const clearErrors: string[] = [];
     if (clearItems.length > 0) {
       try {
         const clearResponse = await clearGeoVictoriaOvertime(clearItems);
         deleted = clearResponse.deleted;
-        const clearErrors = clearResponse.results
-          .filter((result) => !result.ok)
-          .map((result) => `${result.employeeName} (${result.dateISO}): ${result.error ?? 'error'}`);
-        if (clearResponse.failed > 0) {
-          return { added: 0, deleted, failed: clearResponse.failed, errors: clearErrors, resultsByGroupKey };
-        }
+        clearErrors.push(
+          ...clearResponse.results
+            .filter((result) => !result.ok)
+            .map((result) => `No se pudo limpiar hora extra previa de ${result.employeeName} (${result.dateISO}): ${result.error ?? 'error'}`)
+        );
       } catch (error) {
-        return {
-          added: 0,
-          deleted: 0,
-          failed: clearItems.length,
-          errors: [error instanceof Error ? error.message : 'No se pudieron actualizar las horas extra existentes.'],
-          resultsByGroupKey
-        };
+        clearErrors.push(
+          error instanceof Error
+            ? `No se pudieron actualizar las horas extra existentes: ${error.message}`
+            : 'No se pudieron actualizar las horas extra existentes.'
+        );
       }
     }
 
     if (items.length === 0) {
-      return { added: 0, deleted, failed: 0, errors: [], resultsByGroupKey };
+      return { added: 0, deleted, failed: 0, errors: clearErrors, resultsByGroupKey };
     }
 
     try {
@@ -398,13 +388,13 @@ export function GeoMigrationPage(): JSX.Element {
         resultsByGroupKey[group.key] = response.results.filter((result) => result.ok && groupItems.has(`${result.employeeId}:${result.dateISO}`));
       }
 
-      return { added: response.added, deleted, failed: response.failed, errors, resultsByGroupKey };
+      return { added: response.added, deleted, failed: response.failed, errors: [...clearErrors, ...errors], resultsByGroupKey };
     } catch (error) {
       return {
         added: 0,
         deleted,
         failed: items.length,
-        errors: [error instanceof Error ? error.message : 'No se pudieron registrar las horas extra.'],
+        errors: [...clearErrors, error instanceof Error ? error.message : 'No se pudieron registrar las horas extra.'],
         resultsByGroupKey
       };
     }

@@ -1,0 +1,10 @@
+2026-08-07T01:46:17.949Z [CLEAR entrypoint] itemsCount=1 body={"items":[{"employeeId":"geo-6kDhalyI3xyF_dt6G2U0MA","employeeName":"Joseph D' Angelo Flores Arias","companyId":"yXFSEdlJya4VR2C1viYcyg","userIdentifier":"72130898","dateISO":"2026-08-03","durationBefore":"01:00","durationAfter":"00:00"}]}
+
+2026-08-07T01:46:18.231Z [GET] status=400 request={"StartDate":"20260803","EndDate":"20260803","UserIdentifiers":"72130898"} response={"Code":"0176","CategoryException":"DataFormatException","Description":"Invalid date format","PossibleSolution":"Please use 'yyyyMMddHHmmss'"}
+
+2026-08-07T01:46:18.626Z status=200 request={"Deletions":[{"UserIdentifier":"72130898","Date":"20260803","DurationBefore":"01:00","DurationAfter":"00:00"}]} response={"Success":true,"Response":[{"UserIdentifier":"72130898","Date":"20260803","DeletedOvertimeBefore":"01:00","DeletedOvertimeAfter":"00:00"}]}
+
+2026-08-07T01:46:19.036Z [ADD entrypoint] itemsCount=1 body={"items":[{"employeeId":"geo-6kDhalyI3xyF_dt6G2U0MA","employeeName":"Joseph D' Angelo Flores Arias","companyId":"yXFSEdlJya4VR2C1viYcyg","companyAlias":"Company","userIdentifier":"72130898","dateISO":"2026-08-03","durationBefore":"01:00","durationAfter":"00:00","valueBefore":"25","valueAfter":"0"}]}
+
+2026-08-07T01:46:19.752Z [SAVE-LOGS entrypoint] logsCount=1 overtimeResultsByGroup=[{"groupKey":"geo-6kDhalyI3xyF_dt6G2U0MA:yXFSEdlJya4VR2C1viYcyg:72130898","scopedWeekId":"oficina::week-2026-08-03","overtimeResults":[{"employeeId":"geo-6kDhalyI3xyF_dt6G2U0MA","employeeName":"Joseph D' Angelo Flores Arias","userIdentifier":"72130898","companyId":"yXFSEdlJya4VR2C1viYcyg","dateISO":"2026-08-03","durationBefore":"01:00","durationAfter":"00:00","valueBefore":"25","valueAfter":"0","ok":true,"message":"Hora extra registrada correctamente."}]}]
+

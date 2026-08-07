@@ -153,7 +153,7 @@ export const env = {
   geoVictoriaShiftListUrl: requireEnv('GEOVICTORIA_SHIFT_LIST_URL', 'https://customerapi.geovictoria.com/api/v1/Shift/List'),
   geoVictoriaShiftInsertUrl: requireEnv('GEOVICTORIA_SHIFT_INSERT_URL', 'https://customerapi.geovictoria.com/api/v1/Shift/Insert'),
   geoVictoriaPlanningUrl: requireEnv('GEOVICTORIA_PLANNING_URL', 'https://customerapi.geovictoria.com/api/v1/Planning'),
-  geoVictoriaOvertimeAddUrl: requireEnv('GEOVICTORIA_OVERTIME_ADD_URL', 'https://customerapi.geovictoria.com/api/v1/Overtime/Add'),
+  geoVictoriaOvertimeAddUrl: requireEnv('GEOVICTORIA_OVERTIME_ADD_URL', 'https://customerapi.geovictoria.com/api/v1/OverTime/Add'),
   geoVictoriaOvertimeDeleteUrl: requireEnv('GEOVICTORIA_OVERTIME_DELETE_URL', 'https://customerapi.geovictoria.com/api/v1/OverTime/Delete'),
   geoVictoriaOvertimeGetUrl: requireEnv('GEOVICTORIA_OVERTIME_GET_URL', 'https://customerapi.geovictoria.com/api/v1/OverTime/GetOvertime'),
   geoVictoriaUser: process.env.GEOVICTORIA_CANETE_USER ?? '',

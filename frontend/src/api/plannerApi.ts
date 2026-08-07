@@ -204,6 +204,8 @@ export interface GeoVictoriaOvertimeClearItem {
   companyAlias?: string;
   userIdentifier: string;
   dateISO: string;
+  durationBefore: string;
+  durationAfter: string;
 }
 
 export interface GeoVictoriaOvertimeClearResult extends GeoVictoriaOvertimeClearItem {

@@ -1,12 +1,8 @@
 import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
 import { env } from '../config/env.js';
 import { isSuperAdmin } from '../middlewares/auth.middleware.js';
 import { MigrationLogModel } from '../models/MigrationLog.js';
-
-const debugOvertimeDeleteLogPath = path.resolve(process.cwd(), 'overtime-delete-debug.log');
 
 interface GeoVictoriaUser {
   Id: string;
@@ -1438,15 +1434,6 @@ export async function addGeoVictoriaOvertimeController(req: Request, res: Respon
   const body = (req.body ?? {}) as GeoVictoriaOvertimeRequestBody;
   const items = Array.isArray(body.items) ? body.items : [];
 
-  try {
-    fs.appendFileSync(
-      debugOvertimeDeleteLogPath,
-      `${new Date().toISOString()} [ADD entrypoint] itemsCount=${items.length} body=${JSON.stringify(body)}\n\n`
-    );
-  } catch {
-    // ignore
-  }
-
   if (items.length === 0) {
     res.status(400).json({ error: 'Debes enviar al menos una hora extra para registrar.' });
     return;
@@ -1585,12 +1572,10 @@ export async function addGeoVictoriaOvertimeController(req: Request, res: Respon
       const bodyError = extractGeoVictoriaErrorInBody(parsed);
 
       if (!success || bodyError) {
-        const diag = `payload=${JSON.stringify(payload[0])}`;
-        console.error('[overtime/add] rejected by GeoVictoria', diag, 'raw=', rawText);
         results.push({
           ...base,
           ok: false,
-          error: `${bodyError || extractGeoVictoriaMessage(parsed) || 'GeoVictoria rechazó la hora extra.'} (${diag})`
+          error: bodyError || extractGeoVictoriaMessage(parsed) || 'GeoVictoria rechazó la hora extra.'
         });
         continue;
       }
@@ -1617,15 +1602,6 @@ export async function addGeoVictoriaOvertimeController(req: Request, res: Respon
 export async function clearGeoVictoriaOvertimeController(req: Request, res: Response): Promise<void> {
   const body = (req.body ?? {}) as GeoVictoriaOvertimeClearRequestBody;
   const rawItems = Array.isArray(body.items) ? body.items : [];
-
-  try {
-    fs.appendFileSync(
-      debugOvertimeDeleteLogPath,
-      `${new Date().toISOString()} [CLEAR entrypoint] itemsCount=${rawItems.length} body=${JSON.stringify(body)}\n\n`
-    );
-  } catch {
-    // ignore
-  }
 
   if (rawItems.length === 0) {
     res.status(400).json({ error: 'Debes enviar al menos un dia para limpiar horas extra.' });
@@ -1779,15 +1755,6 @@ export async function clearGeoVictoriaOvertimeController(req: Request, res: Resp
             : getResponse.ok;
         const getBodyError = extractGeoVictoriaErrorInBody(getParsed);
 
-        try {
-          fs.appendFileSync(
-            debugOvertimeDeleteLogPath,
-            `${new Date().toISOString()} [GET] status=${getResponse.status} request=${JSON.stringify({ StartDate: startDate, EndDate: endDate, UserIdentifiers: userIdentifiers })} response=${getRawText}\n\n`
-          );
-        } catch {
-          // ignore debug logging failures
-        }
-
         if (getResponse.status === 401) {
           tokenCache.delete(tokenCacheKey);
         }
@@ -1878,15 +1845,6 @@ export async function clearGeoVictoriaOvertimeController(req: Request, res: Resp
         }
       }
 
-      try {
-        fs.appendFileSync(
-          debugOvertimeDeleteLogPath,
-          `${new Date().toISOString()} status=${deleteResponse.status} request=${JSON.stringify({ Deletions: deletions })} response=${deleteRawText}\n\n`
-        );
-      } catch {
-        // ignore debug logging failures
-      }
-
       const success =
         typeof deleteParsed === 'object' && deleteParsed !== null && 'Success' in deleteParsed
           ? (deleteParsed as { Success?: boolean }).Success !== false
@@ -1968,17 +1926,6 @@ export async function saveMigrationLogsController(req: Request, res: Response): 
       migratedAt: string;
     }>;
   };
-
-  try {
-    fs.appendFileSync(
-      debugOvertimeDeleteLogPath,
-      `${new Date().toISOString()} [SAVE-LOGS entrypoint] logsCount=${Array.isArray(logs) ? logs.length : 'n/a'} overtimeResultsByGroup=${JSON.stringify(
-        (logs ?? []).map((l) => ({ groupKey: l.groupKey, scopedWeekId: l.scopedWeekId, overtimeResults: l.overtimeResults }))
-      )}\n\n`
-    );
-  } catch {
-    // ignore
-  }
 
   if (!Array.isArray(logs) || logs.length === 0) {
     res.status(400).json({ error: 'logs array required' });

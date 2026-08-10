@@ -50,6 +50,14 @@ import { buildGeoMigrationRows, buildOvertimeRows, minutesToHHMM, type GeoMigrat
 /** Valor de hora extra que existe en GeoVictoria. La plataforma aplica los tramos 25%/35% por día. */
 const OVERTIME_VALUE = '25';
 
+/**
+ * OverTime/Delete y OverTime/Edit devuelven 500 GeneralException en GeoVictoria
+ * incluso con requests validos contra registros reales (confirmado por Postman).
+ * A pedido, las horas extra quedan solo en este sistema mientras eso se resuelve
+ * con soporte de GeoVictoria.
+ */
+const OVERTIME_SYNC_TO_GEOVICTORIA_ENABLED = false;
+
 function scopedWeekKey(areaId: AreaId, weekId: string): string {
   return `${areaId}::${weekId}`;
 }
@@ -344,6 +352,10 @@ export function GeoMigrationPage(): JSX.Element {
   };
 
   const sendOvertimeForGroups = async (groupsToSend: GeoMigrationGroup[]): Promise<OvertimeMigrationSummary> => {
+    if (!OVERTIME_SYNC_TO_GEOVICTORIA_ENABLED) {
+      return { added: 0, deleted: 0, failed: 0, errors: [], resultsByGroupKey: {} };
+    }
+
     const currentByGroupKey = new Map<string, GeoVictoriaOvertimeItem[]>();
     for (const group of groupsToSend) {
       currentByGroupKey.set(group.key, buildOvertimeItems(group));

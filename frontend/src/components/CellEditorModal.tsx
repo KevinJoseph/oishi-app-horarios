@@ -220,8 +220,8 @@ export function CellEditorModal({
                   </Text>
                 ) : isOvertime ? (
                   <Text fontSize="xs" color="gray.500" mt={2}>
-                    Esta hora se enviará a GeoVictoria como hora extra al migrar la semana y NO contará dentro del turno.
-                    GeoVictoria aplica los tramos por día automáticamente (25% las primeras 2h, 35% el resto).
+                    Esta hora queda marcada como extra en este sistema y NO contará dentro del turno.
+                    Por el momento no se envía a GeoVictoria.
                   </Text>
                 ) : null}
               </FormControl>

@@ -1,6 +1,6 @@
 import { Box, Flex, Icon, Image, Link, Text } from '@chakra-ui/react';
 import { NavLink } from 'react-router-dom';
-import { FiCalendar, FiGrid, FiLayers, FiMap, FiSend, FiSettings, FiShield, FiUsers } from 'react-icons/fi';
+import { FiBookOpen, FiCalendar, FiDownload, FiGrid, FiHome, FiLayers, FiMap, FiSend, FiSettings, FiShield, FiUsers } from 'react-icons/fi';
 import { useAuthStore } from '../store/useAuthStore';
 
 const links = [
@@ -10,6 +10,9 @@ const links = [
   { to: '/roles', label: 'Zonas', icon: FiLayers },
   { to: '/areas', label: 'Áreas', icon: FiMap },
   { to: '/geo-migration', label: 'Migrar Turnos', icon: FiSend },
+  { to: '/buk-migration', label: 'Migrar BUK', icon: FiDownload },
+  { to: '/buk-shifts', label: 'Catálogo de turnos', icon: FiBookOpen },
+  { to: '/recintos', label: 'Recintos', icon: FiHome },
   { to: '/users', label: 'Usuarios', icon: FiShield },
   { to: '/settings/timeslots', label: 'Config. Horarios', icon: FiSettings }
 ];

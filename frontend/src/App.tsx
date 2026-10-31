@@ -1,11 +1,14 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
+import { BukMigrationPage } from './pages/BukMigrationPage';
+import { BukShiftCatalogPage } from './pages/BukShiftCatalogPage';
 import { RequireAuth } from './components/RequireAuth';
 import { EmployeesPage } from './pages/EmployeesPage';
 import { GeoMigrationPage } from './pages/GeoMigrationPage';
 import { LoginPage } from './pages/LoginPage';
 import { PlanningPage } from './pages/PlanningPage';
 import { PublicEmployeeSchedulePage } from './pages/PublicEmployeeSchedulePage';
+import { RecintosPage } from './pages/RecintosPage';
 import { AreasPage } from './pages/AreasPage';
 import { RolesPage } from './pages/RolesPage';
 import { TimeSlotsPage } from './pages/TimeSlotsPage';
@@ -22,6 +25,9 @@ export default function App(): JSX.Element {
           <Route path="/planning" element={<PlanningPage />} />
           <Route path="/planning/weekly-overview" element={<WeeklyOverviewPage />} />
           <Route path="/geo-migration" element={<GeoMigrationPage />} />
+          <Route path="/buk-migration" element={<BukMigrationPage />} />
+          <Route path="/buk-shifts" element={<BukShiftCatalogPage />} />
+          <Route path="/recintos" element={<RecintosPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/areas" element={<AreasPage />} />

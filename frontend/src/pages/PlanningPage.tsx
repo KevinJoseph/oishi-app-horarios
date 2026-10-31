@@ -34,6 +34,7 @@ import { DayTabs } from '../components/DayTabs';
 import { EmployeeProfileDrawer } from '../components/EmployeeProfileDrawer';
 import { LegendDrawer } from '../components/LegendDrawer';
 import { getWeekAuditForCompany, isWeekValidatedForCompany, useAppStore } from '../store/useAppStore';
+import { isVisibleInPlanning, resolvePlanningEmployees } from '../utils/planningEmployees';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AreaId, Assignment, DayPlan } from '../types';
 import { isBreakAssignment, suppressesConfiguredBreak } from '../utils/assignments';
@@ -129,15 +130,7 @@ export function PlanningPage(): JSX.Element {
           if (orderA !== orderB) return orderA - orderB;
           return a.name.localeCompare(b.name);
         });
-      if (isCurrentWeekValidated && currentWeekAudit?.inactiveEmployeeIds) {
-        // Los colaboradores que ya estaban desactivados al validar no deben mostrarse;
-        // los desactivados después de validar se mantienen como registro histórico.
-        const inactiveSet = new Set(currentWeekAudit.inactiveEmployeeIds);
-        return base
-          .filter((employee) => !inactiveSet.has(employee.id))
-          .map((employee) => ({ ...employee, active: true }));
-      }
-      return base;
+      return resolvePlanningEmployees(base, isCurrentWeekValidated, currentWeekAudit?.inactiveEmployeeIds);
     },
     [allEmployees, currentAreaId, selectedGeoVictoriaCompanyId, isCurrentWeekValidated, currentWeekAudit]
   );
@@ -278,7 +271,11 @@ export function PlanningPage(): JSX.Element {
     return () => window.removeEventListener('beforeunload', handler);
   }, [pendingPlanningEdits]);
 
-  const activeEmployeesCount = useMemo(() => employees.filter((employee) => employee.active).length, [employees]);
+  // Cuenta lo mismo que muestra la grilla (incluye inactivos con turnos en semanas validadas).
+  const activeEmployeesCount = useMemo(
+    () => employees.filter((employee) => isVisibleInPlanning(employee, currentWeekPlan, isCurrentWeekValidated)).length,
+    [employees, currentWeekPlan, isCurrentWeekValidated]
+  );
   const employeeHoursById = useMemo(() => {
     const targetByEmployeeId = new Map(employees.map((employee) => [employee.id, employee.weeklyHours ?? 0]));
     const assignedByEmployeeId = new Map<string, number>();

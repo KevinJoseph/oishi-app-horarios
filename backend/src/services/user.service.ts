@@ -70,7 +70,7 @@ function resolveCompanyLabel(companyId: string | null): string | null {
     return null;
   }
 
-  return `${company.alias} - ${company.name}`;
+  return company.name || company.alias;
 }
 
 function validateCompanyAccess(role: UserRole, companyId: string | null): string | null {

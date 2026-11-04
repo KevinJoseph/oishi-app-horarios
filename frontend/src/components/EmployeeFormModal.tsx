@@ -19,6 +19,7 @@ import {
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
 import { fetchGeoVictoriaPositions } from '../api/plannerApi';
+import { fetchEmployeeDirectory, type EmployeeDirectoryEntry } from '../api/employeeDirectoryApi';
 import type { GeoVictoriaCompany, GeoVictoriaPosition } from '../api/plannerApi';
 import type { AreaId, AreaInfo, Employee, Role } from '../types';
 import { SearchableSelect } from './SearchableSelect';
@@ -118,13 +119,39 @@ export function EmployeeFormModal({
   const [mainRoleCode, setMainRoleCode] = useState('');
   const [displayOrder, setDisplayOrder] = useState('');
   const [supervisorId, setSupervisorId] = useState('');
-  const supervisorOptions = useMemo(
-    () =>
-      employees
-        .filter((emp) => emp.id !== editing?.id && (emp.active || emp.id === supervisorId))
-        .sort((a, b) => a.name.localeCompare(b.name, 'es')),
-    [employees, editing?.id, supervisorId]
-  );
+  const [directory, setDirectory] = useState<EmployeeDirectoryEntry[]>([]);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    fetchEmployeeDirectory()
+      .then((data) => {
+        if (!cancelled) setDirectory(data);
+      })
+      .catch(() => {
+        if (!cancelled) setDirectory([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+  // Supervisor can be any employee from any company/area.
+  const supervisorOptions = useMemo(() => {
+    const byId = new Map<string, { id: string; name: string; active: boolean; companyLabel?: string }>();
+    for (const emp of directory) byId.set(emp.id, emp);
+    for (const emp of employees) {
+      if (!byId.has(emp.id)) {
+        byId.set(emp.id, {
+          id: emp.id,
+          name: emp.name,
+          active: emp.active,
+          companyLabel: emp.moduleCompanyName ?? emp.companyName ?? emp.moduleCompanyAlias ?? emp.companyAlias
+        });
+      }
+    }
+    return [...byId.values()]
+      .filter((emp) => emp.id !== editing?.id && (emp.active || emp.id === supervisorId))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  }, [directory, employees, editing?.id, supervisorId]);
   const filteredRoles = useMemo(
     () => roles.filter((role) => (role.areaId ?? 'salon') === areaId),
     [roles, areaId]
@@ -340,7 +367,7 @@ export function EmployeeFormModal({
                 <option value="">Selecciona una empresa</option>
                 {selectableCompanies.map((company) => (
                   <option key={company.alias} value={company.alias}>
-                    {`${company.alias} - ${company.name}`}
+                    {company.name || company.alias}
                   </option>
                 ))}
               </Select>
@@ -415,7 +442,10 @@ export function EmployeeFormModal({
               <SearchableSelect
                 value={supervisorId}
                 onChange={setSupervisorId}
-                options={supervisorOptions.map((emp) => ({ value: emp.id, label: emp.name }))}
+                options={supervisorOptions.map((emp) => ({
+                  value: emp.id,
+                  label: emp.companyLabel ? `${emp.name} — ${emp.companyLabel}` : emp.name
+                }))}
                 placeholder="Buscar colaborador..."
                 emptyLabel="Sin supervisor"
               />

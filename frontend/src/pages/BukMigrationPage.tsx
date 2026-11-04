@@ -46,6 +46,7 @@ import {
   downloadBukCreacionTurnos,
   formatBukDate
 } from '../utils/buk';
+import { fetchEmployeeDirectory, type EmployeeDirectoryEntry } from '../api/employeeDirectoryApi';
 import { isVisibleInPlanning, resolvePlanningEmployees } from '../utils/planningEmployees';
 
 function scopedWeekKey(areaId: AreaId, weekId: string): string {
@@ -55,6 +56,12 @@ function scopedWeekKey(areaId: AreaId, weekId: string): string {
 export function BukMigrationPage(): JSX.Element {
   const selectedCompanyId = useAuthStore((state) => state.selectedGeoVictoriaCompanyId);
   const employees = useAppStore((state) => state.employees);
+  const [directory, setDirectory] = useState<EmployeeDirectoryEntry[]>([]);
+  useEffect(() => {
+    fetchEmployeeDirectory()
+      .then(setDirectory)
+      .catch(() => setDirectory([]));
+  }, []);
   const areas = useAppStore((state) => state.areas);
   const weeks = useAppStore((state) => state.weeks);
   const weekPlans = useAppStore((state) => state.weekPlans);
@@ -268,7 +275,10 @@ export function BukMigrationPage(): JSX.Element {
                       exportData,
                       areaLabel,
                       `Asignar_Turnos_Colaboradores_${currentAreaId}_${weekSuffix}.xls`,
-                      new Map(employees.map((employee) => [employee.id, employee.name]))
+                      new Map([
+                        ...directory.map((entry) => [entry.id, entry.name] as const),
+                        ...employees.map((employee) => [employee.id, employee.name] as const)
+                      ])
                     )
                   }
                 >

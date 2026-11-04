@@ -103,10 +103,8 @@ function isSameCompanyText(a: string | undefined, b: string | undefined): boolea
 
 function getEmployeeCompanyLabel(employee: Employee): string {
   const companyLabel =
-    (employee.companyAlias && employee.companyName && `${employee.companyAlias} - ${employee.companyName}`) ||
     employee.companyName ||
     employee.companyAlias ||
-    (employee.moduleCompanyAlias && employee.moduleCompanyName && `${employee.moduleCompanyAlias} - ${employee.moduleCompanyName}`) ||
     employee.moduleCompanyName ||
     employee.moduleCompanyAlias ||
     '';

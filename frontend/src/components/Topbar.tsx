@@ -29,7 +29,7 @@ function getRoleLabel(role: string | undefined): string {
 }
 
 function getCompanyLabel(company: GeoVictoriaCompany): string {
-  return `${company.alias} - ${company.name}`;
+  return company.name || company.alias;
 }
 
 export function Topbar(): JSX.Element {
@@ -226,7 +226,7 @@ export function Topbar(): JSX.Element {
                   <option value="">{canSwitchCompany ? 'Seleccione una empresa' : 'Empresa asignada'}</option>
                   {selectableGeoVictoriaCompanies.map((company) => (
                     <option key={company.companyId} value={company.companyId}>
-                      {company.alias} - {company.name}
+                      {company.name || company.alias}
                     </option>
                   ))}
                 </Select>

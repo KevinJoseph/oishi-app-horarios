@@ -11,6 +11,7 @@ import { areaRouter } from './routes/area.routes.js';
 import { bukRouter } from './routes/buk.routes.js';
 import { publicScheduleRouter } from './routes/publicSchedule.routes.js';
 import { notifyRouter } from './routes/notify.routes.js';
+import { employeeDirectoryRouter } from './routes/employeeDirectory.routes.js';
 import { HttpError } from './utils/httpError.js';
 
 export const app = express();
@@ -36,6 +37,7 @@ app.use('/api', areaRouter);
 app.use('/api', bukRouter);
 app.use('/api', publicScheduleRouter);
 app.use('/api', notifyRouter);
+app.use('/api', employeeDirectoryRouter);
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const statusCode = error instanceof HttpError ? error.statusCode : 500;

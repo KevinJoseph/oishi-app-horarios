@@ -166,7 +166,7 @@ export function UserFormModal({ isOpen, onClose, editingUser, companies, onSubmi
               </option>
               {companies.map((company) => (
                 <option key={company.companyId} value={company.companyId}>
-                  {company.alias} - {company.name}
+                  {company.name || company.alias}
                 </option>
               ))}
             </Select>

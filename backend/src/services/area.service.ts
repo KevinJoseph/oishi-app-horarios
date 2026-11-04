@@ -1,5 +1,6 @@
 import { AreaModel } from '../models/Area.js';
 import { HttpError } from '../utils/httpError.js';
+import { deleteSubAreasOfArea } from './subArea.service.js';
 
 export type AreaPayload = {
   code: string;
@@ -86,6 +87,7 @@ export async function deleteArea(companyId: string, areaCode: string): Promise<v
   const doc = await AreaModel.findById(id);
   if (!doc) throw new HttpError(404, 'Área no encontrada.');
   await doc.deleteOne();
+  await deleteSubAreasOfArea(companyId, areaCode);
 }
 
 export async function getAreaCodesForCompany(companyId: string): Promise<string[]> {

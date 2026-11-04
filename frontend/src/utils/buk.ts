@@ -54,6 +54,8 @@ export type BukEmployeeRow = {
   employeeId: string;
   employeeName: string;
   identifier: string;
+  /** id del colaborador supervisor (jefe inmediato), si tiene. */
+  supervisorId?: string;
   /** Firma del turno (BukShift.signature), descanso (D) o vacío por fecha. */
   cells: Record<string, { kind: 'shift'; signature: string } | { kind: 'rest' } | { kind: 'empty' }>;
   warnings: string[];
@@ -238,6 +240,7 @@ function analyzeWeek(source: BukWeekSource, shiftsByKey: Map<string, RawShift>):
       employeeId: employee.id,
       employeeName: employee.name,
       identifier: employee.identityDocument?.trim() ?? '',
+      supervisorId: employee.supervisorId,
       cells,
       warnings
     });
@@ -382,7 +385,12 @@ export function downloadBukCreacionTurnos(entries: BukCreacionEntry[], recintos:
   XLSX.writeFile(workbook, fileName, { bookType: 'biff8' });
 }
 
-export function downloadBukAsignarTurnos(data: BukExportData, areaLabel: string, fileName: string): void {
+export function downloadBukAsignarTurnos(
+  data: BukExportData,
+  areaLabel: string,
+  fileName: string,
+  supervisorNameById: Map<string, string> = new Map()
+): void {
   const codeBySignature = new Map(data.shifts.map((shift) => [shift.signature, shift.code]));
 
   const assignmentHeader = ['Nombre del Colaborador', 'RUT', 'Área', 'Supervisor', ...data.dates.map(formatBukDate)];
@@ -390,7 +398,7 @@ export function downloadBukAsignarTurnos(data: BukExportData, areaLabel: string,
     row.employeeName.toUpperCase(),
     row.identifier,
     areaLabel.toUpperCase(),
-    '',
+    (row.supervisorId ? supervisorNameById.get(row.supervisorId) ?? '' : '').toUpperCase(),
     ...data.dates.map((dateISO) => {
       const cell = row.cells[dateISO];
       if (!cell || cell.kind === 'empty') return '';

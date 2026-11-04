@@ -2234,7 +2234,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       const plan = state.weekPlans[scopedWeekId];
       if (!plan) return {};
       const restDayOverrides = { ...(plan.restDayOverrides ?? {}) };
-      const currentList = normalizeRestDayList(restDayOverrides[employeeId]);
+      // Sin overrides previos, la lista parte del descanso fijo del colaborador: si no,
+      // al agregar un descanso manual el fijo se pierde (los overrides reemplazan a restDay).
+      const employeeRestDay = state.employees.find((item) => item.id === employeeId)?.restDay;
+      const currentList = restDayOverrides[employeeId]
+        ? normalizeRestDayList(restDayOverrides[employeeId])
+        : employeeRestDay !== undefined
+          ? [normalizeRestDay(employeeRestDay)]
+          : [];
       let nextList: number[];
       if (active) {
         nextList = currentList.includes(dayNumber) ? currentList : [...currentList, dayNumber];

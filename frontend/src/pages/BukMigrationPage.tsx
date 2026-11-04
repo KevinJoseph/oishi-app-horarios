@@ -162,9 +162,12 @@ export function BukMigrationPage(): JSX.Element {
   const rowsWithWarnings = exportData.rows.filter((row) => row.warnings.length > 0).length;
   const weekSuffix = currentWeek?.startDateISO ?? 'semana';
   const canExport = exportData.rows.length > 0;
+  const pendingEntries = useMemo(() => getBukCreacionEntries(shifts, recintos, false), [shifts, recintos]);
+  // Sin turnos nuevos pendientes, el botón re-descarga todos (mismos códigos) en vez de quedar deshabilitado.
+  const exportAllShifts = includeRegistered || pendingEntries.length === 0;
   const creacionEntries = useMemo(
-    () => getBukCreacionEntries(shifts, recintos, includeRegistered),
-    [shifts, recintos, includeRegistered]
+    () => (exportAllShifts ? getBukCreacionEntries(shifts, recintos, true) : pendingEntries),
+    [exportAllShifts, shifts, recintos, pendingEntries]
   );
   const pendingShiftsCount = shifts.filter((shift) => shift.registeredRecintoCodes === null).length;
   const canExportShifts = creacionEntries.length > 0 && companiesWithoutRecinto.length === 0;
@@ -252,14 +255,21 @@ export function BukMigrationPage(): JSX.Element {
                   isLoading={isExportingShifts}
                   onClick={handleExportShifts}
                 >
-                  Creación de turnos ({includeRegistered ? 'todos' : `${pendingShiftsCount} nuevos`})
+                  {exportAllShifts
+                    ? 'Creación de turnos (todos)'
+                    : `Creación de turnos (${pendingShiftsCount} nuevos)`}
                 </Button>
                 <Button
                   colorScheme="teal"
                   leftIcon={<FiDownload />}
                   isDisabled={!canExport}
                   onClick={() =>
-                    downloadBukAsignarTurnos(exportData, areaLabel, `Asignar_Turnos_Colaboradores_${currentAreaId}_${weekSuffix}.xls`)
+                    downloadBukAsignarTurnos(
+                      exportData,
+                      areaLabel,
+                      `Asignar_Turnos_Colaboradores_${currentAreaId}_${weekSuffix}.xls`,
+                      new Map(employees.map((employee) => [employee.id, employee.name]))
+                    )
                   }
                 >
                   Asignación de turnos

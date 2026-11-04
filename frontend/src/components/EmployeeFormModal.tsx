@@ -13,12 +13,15 @@ import {
   ModalHeader,
   ModalOverlay,
   Select,
+  SimpleGrid,
+  Text,
   useToast
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
 import { fetchGeoVictoriaPositions } from '../api/plannerApi';
 import type { GeoVictoriaCompany, GeoVictoriaPosition } from '../api/plannerApi';
 import type { AreaId, AreaInfo, Employee, Role } from '../types';
+import { SearchableSelect } from './SearchableSelect';
 import { createId } from '../store/useAppStore';
 import { normalizeRestDay, WEEKDAY_OPTIONS } from '../utils/weekdays';
 
@@ -45,6 +48,7 @@ type Props = {
   editing?: Employee;
   roles: Role[];
   areas: AreaInfo[];
+  employees: Employee[];
   companies: GeoVictoriaCompany[];
   currentAreaId: AreaId;
   selectedCompanyId?: string | null;
@@ -85,6 +89,7 @@ export function EmployeeFormModal({
   editing,
   roles,
   areas,
+  employees,
   companies,
   currentAreaId,
   selectedCompanyId,
@@ -112,6 +117,14 @@ export function EmployeeFormModal({
   const [mainRoleId, setMainRoleId] = useState('');
   const [mainRoleCode, setMainRoleCode] = useState('');
   const [displayOrder, setDisplayOrder] = useState('');
+  const [supervisorId, setSupervisorId] = useState('');
+  const supervisorOptions = useMemo(
+    () =>
+      employees
+        .filter((emp) => emp.id !== editing?.id && (emp.active || emp.id === supervisorId))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [employees, editing?.id, supervisorId]
+  );
   const filteredRoles = useMemo(
     () => roles.filter((role) => (role.areaId ?? 'salon') === areaId),
     [roles, areaId]
@@ -171,6 +184,7 @@ export function EmployeeFormModal({
     setPositionDescription(editing?.positionDescription ?? '');
     setActive(editing?.active ?? true);
     setApplyOpeningClosingRules(editing?.applyOpeningClosingRules ?? true);
+    setSupervisorId(editing?.supervisorId ?? '');
     setContractType(editing?.contractType ?? '');
     setWeeklyHours(editing?.weeklyHours !== undefined ? String(editing.weeklyHours) : '0');
     setShiftType(editing?.shiftType ?? 'day');
@@ -260,112 +274,117 @@ export function EmployeeFormModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: '4xl' }} scrollBehavior="inside">
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>{editing ? 'Editar Colaborador' : 'Nuevo Colaborador'}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
-          <FormControl mb={3}>
-            <FormLabel>Orden (planificación)</FormLabel>
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              value={displayOrder}
-              onChange={(event) => setDisplayOrder(event.target.value)}
-              placeholder="Ej: 1, 2, 3..."
-            />
-          </FormControl>
-          <FormControl mb={3} isRequired>
-            <FormLabel>Nombre</FormLabel>
-            <Input value={firstName} onChange={(event) => setFirstName(event.target.value)} />
-          </FormControl>
-          <FormControl mb={3} isRequired>
-            <FormLabel>Apellidos</FormLabel>
-            <Input value={lastName} onChange={(event) => setLastName(event.target.value)} />
-          </FormControl>
-          <FormControl mb={3} isRequired>
-            <FormLabel>DNI</FormLabel>
-            <Input
-              value={identityDocument}
-              onChange={(event) => setIdentityDocument(event.target.value)}
-            />
-            <FormLabel mt={1} mb={0} fontSize="xs" fontWeight="400" color="gray.500">
-              (*) Si cambias DNI se creará un nuevo usuario GEOVICTORIA
-            </FormLabel>
-          </FormControl>
-          <FormControl mb={3} isRequired>
-            <FormLabel>Email</FormLabel>
-            <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-          </FormControl>
-          <FormControl mb={3}>
-            <FormLabel>Celular</FormLabel>
-            <Input
-              type="tel"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              placeholder="Permite la notificación por Whatsapp"
-            />
-          </FormControl>
-          <FormControl mb={3} isRequired>
-            <FormLabel>Empresa</FormLabel>
-            <Select
-              value={companyAlias}
-              onChange={(event) => {
-                setCompanyAlias(event.target.value);
-                setReciboGroupCode('');
-              }}
-            >
-              <option value="">Selecciona una empresa</option>
-              {selectableCompanies.map((company) => (
-                <option key={company.alias} value={company.alias}>
-                  {`${company.alias} - ${company.name}`}
-                </option>
-              ))}
-            </Select>
-          </FormControl>
-          {requiresReciboGroup ? (
-            <FormControl mb={3} isRequired>
-              <FormLabel>Grupo Recibo</FormLabel>
-              <Select value={reciboGroupCode} onChange={(event) => setReciboGroupCode(event.target.value)}>
-                <option value="">Selecciona un grupo</option>
-                {selectedCompany?.groups.map((group) => (
-                  <option key={group.code_centro_costo} value={group.code_centro_costo}>
-                    {group.name}
+          <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase" letterSpacing="wide" mb={2}>
+            Datos personales
+          </Text>
+          <SimpleGrid columns={{ base: 1, md: 3 }} spacingX={4} spacingY={3}>
+            <FormControl>
+              <FormLabel>Orden (planificación)</FormLabel>
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                value={displayOrder}
+                onChange={(event) => setDisplayOrder(event.target.value)}
+                placeholder="Ej: 1, 2, 3..."
+              />
+            </FormControl>
+            <FormControl isRequired>
+              <FormLabel>Nombre</FormLabel>
+              <Input value={firstName} onChange={(event) => setFirstName(event.target.value)} />
+            </FormControl>
+            <FormControl isRequired>
+              <FormLabel>Apellidos</FormLabel>
+              <Input value={lastName} onChange={(event) => setLastName(event.target.value)} />
+            </FormControl>
+            <FormControl isRequired>
+              <FormLabel title="Si cambias el DNI se creará un nuevo usuario GeoVictoria">DNI</FormLabel>
+              <Input
+                value={identityDocument}
+                onChange={(event) => setIdentityDocument(event.target.value)}
+              />
+            </FormControl>
+            <FormControl isRequired>
+              <FormLabel>Email</FormLabel>
+              <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            </FormControl>
+            <FormControl>
+              <FormLabel>Celular</FormLabel>
+              <Input
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="Permite la notificación por Whatsapp"
+              />
+            </FormControl>
+          </SimpleGrid>
+          <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase" letterSpacing="wide" mb={2} mt={5}>
+            Empresa y ubicación
+          </Text>
+          <SimpleGrid columns={{ base: 1, md: 3 }} spacingX={4} spacingY={3}>
+            <FormControl isRequired>
+              <FormLabel>Empresa</FormLabel>
+              <Select
+                value={companyAlias}
+                onChange={(event) => {
+                  setCompanyAlias(event.target.value);
+                  setReciboGroupCode('');
+                }}
+              >
+                <option value="">Selecciona una empresa</option>
+                {selectableCompanies.map((company) => (
+                  <option key={company.alias} value={company.alias}>
+                    {`${company.alias} - ${company.name}`}
                   </option>
                 ))}
               </Select>
             </FormControl>
-          ) : null}
-          <FormControl mb={3}>
-            <FormLabel>Cargo</FormLabel>
-            <Select
-              value={positionDescription}
-              onChange={(event) => setPositionDescription(event.target.value)}
-              isDisabled={!selectedCompany?.companyId || isLoadingPositions}
-            >
-              <option value="">{isLoadingPositions ? 'Cargando cargos...' : 'Selecciona un cargo'}</option>
-              {positions.map((position) => (
-                <option key={position.Identifier} value={position.PositionDescription}>
-                  {position.PositionDescription}
-                </option>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl mb={3}>
-            <FormLabel>Área</FormLabel>
-            <Select value={areaId} onChange={(event) => setAreaId(event.target.value as AreaId)}>
-              <option value="">Sin área</option>
-              {areas.map((area) => (
-                <option key={area.code} value={area.code}>
-                  {area.label}
-                </option>
-              ))}
-            </Select>
-          </FormControl>
-          <HStack mb={3} align="flex-start" spacing={3}>
-            <FormControl flex="1">
+            {requiresReciboGroup ? (
+              <FormControl isRequired>
+                <FormLabel>Grupo Recibo</FormLabel>
+                <Select value={reciboGroupCode} onChange={(event) => setReciboGroupCode(event.target.value)}>
+                  <option value="">Selecciona un grupo</option>
+                  {selectedCompany?.groups.map((group) => (
+                    <option key={group.code_centro_costo} value={group.code_centro_costo}>
+                      {group.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+            ) : null}
+            <FormControl>
+              <FormLabel>Cargo</FormLabel>
+              <Select
+                value={positionDescription}
+                onChange={(event) => setPositionDescription(event.target.value)}
+                isDisabled={!selectedCompany?.companyId || isLoadingPositions}
+              >
+                <option value="">{isLoadingPositions ? 'Cargando cargos...' : 'Selecciona un cargo'}</option>
+                {positions.map((position) => (
+                  <option key={position.Identifier} value={position.PositionDescription}>
+                    {position.PositionDescription}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl>
+              <FormLabel>Área</FormLabel>
+              <Select value={areaId} onChange={(event) => setAreaId(event.target.value as AreaId)}>
+                <option value="">Sin área</option>
+                {areas.map((area) => (
+                  <option key={area.code} value={area.code}>
+                    {area.label}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl>
               <FormLabel>Zona asignada</FormLabel>
               <Select value={mainRoleId} onChange={(event) => setMainRoleId(event.target.value)}>
                 <option value="">Sin zona asignada</option>
@@ -376,7 +395,7 @@ export function EmployeeFormModal({
                 ))}
               </Select>
             </FormControl>
-            <FormControl flex="1">
+            <FormControl>
               <FormLabel>Código de zona</FormLabel>
               <Select
                 value={mainRoleCode}
@@ -391,9 +410,22 @@ export function EmployeeFormModal({
                 ))}
               </Select>
             </FormControl>
-          </HStack>
-          <HStack mb={3} align="flex-start" spacing={3}>
-            <FormControl flex="1">
+            <FormControl>
+              <FormLabel>Supervisor (Jefe inmediato)</FormLabel>
+              <SearchableSelect
+                value={supervisorId}
+                onChange={setSupervisorId}
+                options={supervisorOptions.map((emp) => ({ value: emp.id, label: emp.name }))}
+                placeholder="Buscar colaborador..."
+                emptyLabel="Sin supervisor"
+              />
+            </FormControl>
+          </SimpleGrid>
+          <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase" letterSpacing="wide" mb={2} mt={5}>
+            Jornada
+          </Text>
+          <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacingX={4} spacingY={3}>
+            <FormControl>
               <FormLabel>Tipo de jornada</FormLabel>
               <Select
                 value={contractType}
@@ -404,7 +436,7 @@ export function EmployeeFormModal({
                 <option value="part-time">Part Time</option>
               </Select>
             </FormControl>
-            <FormControl flex="1" isRequired>
+            <FormControl isRequired>
               <FormLabel>Horas semanales</FormLabel>
               <Input
                 type="number"
@@ -415,9 +447,7 @@ export function EmployeeFormModal({
                 isDisabled={isWithoutContract}
               />
             </FormControl>
-          </HStack>
-          <HStack mb={3} align="flex-start" spacing={3}>
-            <FormControl flex="1">
+            <FormControl>
               <FormLabel>Turno</FormLabel>
               <Select
                 value={contractType === 'full-time' ? 'both' : contractType === '' ? 'none' : shiftType}
@@ -433,7 +463,7 @@ export function EmployeeFormModal({
                 <option value="night">Noche</option>
               </Select>
             </FormControl>
-            <FormControl flex="1">
+            <FormControl>
               <FormLabel>Día de descanso</FormLabel>
               <Select
                 value={isWithoutContract ? 'none' : restDay}
@@ -451,21 +481,19 @@ export function EmployeeFormModal({
                 ))}
               </Select>
             </FormControl>
-          </HStack>
-          <Checkbox isChecked={active} onChange={(event) => setActive(event.target.checked)}>
-            Activo
-          </Checkbox>
-          <FormControl mt={3}>
+          </SimpleGrid>
+          <HStack mt={5} spacing={8} wrap="wrap">
+            <Checkbox isChecked={active} onChange={(event) => setActive(event.target.checked)}>
+              Activo
+            </Checkbox>
             <Checkbox
               isChecked={applyOpeningClosingRules}
               onChange={(event) => setApplyOpeningClosingRules(event.target.checked)}
+              title="Si está desmarcado, este colaborador no se cuenta para las validaciones de apertura y cierre."
             >
               Aplicar reglas de apertura/cierre
             </Checkbox>
-            <FormLabel mt={1} mb={0} fontSize="xs" fontWeight="400" color="gray.500">
-              Si está desmarcado, este colaborador no se cuenta para la validaciones de apertura y cierre.
-            </FormLabel>
-          </FormControl>
+          </HStack>
         </ModalBody>
         <ModalFooter>
           <HStack>
@@ -537,7 +565,8 @@ export function EmployeeFormModal({
                     const parsed = Number.parseInt(displayOrder, 10);
                     return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
                   })(),
-                  applyOpeningClosingRules
+                  applyOpeningClosingRules,
+                  supervisorId: supervisorId || undefined
                 });
                 if (!result.ok) {
                   toast({

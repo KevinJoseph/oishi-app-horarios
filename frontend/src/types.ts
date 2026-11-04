@@ -40,6 +40,8 @@ export type Employee = {
   positionDescription?: string;
   displayOrder?: number;
   applyOpeningClosingRules?: boolean;
+  /** id del colaborador que es su jefe inmediato (opcional) */
+  supervisorId?: string;
 };
 
 export type ShiftRange = {

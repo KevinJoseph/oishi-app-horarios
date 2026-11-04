@@ -895,6 +895,7 @@ export function EmployeesPage(): JSX.Element {
         editing={editing}
         roles={roles}
         areas={areas}
+        employees={employees}
         companies={companies}
         currentAreaId={currentAreaId}
         selectedCompanyId={selectedGeoVictoriaCompanyId}

@@ -32,9 +32,16 @@ import {
   useDisclosure,
   useToast
 } from '@chakra-ui/react';
-import { useCallback, useEffect, useState } from 'react';
-import { FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { FiChevronDown, FiChevronRight, FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { createArea, deleteArea as deleteAreaApi, fetchAreas, updateArea, type AreaResponse } from '../api/areaApi';
+import {
+  createSubArea,
+  deleteSubArea as deleteSubAreaApi,
+  fetchAllSubAreas,
+  updateSubArea,
+  type SubAreaResponse
+} from '../api/subAreaApi';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAppStore } from '../store/useAppStore';
 
@@ -54,6 +61,25 @@ export function AreasPage(): JSX.Element {
   const [formLabel, setFormLabel] = useState('');
   const [formOrder, setFormOrder] = useState(0);
 
+  // Sub-áreas: solo organizativas, no afectan la planificación de horarios.
+  const subModal = useDisclosure();
+  const [subAreas, setSubAreas] = useState<SubAreaResponse[]>([]);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [subParent, setSubParent] = useState<string | null>(null);
+  const [subEditing, setSubEditing] = useState<SubAreaResponse | null>(null);
+  const [subLabel, setSubLabel] = useState('');
+  const [subOrder, setSubOrder] = useState(0);
+  const [subSaving, setSubSaving] = useState(false);
+  const [deletingSubId, setDeletingSubId] = useState<string | null>(null);
+
+  const subAreasByArea = useMemo(() => {
+    const map: Record<string, SubAreaResponse[]> = {};
+    for (const sub of subAreas) {
+      (map[sub.areaCode] ??= []).push(sub);
+    }
+    return map;
+  }, [subAreas]);
+
   const colorByIndex = (index: number): string => {
     const palette = ['#90CDF4', '#63B3ED', '#4299E1', '#38B2AC', '#4FD1C5', '#76E4F7'];
     return palette[index % palette.length];
@@ -71,9 +97,75 @@ export function AreasPage(): JSX.Element {
     }
   }, [selectedCompanyId, toast]);
 
+  const loadSubAreas = useCallback(async () => {
+    try {
+      setSubAreas(await fetchAllSubAreas(selectedCompanyId));
+    } catch (err) {
+      toast({ status: 'error', title: err instanceof Error ? err.message : 'Error al cargar sub-áreas.' });
+    }
+  }, [selectedCompanyId, toast]);
+
   useEffect(() => {
     loadAreas();
-  }, [loadAreas]);
+    loadSubAreas();
+  }, [loadAreas, loadSubAreas]);
+
+  const toggleExpanded = (code: string) => setExpanded((prev) => ({ ...prev, [code]: !prev[code] }));
+
+  const openCreateSub = (areaCode: string) => {
+    setSubParent(areaCode);
+    setSubEditing(null);
+    setSubLabel('');
+    setSubOrder((subAreasByArea[areaCode]?.length ?? 0) + 1);
+    subModal.onOpen();
+  };
+
+  const openEditSub = (sub: SubAreaResponse) => {
+    setSubParent(sub.areaCode);
+    setSubEditing(sub);
+    setSubLabel(sub.label);
+    setSubOrder(sub.order);
+    subModal.onOpen();
+  };
+
+  const handleSaveSub = async () => {
+    if (!subParent) return;
+    if (!subLabel.trim()) {
+      toast({ status: 'warning', title: 'El nombre es obligatorio.' });
+      return;
+    }
+    setSubSaving(true);
+    try {
+      if (subEditing) {
+        await updateSubArea(subParent, subEditing.code, { label: subLabel.trim(), order: subOrder }, selectedCompanyId);
+        toast({ status: 'success', title: 'Sub-área actualizada.' });
+      } else {
+        await createSubArea(subParent, { label: subLabel.trim(), order: subOrder }, selectedCompanyId);
+        toast({ status: 'success', title: 'Sub-área creada.' });
+      }
+      setExpanded((prev) => ({ ...prev, [subParent]: true }));
+      subModal.onClose();
+      await loadSubAreas();
+    } catch (err) {
+      toast({ status: 'error', title: err instanceof Error ? err.message : 'Error al guardar.' });
+    } finally {
+      setSubSaving(false);
+    }
+  };
+
+  const handleDeleteSub = async (sub: SubAreaResponse) => {
+    if (deletingSubId) return;
+    setDeletingSubId(sub.id);
+    try {
+      await deleteSubAreaApi(sub.areaCode, sub.code, selectedCompanyId);
+      toast({ status: 'success', title: 'Sub-área eliminada.' });
+      await loadSubAreas();
+    } catch (err) {
+      toast({ status: 'error', title: err instanceof Error ? err.message : 'Error al eliminar.' });
+    } finally {
+      setDeletingSubId(null);
+    }
+  };
 
   const refreshStoreAreas = useCallback(async () => {
     try {
@@ -144,6 +236,7 @@ export function AreasPage(): JSX.Element {
       await deleteAreaApi(code, selectedCompanyId);
       toast({ status: 'success', title: 'Área eliminada.' });
       await loadAreas();
+      await loadSubAreas();
       await refreshStoreAreas();
     } catch (err) {
       toast({ status: 'error', title: err instanceof Error ? err.message : 'Error al eliminar.' });
@@ -202,8 +295,12 @@ export function AreasPage(): JSX.Element {
                   </Tr>
                 )}
                 {!loading &&
-                  areas.map((area, index) => (
-                    <Tr key={area.code}>
+                  areas.map((area) => {
+                    const subs = subAreasByArea[area.code] ?? [];
+                    const isExpanded = !!expanded[area.code];
+                    return (
+                    <Fragment key={area.code}>
+                    <Tr>
                       <Td>
                         <Badge variant="subtle" colorScheme="blue" rounded="full" px={2.5} py={0.5}>
                           {area.order}
@@ -213,11 +310,35 @@ export function AreasPage(): JSX.Element {
                         <Box w={5} h={5} rounded="md" bg={colorByIndex(index)} borderWidth="1px" borderColor="blue.100" />
                       </Td>*/}
                       <Td>
-                        <Text fontWeight="500">{area.label}</Text>
+                        <HStack spacing={2}>
+                          <IconButton
+                            aria-label={isExpanded ? 'Ocultar sub-áreas' : 'Ver sub-áreas'}
+                            icon={isExpanded ? <FiChevronDown /> : <FiChevronRight />}
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => toggleExpanded(area.code)}
+                          />
+                          <Text fontWeight="500">{area.label}</Text>
+                          {subs.length > 0 && (
+                            <Badge colorScheme="gray" rounded="full" fontSize="0.65rem">
+                              {subs.length} sub-área{subs.length === 1 ? '' : 's'}
+                            </Badge>
+                          )}
+                        </HStack>
                       </Td>
                       {canEdit && (
                         <Td>
                           <HStack spacing={2}>
+                            <Tooltip label="Agregar sub-área" hasArrow>
+                              <IconButton
+                                aria-label="Agregar sub-área"
+                                icon={<FiPlus />}
+                                size="xs"
+                                variant="outline"
+                                colorScheme="brand"
+                                onClick={() => openCreateSub(area.code)}
+                              />
+                            </Tooltip>
                             <Tooltip label="Editar" hasArrow>
                               <IconButton
                                 aria-label="Editar"
@@ -243,7 +364,59 @@ export function AreasPage(): JSX.Element {
                         </Td>
                       )}
                     </Tr>
-                  ))}
+                    {isExpanded && subs.length === 0 && (
+                      <Tr bg="gray.50">
+                        <Td />
+                        <Td colSpan={canEdit ? 2 : 1} pl={12} color="gray.500" fontSize="xs">
+                          Sin sub-áreas.
+                        </Td>
+                      </Tr>
+                    )}
+                    {isExpanded &&
+                      subs.map((sub) => (
+                        <Tr key={sub.id} bg="gray.50">
+                          <Td>
+                            <Badge variant="outline" colorScheme="gray" rounded="full" px={2} ml={4}>
+                              {area.order}.{sub.order}
+                            </Badge>
+                          </Td>
+                          <Td pl={12}>
+                            <Text fontSize="sm" color="gray.700">
+                              ↳ {sub.label}
+                            </Text>
+                          </Td>
+                          {canEdit && (
+                            <Td>
+                              <HStack spacing={2} pl={8}>
+                                <Tooltip label="Editar sub-área" hasArrow>
+                                  <IconButton
+                                    aria-label="Editar sub-área"
+                                    icon={<FiEdit2 />}
+                                    size="xs"
+                                    variant="ghost"
+                                    colorScheme="brand"
+                                    onClick={() => openEditSub(sub)}
+                                  />
+                                </Tooltip>
+                                <Tooltip label="Eliminar sub-área" hasArrow>
+                                  <IconButton
+                                    aria-label="Eliminar sub-área"
+                                    icon={<FiTrash2 />}
+                                    size="xs"
+                                    variant="ghost"
+                                    colorScheme="brand"
+                                    isLoading={deletingSubId === sub.id}
+                                    onClick={() => handleDeleteSub(sub)}
+                                  />
+                                </Tooltip>
+                              </HStack>
+                            </Td>
+                          )}
+                        </Tr>
+                      ))}
+                    </Fragment>
+                    );
+                  })}
               </Tbody>
             </Table>
           </Box>
@@ -282,6 +455,48 @@ export function AreasPage(): JSX.Element {
             </Button>
             <Button size="sm" colorScheme="blue" isLoading={saving} onClick={handleSave}>
               {editing ? 'Actualizar' : 'Crear'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={subModal.isOpen} onClose={subModal.onClose} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            {subEditing ? 'Editar Sub-área' : 'Nueva Sub-área'}
+            <Text fontSize="sm" fontWeight="400" color="gray.500">
+              Área: {areas.find((a) => a.code === subParent)?.label ?? subParent}
+            </Text>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl mb={3}>
+              <FormLabel fontSize="sm">Nombre</FormLabel>
+              <Input
+                size="sm"
+                value={subLabel}
+                onChange={(e) => setSubLabel(e.target.value)}
+                placeholder="ej: Cocina caliente"
+              />
+            </FormControl>
+            <FormControl>
+              <FormLabel fontSize="sm">Orden</FormLabel>
+              <NumberInput size="sm" value={subOrder} min={0} onChange={(_, val) => setSubOrder(val || 0)}>
+                <NumberInputField />
+                <NumberInputStepper>
+                  <NumberIncrementStepper />
+                  <NumberDecrementStepper />
+                </NumberInputStepper>
+              </NumberInput>
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button size="sm" mr={2} onClick={subModal.onClose}>
+              Cancelar
+            </Button>
+            <Button size="sm" colorScheme="blue" isLoading={subSaving} onClick={handleSaveSub}>
+              {subEditing ? 'Actualizar' : 'Crear'}
             </Button>
           </ModalFooter>
         </ModalContent>

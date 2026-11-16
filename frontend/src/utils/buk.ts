@@ -67,6 +67,8 @@ export type BukExportData = {
   rows: BukEmployeeRow[];
   /** Turnos usados en la semana de la asignación. */
   currentWeekSignatures: Set<string>;
+  /** Turnos usados por cada área (por código de área, no por nombre: dos áreas pueden llamarse igual). */
+  signaturesByAreaId: Map<string, Set<string>>;
 };
 
 type Interval = { start: number; end: number };
@@ -151,6 +153,7 @@ export function getBukCompanyId(employee: Employee): string {
 
 /** Una semana planificada de un área. */
 export type BukWeekSource = {
+  areaId: string;
   areaLabel: string;
   employees: Employee[];
   timeSlots: TimeSlot[];
@@ -301,16 +304,31 @@ export function buildBukExportData(
   registered: BukRegisteredShiftInfo[]
 ): BukExportData {
   const shiftsByKey = new Map<string, RawShift>();
+  const signaturesByAreaId = new Map<string, Set<string>>();
+  const collect = (areaId: string, sourceRows: BukEmployeeRow[]): void => {
+    const set = signaturesByAreaId.get(areaId) ?? new Set<string>();
+    for (const row of sourceRows) {
+      for (const cell of Object.values(row.cells)) if (cell.kind === 'shift') set.add(cell.signature);
+    }
+    signaturesByAreaId.set(areaId, set);
+  };
   for (const source of allSources) {
-    if (source !== currentSource) analyzeWeek(source, shiftsByKey);
+    if (source !== currentSource) collect(source.areaId, analyzeWeek(source, shiftsByKey));
   }
   const rows = currentSource ? analyzeWeek(currentSource, shiftsByKey) : [];
+  if (currentSource) collect(currentSource.areaId, rows);
   const dates = currentSource ? [...currentSource.weekPlan.days].map((day) => day.dateISO).sort() : [];
   const currentWeekSignatures = new Set(
     rows.flatMap((row) => Object.values(row.cells).flatMap((cell) => (cell.kind === 'shift' ? [cell.signature] : [])))
   );
 
-  return { dates, shifts: assignCodes(Array.from(shiftsByKey.values()), registered), rows, currentWeekSignatures };
+  return {
+    dates,
+    shifts: assignCodes(Array.from(shiftsByKey.values()), registered),
+    rows,
+    currentWeekSignatures,
+    signaturesByAreaId
+  };
 }
 
 function buildWorkbook(sheets: Array<{ name: string; rows: string[][] }>): XLSX.WorkBook {
